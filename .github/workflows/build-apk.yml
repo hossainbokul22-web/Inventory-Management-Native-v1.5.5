@@ -22,16 +22,12 @@ jobs:
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
-
-      - name: Install platform and build-tools
-        run: |
-          sdkmanager "platforms;android-34" "build-tools;34.0.0" "platform-tools"
-          yes | sdkmanager --licenses || true
-
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: '8.2'
+          packages: |
+            platform-tools
+            platforms;android-34
+            build-tools;34.0.0
+          accept-android-sdk-licenses: true
 
       - name: Run calculation tests
         run: |
@@ -40,7 +36,9 @@ jobs:
           java -cp /tmp/t com.rmstock.nativeapp.PlanLogicTest
 
       - name: Build debug APK
-        run: gradle :app:assembleDebug --stacktrace
+        run: |
+          chmod +x gradlew
+          ./gradlew :app:assembleDebug --stacktrace
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
