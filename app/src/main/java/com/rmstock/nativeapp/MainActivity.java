@@ -2068,6 +2068,7 @@ private void applyVoiceFixCommand(String raw){
                 TextView preview=Ui.text(this,STAGE_LBL[si]+" preview: "+(pct==null?"—":fmt(pct)+"%"),13,pct!=null&&pct>=95?Ui.GOOD:(pct!=null&&pct<80?Ui.BAD:Ui.INK),true);
                 card.addView(preview);
                 Button save=Ui.primary(this,"Save "+STAGE_LBL[si]);
+                final String savedStageLabel = STAGE_LBL[si];
                 save.setOnClickListener(v->{
                     try{
                         double a=num(aEt.getText().toString());
@@ -2091,7 +2092,7 @@ private void applyVoiceFixCommand(String raw){
                         h.put("formula",fo);h.put("result",check);h.put("note","");h.put("user",user());
                         try{db.insert("yield_history",h);}catch(Exception ignored){}
                         db.audit(user(),role(),"yield_save",name+"/"+stage+"="+fmt(check)+"%");
-                        toast(STAGE_LBL[si]+" saved · "+fmt(check)+"%");
+                        toast(savedStageLabel+" saved · "+fmt(check)+"%");
                         showYieldSheet();
                     }catch(Exception e){error(e);}
                 });
