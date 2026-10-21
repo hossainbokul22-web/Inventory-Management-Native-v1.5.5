@@ -1,0 +1,618 @@
+{
+"items": [
+{
+"code": 101,
+"name": "7.5×8.5 HDPE",
+"open": 3.1,
+"uom": "kg"
+},
+{
+"code": 102,
+"name": "9×12 HDPE",
+"open": 12.65,
+"uom": "kg"
+},
+{
+"code": 103,
+"name": "16×20 HDPE",
+"open": 38.5,
+"uom": "kg"
+},
+{
+"code": 104,
+"name": "27×48 HDPE",
+"open": 4.1,
+"uom": "kg"
+},
+{
+"code": 105,
+"name": "8.5×9.5 HDPE",
+"open": 8.2,
+"uom": "kg"
+},
+{
+"code": 106,
+"name": "Ovi. Special toast 180 gm foil",
+"open": 11.3,
+"uom": "kg"
+},
+{
+"code": 107,
+"name": "Ovi. Sweet toast 180 gm Foil",
+"open": 2.8,
+"uom": "kg"
+},
+{
+"code": 108,
+"name": "Ovi. Special toast 250/300/350 gm foil",
+"open": 2.4,
+"uom": "kg"
+},
+{
+"code": 109,
+"name": "Ovi. Sweet toast 250/300/350 gm foil",
+"open": 0.63,
+"uom": "kg"
+},
+{
+"code": 110,
+"name": "Ovi. Toast 180gm× 24 pcs common ctn (local)",
+"open": 59.0,
+"uom": "kg"
+},
+{
+"code": 111,
+"name": "Ovi. Toast 250 gm× 12 pcs common ctn(local)",
+"open": 79.0,
+"uom": "kg"
+},
+{
+"code": 112,
+"name": "ovi. sweet toast 16 gm Roll foil",
+"open": 56.6,
+"uom": "kg"
+},
+{
+"code": 113,
+"name": "B/c 400gm jar",
+"open": 0.0,
+"uom": "kg"
+},
+{
+"code": 114,
+"name": "B/c 800gm jar",
+"open": 0.0,
+"uom": "kg"
+},
+{
+"code": 115,
+"name": "Cutting paper",
+"open": 62.0,
+"uom": "kg"
+},
+{
+"code": 116,
+"name": "Cutting paper (Alu)",
+"open": 0.0,
+"uom": "kg"
+},
+{
+"code": 117,
+"name": "o' poly",
+"open": 16.0,
+"uom": "kg"
+},
+{
+"code": 118,
+"name": "B/c 400gm jar sealing paper",
+"open": 2.0,
+"uom": "kg"
+},
+{
+"code": 119,
+"name": "B/c 800gm jar sealing paper",
+"open": 1.1,
+"uom": "kg"
+},
+{
+"code": 120,
+"name": "Gumkin Atta",
+"open": 10.5,
+"uom": "kg"
+},
+{
+"code": 121,
+"name": "Ovi. B/c 400gm label",
+"open": 0.0,
+"uom": "kg"
+},
+{
+"code": 122,
+"name": "Ovi. B/c 800gm label",
+"open": 0.0,
+"uom": "kg"
+},
+{
+"code": 123,
+"name": "Ovi. B/c 400gm common ctn(local)",
+"open": 50.0,
+"uom": "kg"
+},
+{
+"code": 124,
+"name": "Ovi. B/c 800gm common ctn(local)",
+"open": 0.0,
+"uom": "kg"
+},
+{
+"code": 125,
+"name": "D/c 300/350 gm Tray",
+"open": 691.0,
+"uom": "kg"
+},
+{
+"code": 126,
+"name": "D/c 300/350 gm Alu pouch",
+"open": 13.0,
+"uom": "kg"
+},
+{
+"code": 127,
+"name": "Ovi. D/c 300/350 gm ATC Box",
+"open": 88.0,
+"uom": "kg"
+},
+{
+"code": 128,
+"name": "Glu stick",
+"open": 38.0,
+"uom": "kg"
+},
+{
+"code": 129,
+"name": "Ovi. D/c 300 gm ctn (local)",
+"open": 0.0,
+"uom": "kg"
+},
+{
+"code": 130,
+"name": "Ovi. milk cake 10 gm Roll foil",
+"open": 0.0,
+"uom": "kg"
+},
+{
+"code": 131,
+"name": "Ovi.Milk cake 10gm×72 pcs ctn (local)",
+"open": 0.0,
+"uom": "kg"
+},
+{
+"code": 132,
+"name": "Gum Tape",
+"open": 0.0,
+"uom": "kg"
+},
+{
+"code": 133,
+"name": "Cup cake 10 gm Box",
+"open": 112.0,
+"uom": "kg"
+},
+{
+"code": 134,
+"name": "Ovi.Baby toast  150/180/200gm Foil",
+"open": 1.3,
+"uom": "kg"
+},
+{
+"code": 135,
+"name": "Ovi.Bela toast 300gm foil",
+"open": 3.29,
+"uom": "kg"
+},
+{
+"code": 136,
+"name": "Ovi.D/c 140 gm ATC Box",
+"open": 132.0,
+"uom": "kg"
+},
+{
+"code": 137,
+"name": "Ovi.Coconut cookise 400gm label",
+"open": 0.0,
+"uom": "kg"
+},
+{
+"code": 138,
+"name": "Ovi.Coconut cookise 800gm label",
+"open": 0.0,
+"uom": "kg"
+},
+{
+"code": 139,
+"name": "Ovi.Salty cookise 400gm label",
+"open": 0.0,
+"uom": "kg"
+},
+{
+"code": 140,
+"name": "Ovi.Peanut cookise 400gm label",
+"open": 0.0,
+"uom": "kg"
+},
+{
+"code": 141,
+"name": "Vanilla cake Roll foil",
+"open": 0.0,
+"uom": "kg"
+},
+{
+"code": 142,
+"name": "Ovi. B/c 400gm common ctn (Exp)",
+"open": 31.0,
+"uom": "kg"
+},
+{
+"code": 143,
+"name": "Ovi.D/c 350 gm ctn (EXP)",
+"open": 61.0,
+"uom": "kg"
+},
+{
+"code": 144,
+"name": "Ovi. Sweet 350 gm ×12 pcs Ctn Exp",
+"open": 59.0,
+"uom": "kg"
+},
+{
+"code": 145,
+"name": "Ovi. Special toast 200gm× 24 pcs ctn (ExP)",
+"open": 70.0,
+"uom": "kg"
+},
+{
+"code": 146,
+"name": "Ovi.Sweet 200gm × 24 pcs ctn (EXP)",
+"open": 36.0,
+"uom": "kg"
+},
+{
+"code": 147,
+"name": "Moittry cookies common ctn",
+"open": 52.0,
+"uom": "kg"
+},
+{
+"code": 148,
+"name": "Biswas 400gm cookise  × 12 pcs common ctn",
+"open": 12.0,
+"uom": "kg"
+},
+{
+"code": 149,
+"name": "Beala toast ctn",
+"open": 14.0,
+"uom": "kg"
+}
+],
+"products": [
+{
+"code": 101,
+"name": "Ovi. Special Toast 180gm"
+},
+{
+"code": 102,
+"name": "Ovi. Special toast 250 gm"
+},
+{
+"code": 103,
+"name": "Ovi. Sweet toast 180 gm"
+},
+{
+"code": 104,
+"name": "Ovi.Sweet Toast 250gm"
+},
+{
+"code": 105,
+"name": "Ovi.Sweet toast 16 gm × 432 pcs"
+},
+{
+"code": 106,
+"name": "Ovi.Butter Cookise 400gm"
+},
+{
+"code": 107,
+"name": "Ovi.Butter Cookise 800gm"
+},
+{
+"code": 108,
+"name": "Ovi.coconut cookise 400gm"
+},
+{
+"code": 109,
+"name": "Ovi.coconut cookise 800gm"
+},
+{
+"code": 110,
+"name": "Ovi. Dry cake 300gm"
+},
+{
+"code": 111,
+"name": "Ovi. Dry cake 350gm"
+},
+{
+"code": 112,
+"name": "Ovi.Milk cake 10 gm×72pcs"
+},
+{
+"code": 113,
+"name": "Ovi.Vanilla cake 10 gm×72pcs"
+},
+{
+"code": 114,
+"name": "Queen B/c 350 gm"
+},
+{
+"code": 115,
+"name": "Queen p/c 350 gm"
+},
+{
+"code": 116,
+"name": "Queen C/C 350 gm"
+},
+{
+"code": 117,
+"name": "Queen B/C 700gm"
+},
+{
+"code": 118,
+"name": "Queen P/c 700gm"
+},
+{
+"code": 119,
+"name": "Queen C/C 700gm"
+}
+],
+"recipes": [
+{
+"p": 101,
+"i": 101,
+"q": 0.096
+},
+{
+"p": 101,
+"i": 106,
+"q": 0.168
+},
+{
+"p": 101,
+"i": 110,
+"q": 1.0
+},
+{
+"p": 101,
+"i": 132,
+"q": 0.025
+},
+{
+"p": 102,
+"i": 102,
+"q": 0.096
+},
+{
+"p": 102,
+"i": 108,
+"q": 0.168
+},
+{
+"p": 102,
+"i": 111,
+"q": 1.0
+},
+{
+"p": 102,
+"i": 132,
+"q": 0.02
+},
+{
+"p": 103,
+"i": 101,
+"q": 0.096
+},
+{
+"p": 103,
+"i": 107,
+"q": 0.168
+},
+{
+"p": 103,
+"i": 110,
+"q": 1.0
+},
+{
+"p": 103,
+"i": 132,
+"q": 0.025
+},
+{
+"p": 104,
+"i": 102,
+"q": 0.096
+},
+{
+"p": 104,
+"i": 109,
+"q": 0.168
+},
+{
+"p": 104,
+"i": 111,
+"q": 1.0
+},
+{
+"p": 104,
+"i": 120,
+"q": 1.5
+},
+{
+"p": 104,
+"i": 121,
+"q": 0.5
+},
+{
+"p": 104,
+"i": 132,
+"q": 0.02
+},
+{
+"p": 105,
+"i": 103,
+"q": 0.192
+},
+{
+"p": 105,
+"i": 104,
+"q": 0.08
+},
+{
+"p": 105,
+"i": 112,
+"q": 1.08
+},
+{
+"p": 105,
+"i": 132,
+"q": 0.05
+},
+{
+"p": 106,
+"i": 113,
+"q": 12.0
+},
+{
+"p": 106,
+"i": 115,
+"q": 0.12
+},
+{
+"p": 106,
+"i": 117,
+"q": 0.0072
+},
+{
+"p": 106,
+"i": 118,
+"q": 0.0048
+},
+{
+"p": 106,
+"i": 120,
+"q": 0.0192
+},
+{
+"p": 106,
+"i": 121,
+"q": 12.0
+},
+{
+"p": 106,
+"i": 123,
+"q": 1.0
+},
+{
+"p": 106,
+"i": 132,
+"q": 0.025
+},
+{
+"p": 107,
+"i": 114,
+"q": 6.0
+},
+{
+"p": 107,
+"i": 115,
+"q": 0.21
+},
+{
+"p": 107,
+"i": 117,
+"q": 0.0096
+},
+{
+"p": 107,
+"i": 119,
+"q": 0.0048
+},
+{
+"p": 107,
+"i": 120,
+"q": 0.0096
+},
+{
+"p": 107,
+"i": 122,
+"q": 6.0
+},
+{
+"p": 107,
+"i": 124,
+"q": 1.0
+},
+{
+"p": 110,
+"i": 125,
+"q": 12.0
+},
+{
+"p": 110,
+"i": 126,
+"q": 0.108
+},
+{
+"p": 110,
+"i": 127,
+"q": 12.0
+},
+{
+"p": 110,
+"i": 128,
+"q": 0.333333333333333
+},
+{
+"p": 110,
+"i": 129,
+"q": 1.0
+},
+{
+"p": 110,
+"i": 132,
+"q": 0.025
+},
+{
+"p": 114,
+"i": 116,
+"q": 0.18
+},
+{
+"p": 114,
+"i": 118,
+"q": 0.0048
+},
+{
+"p": 114,
+"i": 120,
+"q": 0.00828
+},
+{
+"p": 114,
+"i": 142,
+"q": 12.0
+},
+{
+"p": 114,
+"i": 144,
+"q": 12.0
+}
+]
+}

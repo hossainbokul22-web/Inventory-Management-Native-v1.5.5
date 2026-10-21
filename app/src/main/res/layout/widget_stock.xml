@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:id="@+id/w_root" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:padding="12dp" android:background="@drawable/widget_bg">
+ <TextView android:id="@+id/w_title" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="RM Stock" android:textColor="#FFFFFF" android:textSize="12sp" android:textStyle="bold"/>
+ <TextView android:id="@+id/w_head" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Stock OK" android:textColor="#FFFFFF" android:textSize="20sp" android:textStyle="bold"/>
+ <TextView android:id="@+id/w_list" android:layout_width="match_parent" android:layout_height="wrap_content" android:textColor="#E2E8F0" android:textSize="12sp" android:maxLines="4"/>
+</LinearLayout>
