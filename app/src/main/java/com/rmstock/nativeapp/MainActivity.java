@@ -1202,10 +1202,118 @@ save.setPadding(dp(12),dp(10),dp(12),dp(10));save.setOnClickListener(v->{try{Str
  private int findSpinnerIndex(Spinner p,String code){for(int i=0;i<p.getCount();i++){String s=String.valueOf(p.getItemAtPosition(i));if(s.startsWith(code+" — "))return i;}return 0;}
  private void showCustom(){clear("Custom Sheets — Native Dynamic Designer");if(!admin())return;EditText name=edit("Sheet Name"),desc=edit("Description");add(name);add(desc);Button create=btn("Create Custom Sheet");create.setOnClickListener(v->{try{String id="S"+System.currentTimeMillis(),sn=name.getText().toString().trim();if(sn.isEmpty())throw new Exception("Sheet name required");if(db.one("SELECT id FROM custom_sheets WHERE lower(name)=lower(?)",new String[]{sn})!=null)throw new Exception("Duplicate Sheet Name");ContentValues x=new ContentValues();x.put("id",id);x.put("name",sn);x.put("description",desc.getText().toString().trim());x.put("access","owner");db.insert("custom_sheets",x);showCustomDefinition(id,sn);}catch(Exception e){error(e);}});add(create);try{for(JSONObject sh:db.rows("SELECT * FROM custom_sheets ORDER BY name",null)){String sid=sh.optString("id"),sname=sh.optString("name");LinearLayout sr=row();Button open=btn("Open: "+sname);open.setOnClickListener(v->openCustom(sid,sname));sr.addView(open,new LinearLayout.LayoutParams(0,dp(52),1));Button editSheet=btn("Edit");editSheet.setOnClickListener(v->showCustomDefinition(sid,sname));sr.addView(editSheet,new LinearLayout.LayoutParams(dp(90),dp(52)));add(sr);}}catch(Exception e){error(e);}}
  private void showCustomDefinition(String id,String currentName){clear("Sheet Definition — "+currentName);try{JSONObject sh=db.one("SELECT * FROM custom_sheets WHERE id=?",new String[]{id});if(sh==null)throw new Exception("Sheet not found");EditText nm=edit("Sheet Name");nm.setText(sh.optString("name"));EditText ds=edit("Description");ds.setText(sh.optString("description"));add(nm);add(ds);Button saveHead=btn("Save Sheet Name / Description");saveHead.setOnClickListener(v->{try{String nn=nm.getText().toString().trim();if(nn.isEmpty())throw new Exception("Sheet name required");JSONObject dup=db.one("SELECT id FROM custom_sheets WHERE lower(name)=lower(?) AND id<>?",new String[]{nn,id});if(dup!=null)throw new Exception("Duplicate Sheet Name");ContentValues x=new ContentValues();x.put("name",nn);x.put("description",ds.getText().toString().trim());db.update("custom_sheets",x,"id=?",new String[]{id});toast("Sheet definition saved ✔");showCustomDefinition(id,nn);}catch(Exception e){error(e);}});add(saveHead);Button addCol=btn("+ Add Column");addCol.setOnClickListener(v->columnDialog(id,-1));add(addCol);List<JSONObject> cs=db.rows("SELECT * FROM custom_cols WHERE sheet_id=? ORDER BY position",new String[]{id});for(JSONObject c:cs){long cid=c.getLong("id");LinearLayout r=row();TextView lab=new TextView(this);lab.setText(c.optString("position")+"  "+c.optString("name")+"  ["+c.optString("type")+"]"+(c.optString("formula").isEmpty()?"":"  "+c.optString("formula")));r.addView(lab,new LinearLayout.LayoutParams(0,dp(58),1));Button ed=btn("Edit");ed.setOnClickListener(v->columnDialog(id,cid));r.addView(ed,new LinearLayout.LayoutParams(dp(78),dp(52)));Button up=btn("↑");up.setOnClickListener(v->{moveColumn(cid,id,-1);});r.addView(up,new LinearLayout.LayoutParams(dp(45),dp(52)));Button dn=btn("↓");dn.setOnClickListener(v->{moveColumn(cid,id,1);});r.addView(dn,new LinearLayout.LayoutParams(dp(45),dp(52)));Button del=btn("Delete");del.setOnClickListener(v->{new AlertDialog.Builder(this).setTitle("Delete Column?").setMessage("Existing row values for this column will no longer be shown.").setNegativeButton("Cancel",null).setPositiveButton("Delete",(a,b)->{db.delete("custom_cols","id=?",new String[]{String.valueOf(cid)});repositionColumns(id);showCustomDefinition(id,nm.getText().toString());}).show();});r.addView(del,new LinearLayout.LayoutParams(dp(82),dp(52)));add(r);}Button open=btn("Open Sheet Rows");open.setOnClickListener(v->openCustom(id,nm.getText().toString()));add(open);Button delSheet=btn("Delete Sheet");delSheet.setOnClickListener(v->{new AlertDialog.Builder(this).setTitle("Delete Sheet?").setMessage("This removes the sheet definition and its rows permanently.").setNegativeButton("Cancel",null).setPositiveButton("Delete",(a,b)->{try{db.getWritableDatabase().beginTransaction();db.delete("custom_rows","sheet_id=?",new String[]{id});db.delete("custom_cols","sheet_id=?",new String[]{id});db.delete("custom_sheets","id=?",new String[]{id});db.getWritableDatabase().setTransactionSuccessful();db.getWritableDatabase().endTransaction();toast("Sheet deleted ✔");showCustom();}catch(Exception e){try{db.getWritableDatabase().endTransaction();}catch(Exception ignored){}error(e);}}).show();});add(delSheet);}catch(Exception e){error(e);}}
- private void columnDialog(String sheetId,long colId){LinearLayout box=new LinearLayout(this);box.setOrientation(LinearLayout.VERTICAL);box.setPadding(dp(12),0,dp(12),0);EditText name=edit("Column Name"),formula=edit("Formula e.g. =B2*C2 or =SUM(D2:F2) or =IF(E2<0,\"SHORTAGE\",\"OK\")");Spinner type=new Spinner(this);String[] types={"text","number","date","formula"};type.setAdapter(new ArrayAdapter<String>(this,android.R.layout.simple_spinner_dropdown_item,types));box.addView(name);box.addView(type);box.addView(formula);try{if(colId>0){JSONObject c=db.one("SELECT * FROM custom_cols WHERE id=?",new String[]{String.valueOf(colId)});if(c!=null){name.setText(c.optString("name"));formula.setText(c.optString("formula"));String ct=c.optString("type","text");for(int i=0;i<types.length;i++)if(types[i].equals(ct))type.setSelection(i);}}}catch(Exception e){error(e);return;}new AlertDialog.Builder(this).setTitle(colId>0?"Edit Column":"Add Column").setView(box).setNegativeButton("Cancel",null).setPositiveButton("Save",(d,w)->{try{String cn=name.getText().toString().trim();String ct=types[type.getSelectedItemPosition()];String f=formula.getText().toString().trim();if(cn.isEmpty())throw new Exception("Column name required");if(ct.equals("formula")&&f.isEmpty())throw new Exception("Formula required for formula column");JSONObject dup=db.one("SELECT id FROM custom_cols WHERE sheet_id=? AND lower(name)=lower(?) AND id<>?",new String[]{sheetId,cn,String.valueOf(colId)});if(dup!=null)throw new Exception("Duplicate Column Name");ContentValues x=new ContentValues();x.put("sheet_id",sheetId);x.put("name",cn);x.put("type",ct);x.put("formula",ct.equals("formula")?f:"");if(colId>0){JSONObject oldCol=db.one("SELECT name FROM custom_cols WHERE id=?",new String[]{String.valueOf(colId)});String oldName=oldCol==null?cn:oldCol.optString("name");db.update("custom_cols",x,"id=?",new String[]{String.valueOf(colId)});if(!oldName.equals(cn)){for(JSONObject rr:db.rows("SELECT id,row_json FROM custom_rows WHERE sheet_id=?",new String[]{sheetId})){JSONObject jo=new JSONObject(rr.optString("row_json","{}"));if(jo.has(oldName)){Object val=jo.remove(oldName);jo.put(cn,val);ContentValues rv=new ContentValues();rv.put("row_json",jo.toString());db.update("custom_rows",rv,"id=?",new String[]{rr.getString("id")});}}}}else{x.put("position",nextColumnPosition(sheetId));db.insert("custom_cols",x);}toast("Column saved ✔");showCustomDefinition(sheetId,db.one("SELECT name FROM custom_sheets WHERE id=?",new String[]{sheetId}).optString("name"));}catch(Exception e){error(e);}}).show();}
+ private void columnDialog(String sheetId,long colId){LinearLayout box=new LinearLayout(this);box.setOrientation(LinearLayout.VERTICAL);box.setPadding(dp(12),0,dp(12),0);EditText name=edit("Column Name"),formula=edit("Formula e.g. =B2*C2 or =SUM(D2:F2) or =IF(E2<0,\"SHORTAGE\",\"OK\")");Spinner type=new Spinner(this);String[] types={"text","number","date","formula","rm_dropdown","product_dropdown"};type.setAdapter(new ArrayAdapter<String>(this,android.R.layout.simple_spinner_dropdown_item,types));box.addView(name);box.addView(type);box.addView(formula);try{if(colId>0){JSONObject c=db.one("SELECT * FROM custom_cols WHERE id=?",new String[]{String.valueOf(colId)});if(c!=null){name.setText(c.optString("name"));formula.setText(c.optString("formula"));String ct=c.optString("type","text");for(int i=0;i<types.length;i++)if(types[i].equals(ct))type.setSelection(i);}}}catch(Exception e){error(e);return;}new AlertDialog.Builder(this).setTitle(colId>0?"Edit Column":"Add Column").setView(box).setNegativeButton("Cancel",null).setPositiveButton("Save",(d,w)->{try{String cn=name.getText().toString().trim();String ct=types[type.getSelectedItemPosition()];String f=formula.getText().toString().trim();if(cn.isEmpty())throw new Exception("Column name required");if(ct.equals("formula")&&f.isEmpty())throw new Exception("Formula required for formula column");JSONObject dup=db.one("SELECT id FROM custom_cols WHERE sheet_id=? AND lower(name)=lower(?) AND id<>?",new String[]{sheetId,cn,String.valueOf(colId)});if(dup!=null)throw new Exception("Duplicate Column Name");ContentValues x=new ContentValues();x.put("sheet_id",sheetId);x.put("name",cn);x.put("type",ct);x.put("formula",ct.equals("formula")?f:"");if(colId>0){JSONObject oldCol=db.one("SELECT name FROM custom_cols WHERE id=?",new String[]{String.valueOf(colId)});String oldName=oldCol==null?cn:oldCol.optString("name");db.update("custom_cols",x,"id=?",new String[]{String.valueOf(colId)});if(!oldName.equals(cn)){for(JSONObject rr:db.rows("SELECT id,row_json FROM custom_rows WHERE sheet_id=?",new String[]{sheetId})){JSONObject jo=new JSONObject(rr.optString("row_json","{}"));if(jo.has(oldName)){Object val=jo.remove(oldName);jo.put(cn,val);ContentValues rv=new ContentValues();rv.put("row_json",jo.toString());db.update("custom_rows",rv,"id=?",new String[]{rr.getString("id")});}}}}else{x.put("position",nextColumnPosition(sheetId));db.insert("custom_cols",x);}toast("Column saved ✔");showCustomDefinition(sheetId,db.one("SELECT name FROM custom_sheets WHERE id=?",new String[]{sheetId}).optString("name"));}catch(Exception e){error(e);}}).show();}
  private int nextColumnPosition(String id){try{JSONObject x=db.one("SELECT COALESCE(MAX(position),-1)+1 p FROM custom_cols WHERE sheet_id=?",new String[]{id});return x==null?0:x.getInt("p");}catch(Exception e){return 0;}}
  private void repositionColumns(String id){try{List<JSONObject> cs=db.rows("SELECT id FROM custom_cols WHERE sheet_id=? ORDER BY position,id",new String[]{id});for(int i=0;i<cs.size();i++){ContentValues x=new ContentValues();x.put("position",i);db.update("custom_cols",x,"id=?",new String[]{cs.get(i).getString("id")});}}catch(Exception ignored){}}
- private void openCustom(String id,String name){clear(name);try{List<JSONObject> cols=db.rows("SELECT * FROM custom_cols WHERE sheet_id=? ORDER BY position",new String[]{id});Button def=btn("Edit Sheet Name / Columns");def.setOnClickListener(v->showCustomDefinition(id,name));add(def);HorizontalScrollView hs=new HorizontalScrollView(this);TableLayout table=new TableLayout(this);TableRow h=new TableRow(this);for(JSONObject c:cols)h.addView(tv(c.getString("name"),1));h.addView(tv("Action",1));table.addView(h);for(JSONObject rr:db.rows("SELECT * FROM custom_rows WHERE sheet_id=? ORDER BY id",new String[]{id})){JSONObject data=new JSONObject(rr.getString("row_json"));TableRow tr=new TableRow(this);ArrayList<EditText> fields=new ArrayList<>();for(JSONObject c:cols){EditText e=edit("");String key=c.getString("name"),ct=c.optString("type","text");e.setText(data.optString(key,""));if(ct.equals("formula")){e.setEnabled(false);e.setText(calcFormula(c.optString("formula"),data,cols));}fields.add(e);tr.addView(e,new TableRow.LayoutParams(dp(150),dp(52)));}Button save=btn("Save");long rid=rr.getLong("id");save.setOnClickListener(v->{try{JSONObject out=new JSONObject();for(int i=0;i<cols.size();i++){JSONObject c=cols.get(i);if(!c.optString("type").equals("formula"))out.put(c.getString("name"),fields.get(i).getText().toString());}for(int pass=0;pass<cols.size()+1;pass++){for(JSONObject c:cols)if(c.optString("type").equals("formula"))out.put(c.getString("name"),calcFormula(c.optString("formula"),out,cols));}ContentValues x=new ContentValues();x.put("row_json",out.toString());db.update("custom_rows",x,"id=?",new String[]{String.valueOf(rid)});toast("Row saved ✔");openCustom(id,name);}catch(Exception e){error(e);}});tr.addView(save);Button delRow=btn("Delete");delRow.setOnClickListener(v->{new AlertDialog.Builder(this).setTitle("Delete Row?").setNegativeButton("Cancel",null).setPositiveButton("Delete",(a,b)->{db.delete("custom_rows","id=?",new String[]{String.valueOf(rid)});openCustom(id,name);}).show();});tr.addView(delRow);table.addView(tr);}hs.addView(table);add(hs);Button addrow=btn("+ Add Row");addrow.setOnClickListener(v->{try{ContentValues x=new ContentValues();x.put("sheet_id",id);x.put("row_json",new JSONObject().toString());db.insert("custom_rows",x);openCustom(id,name);}catch(Exception e){error(e);}});add(addrow);}catch(Exception e){error(e);}}
+ private void openCustom(String id,String name){
+     clear(name);
+     try{
+         List<JSONObject> cols=db.rows("SELECT * FROM custom_cols WHERE sheet_id=? ORDER BY position",new String[]{id});
+         Button def=btn("Edit Sheet Name / Columns");
+         def.setOnClickListener(v->showCustomDefinition(id,name));add(def);
+         HorizontalScrollView hs=new HorizontalScrollView(this);
+         TableLayout table=new TableLayout(this);TableRow h=new TableRow(this);
+         for(JSONObject c:cols)h.addView(tv(c.getString("name"),1));
+         h.addView(tv("Action",1));table.addView(h);
+
+         for(JSONObject rr:db.rows("SELECT * FROM custom_rows WHERE sheet_id=? ORDER BY id",new String[]{id})){
+             JSONObject data=new JSONObject(rr.optString("row_json","{}"));
+             TableRow tr=new TableRow(this);ArrayList<View> fields=new ArrayList<>();
+
+             for(JSONObject c:cols){
+                 String key=c.optString("name"),ct=c.optString("type","text");
+                 View fieldView;
+                 if(ct.equals("rm_dropdown")||ct.equals("product_dropdown")){
+                     String sql=ct.equals("rm_dropdown")
+                         ?"SELECT code,name FROM rms ORDER BY code"
+                         :"SELECT code,name FROM products ORDER BY code";
+                     List<String> opts=new ArrayList<>();
+                     for(JSONObject item:db.rows(sql,null))
+                         opts.add(item.optString("code")+" — "+item.optString("name"));
+                     if(opts.isEmpty())opts.add("No items available");
+
+                     Spinner sp=new Spinner(this);
+                     sp.setAdapter(new ArrayAdapter<>(this,android.R.layout.simple_spinner_dropdown_item,opts));
+                     String old=data.optString(key,"");
+                     for(int j=0;j<opts.size();j++){
+                         if(opts.get(j).equals(old)||opts.get(j).startsWith(old+" — ")){
+                             sp.setSelection(j);break;
+                         }
+                     }
+                     fieldView=sp;
+                 }else{
+                     EditText e=edit("");
+                     e.setText(data.optString(key,""));
+                     if(ct.equals("formula")){
+                         e.setEnabled(false);
+                         e.setText(calcFormula(c.optString("formula"),data,cols));
+                     }
+                     fieldView=e;
+                 }
+                 fields.add(fieldView);
+                 tr.addView(fieldView,new TableRow.LayoutParams(dp(150),dp(52)));
+             }
+
+             long rid=rr.optLong("id");
+             Button save=btn("Save");
+             save.setOnClickListener(v->{
+                 try{
+                     JSONObject out=new JSONObject();
+                     for(int i=0;i<cols.size();i++){
+                         JSONObject c=cols.get(i);
+                         String ct=c.optString("type");
+                         if(ct.equals("formula"))continue;
+                         View fv=fields.get(i);String val;
+                         if(fv instanceof Spinner){
+                             Object selected=((Spinner)fv).getSelectedItem();
+                             String label=selected==null?"":selected.toString();
+                             val=label.equals("No items available")?"":
+                                 (label.contains(" — ")?label.substring(0,label.indexOf(" — ")):label);
+                         }else{
+                             val=((EditText)fv).getText().toString();
+                         }
+                         out.put(c.getString("name"),val);
+                     }
+                     for(int pass=0;pass<cols.size()+1;pass++){
+                         for(JSONObject c:cols){
+                             if(c.optString("type").equals("formula"))
+                                 out.put(c.getString("name"),
+                                     calcFormula(c.optString("formula"),out,cols));
+                         }
+                     }
+                     ContentValues values=new ContentValues();
+                     values.put("row_json",out.toString());
+                     db.update("custom_rows",values,"id=?",new String[]{String.valueOf(rid)});
+                     toast("Row saved ✔");openCustom(id,name);
+                 }catch(Exception e){error(e);}
+             });
+             tr.addView(save);
+
+             Button delRow=btn("Delete");
+             delRow.setOnClickListener(v->new AlertDialog.Builder(this)
+                 .setTitle("Delete Row?")
+                 .setNegativeButton("Cancel",null)
+                 .setPositiveButton("Delete",(d,w)->{
+                     db.delete("custom_rows","id=?",new String[]{String.valueOf(rid)});
+                     openCustom(id,name);
+                 }).show());
+             tr.addView(delRow);table.addView(tr);
+         }
+         hs.addView(table);add(hs);
+
+         Button addrow=btn("+ Add Row");
+         addrow.setOnClickListener(v->{
+             try{
+                 ContentValues values=new ContentValues();
+                 values.put("sheet_id",id);
+                 values.put("row_json",new JSONObject().toString());
+                 db.insert("custom_rows",values);
+                 openCustom(id,name);
+             }catch(Exception e){error(e);}
+         });
+         add(addrow);
+     }catch(Exception e){error(e);}
+ }
  private String calcFormula(String formula,JSONObject row,List<JSONObject> cols){try{String f=formula.trim();if(f.startsWith("="))f=f.substring(1).trim();java.util.regex.Matcher m=java.util.regex.Pattern.compile("(?i)^SUM\\(([^)]+)\\)$").matcher(f);if(m.find()){double sum=0;for(String ref:expandRange(m.group(1),cols))sum+=cellValue(ref,row,cols);return fmt(sum);}m=java.util.regex.Pattern.compile("(?i)^IF\\((.*?),(.*?),(.*?)\\)$").matcher(f);if(m.find()){String cond=m.group(1).trim(),a=stripQuote(m.group(2).trim()),b=stripQuote(m.group(3).trim());return evalCondition(cond,row,cols)?a:b;}String op=findOperator(f);if(op!=null){String[] z=f.split(java.util.regex.Pattern.quote(op),2);double a=cellValue(z[0].trim(),row,cols),b=cellValue(z[1].trim(),row,cols);if(op.equals("+"))return fmt(a+b);if(op.equals("-"))return fmt(a-b);if(op.equals("*"))return fmt(a*b);if(op.equals("/"))return b==0?"0":fmt(a/b);}return row.optString(f,f);}catch(Exception e){return "#ERR";}}
  private String findOperator(String s){for(String op:new String[]{"+","-","*","/"}){int p=s.indexOf(op,1);if(p>0)return op;}return null;}
  private boolean evalCondition(String c,JSONObject row,List<JSONObject> cols){for(String op:new String[]{">=","<=","!=","=","<",">"}){int p=c.indexOf(op);if(p>0){double a=cellValue(c.substring(0,p).trim(),row,cols),b=cellValue(c.substring(p+op.length()).trim(),row,cols);if(op.equals(">="))return a>=b;if(op.equals("<="))return a<=b;if(op.equals("!="))return a!=b;if(op.equals("="))return a==b;if(op.equals("<"))return a<b;return a>b;}}return false;}

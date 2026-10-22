@@ -58,6 +58,7 @@ public class PmActivity extends Activity {
     private LinearLayout root, content;
     private TextView titleTv, statusTv;
     private int tab;
+    private int savedKindPosition=0, savedCode=-1;
     private String stockDate, monthYm;
     private File pendingFile;
     private String pendingMime = "application/octet-stream";
@@ -170,6 +171,7 @@ public class PmActivity extends Activity {
 
         final Spinner kindSp = new Spinner(this);
         kindSp.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, PmDb.KIND_LABELS));
+        kindSp.setSelection(Math.min(savedKindPosition, PmDb.KIND_LABELS.length-1));
         card.addView(Ui.muted(this, "Type"));
         card.addView(kindSp);
 
@@ -193,6 +195,11 @@ public class PmActivity extends Activity {
             if (labels.isEmpty()) labels.add("No items available");
             codeSp.setAdapter(new ArrayAdapter<>(this,
                     android.R.layout.simple_spinner_dropdown_item, labels));
+            int restoreIndex=0;
+            for(int j=0;j<selectedRecords.size();j++){
+                if(selectedRecords.get(j).optInt("code")==savedCode){restoreIndex=j;break;}
+            }
+            codeSp.setSelection(restoreIndex);
         };
         card.addView(Ui.muted(this, "Item / Product"));
         card.addView(codeSp);
@@ -245,9 +252,10 @@ public class PmActivity extends Activity {
             }
             if (date.length() < 8) { toast("Invalid date"); return; }
             String shift = shiftSp.getSelectedItemPosition() == 0 ? "" : SHIFTS[shiftSp.getSelectedItemPosition() - 1];
+            savedKindPosition=kindSp.getSelectedItemPosition();
+            savedCode=code;
             pm.addEntry(kind, code, date, qty, shift, voucherEt.getText().toString().trim(), noteEt.getText().toString().trim());
             toast("Saved");
-            codeSp.setSelection(0);
             qtyEt.setText("");
             voucherEt.setText("");
             noteEt.setText("");
@@ -449,6 +457,14 @@ public class PmActivity extends Activity {
             row.setPadding(0, Ui.dp(this, 6), 0, Ui.dp(this, 4));
             row.addView(Ui.text(this, code + " · " + it.optString("name") + " · " + it.optString("uom")
                     + " · open " + PmDb.fmt(it.optDouble("open")), 13, Ui.INK, false));
+            TextView editItem=Ui.text(this,"Edit",12,Ui.NAVY_TEXT,true);
+            editItem.setOnClickListener(v->{
+                ic.setText(String.valueOf(code));
+                in.setText(it.optString("name"));
+                iu.setText(it.optString("uom"));
+                io.setText(PmDb.fmt(it.optDouble("open")));
+            });
+            row.addView(editItem);
             TextView del = Ui.text(this, "Delete", 12, Ui.BAD, true);
             del.setOnClickListener(v -> Guard.run(this, db, "Delete item", true, () -> {
                 pm.deleteItem(code);
@@ -508,11 +524,17 @@ public class PmActivity extends Activity {
         LinearLayout box = new LinearLayout(this);
         box.setOrientation(LinearLayout.VERTICAL);
         box.setPadding(Ui.dp(this, 16), Ui.dp(this, 8), Ui.dp(this, 16), 0);
-        final EditText iEt = field("Item code", "");
-        iEt.setInputType(InputType.TYPE_CLASS_NUMBER);
+        final List<JSONObject> recipeItems=pm.items();
+        final List<String> recipeLabels=new ArrayList<>();
+        for(JSONObject item:recipeItems)
+            recipeLabels.add(item.optInt("code")+" — "+item.optString("name"));
+        if(recipeLabels.isEmpty()) recipeLabels.add("No items available");
+        final Spinner iSp=new Spinner(this);
+        iSp.setAdapter(new ArrayAdapter<>(this,
+                android.R.layout.simple_spinner_dropdown_item,recipeLabels));
         final EditText qEt = field("Qty per ctn", "");
         qEt.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
-        box.addView(Ui.muted(this, "Item code")); box.addView(iEt);
+        box.addView(Ui.muted(this, "Item")); box.addView(iSp);
         box.addView(Ui.muted(this, "Qty per carton")); box.addView(qEt);
         List<JSONObject> existing = pm.recipesFor(pCode);
         if (!existing.isEmpty()) {
@@ -527,7 +549,8 @@ public class PmActivity extends Activity {
                 .setView(box)
                 .setPositiveButton("Save line", (d, w) -> {
                     try {
-                        int i = Integer.parseInt(iEt.getText().toString().trim());
+                        if(recipeItems.isEmpty()){toast("Add an item first");return;}
+                        int i=recipeItems.get(iSp.getSelectedItemPosition()).optInt("code");
                         double q = Double.parseDouble(qEt.getText().toString().trim().replace(',', '.'));
                         pm.setRecipe(pCode, i, q);
                         toast("Recipe updated");
@@ -536,7 +559,8 @@ public class PmActivity extends Activity {
                 })
                 .setNeutralButton("Clear item line", (d, w) -> {
                     try {
-                        int i = Integer.parseInt(iEt.getText().toString().trim());
+                        if(recipeItems.isEmpty()){toast("Add an item first");return;}
+                        int i=recipeItems.get(iSp.getSelectedItemPosition()).optInt("code");
                         pm.setRecipe(pCode, i, 0);
                         render();
                     } catch (Exception ignored) {}
