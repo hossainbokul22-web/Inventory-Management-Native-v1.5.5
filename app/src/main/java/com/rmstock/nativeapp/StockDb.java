@@ -3,7 +3,7 @@ package com.rmstock.nativeapp;
 import android.content.*;import android.database.*;import android.database.sqlite.*;import org.json.*;import java.io.*;import java.util.*;
 
 public class StockDb extends SQLiteOpenHelper {
-    private static final String DB="rmstock_native.db"; private static final int VER=9; private final Context ctx;
+    private static final String DB="rmstock_native.db"; private static final int VER=10; private final Context ctx;
     StockDb(Context c){super(c,DB,null,VER);ctx=c;}
     public void onCreate(SQLiteDatabase d){
         d.execSQL("CREATE TABLE rms(code TEXT PRIMARY KEY,name TEXT NOT NULL,uom TEXT NOT NULL,opening REAL NOT NULL DEFAULT 0,reorder REAL NOT NULL DEFAULT 0)");
@@ -11,7 +11,7 @@ public class StockDb extends SQLiteOpenHelper {
         d.execSQL("CREATE TABLE recipes(rm_code TEXT NOT NULL,product_code INTEGER NOT NULL,qty REAL NOT NULL DEFAULT 0,PRIMARY KEY(rm_code,product_code))");
         d.execSQL("CREATE TABLE batches(id INTEGER PRIMARY KEY AUTOINCREMENT,date TEXT,product_code INTEGER,shift INTEGER,qty REAL,saved_at TEXT)");
         d.execSQL("CREATE TABLE receives(id INTEGER PRIMARY KEY AUTOINCREMENT,date TEXT,rm_code TEXT,qty REAL,note TEXT,voucher_no TEXT,source TEXT,lot TEXT,expiry TEXT,photo TEXT)");
-        d.execSQL("CREATE TABLE IF NOT EXISTS counts(id INTEGER PRIMARY KEY AUTOINCREMENT,date TEXT,rm_code TEXT,counted REAL,system REAL,note TEXT)");
+        d.execSQL("CREATE TABLE IF NOT EXISTS counts(id INTEGER PRIMARY KEY AUTOINCREMENT,date TEXT,rm_code TEXT,counted REAL,system REAL,note TEXT,status TEXT DEFAULT 'pending',variance REAL DEFAULT 0,approved_by TEXT,approved_at TEXT)");
         d.execSQL("CREATE TABLE IF NOT EXISTS yield_defs(product_code INTEGER PRIMARY KEY,actual REAL NOT NULL DEFAULT 0,standard REAL NOT NULL DEFAULT 0,formula TEXT NOT NULL DEFAULT '',enabled INTEGER NOT NULL DEFAULT 1,stage TEXT DEFAULT 'mixing',moisture REAL DEFAULT 0)");
         d.execSQL("CREATE TABLE IF NOT EXISTS yield_history(id INTEGER PRIMARY KEY AUTOINCREMENT,date TEXT,product_code INTEGER,stage TEXT,dry_output REAL,input_kg REAL,moisture REAL,wastage REAL,batch_qty REAL,formula TEXT,result REAL,note TEXT,user TEXT)");
         d.execSQL("CREATE TABLE IF NOT EXISTS yield_stages(product_code INTEGER NOT NULL,stage TEXT NOT NULL,actual REAL DEFAULT 0,standard REAL DEFAULT 0,formula TEXT DEFAULT '',enabled INTEGER DEFAULT 1,PRIMARY KEY(product_code,stage))");
@@ -38,6 +38,15 @@ public class StockDb extends SQLiteOpenHelper {
     String setting(String k,String def){Cursor c=getReadableDatabase().rawQuery("SELECT v FROM settings WHERE k=?",new String[]{k});try{return c.moveToFirst()?c.getString(0):def;}finally{c.close();}}
     void setSetting(String k,String v){putSetting(getWritableDatabase(),k,v);}
     public void onUpgrade(SQLiteDatabase d,int o,int n){
+        if(o<10){
+            try{ d.execSQL("ALTER TABLE counts ADD COLUMN status TEXT DEFAULT 'pending'"); }catch(Exception ignored){}
+            try{ d.execSQL("ALTER TABLE counts ADD COLUMN variance REAL DEFAULT 0"); }catch(Exception ignored){}
+            try{ d.execSQL("ALTER TABLE counts ADD COLUMN approved_by TEXT"); }catch(Exception ignored){}
+            try{ d.execSQL("ALTER TABLE counts ADD COLUMN approved_at TEXT"); }catch(Exception ignored){}
+            d.execSQL("CREATE TABLE IF NOT EXISTS yield_stages(product_code INTEGER NOT NULL,stage TEXT NOT NULL,actual REAL DEFAULT 0,standard REAL DEFAULT 0,formula TEXT DEFAULT '',enabled INTEGER DEFAULT 1,PRIMARY KEY(product_code,stage))");
+            d.execSQL("CREATE TABLE IF NOT EXISTS recipe_archive(id INTEGER PRIMARY KEY AUTOINCREMENT,product_code INTEGER,product_name TEXT,saved_at TEXT,user TEXT,payload TEXT)");
+        }
+
         if(o<2){
             // Batch count is one editable value per date + product + shift.
             // Merge accidental duplicate rows before enforcing uniqueness.
