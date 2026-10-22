@@ -399,21 +399,24 @@ public class PmActivity extends Activity {
             stockDate = dateEt.getText().toString().trim();
             render();
         });
+        top.addView(Ui.muted(this, "Opening = previous day closing. Closing = Opening + Output − Delivery − Reject."));
         top.addView(go);
         add(top);
 
         String date = stockDate;
         List<String[]> rows = new ArrayList<>();
-        rows.add(new String[]{"Code", "Product", "Output", "Delivery", "Hold", "Reject"});
+        rows.add(new String[]{"Code", "Product", "Opening", "Output", "Delivery", "Hold", "Reject", "Closing"});
         for (JSONObject p : pm.products()) {
             int code = p.optInt("code");
+            double open = pm.openingProduct(code, date);
             double o = pm.sumKindOn("output", code, date);
             double d = pm.sumKindOn("delivery", code, date);
             double h = pm.sumKindOn("hold", code, date);
             double r = pm.sumKindOn("reject", code, date);
-            if (o + d + h + r < 1e-9) continue;
+            double close = pm.closingProduct(code, date);
+            if (Math.abs(open) + o + d + h + r < 1e-9) continue;
             rows.add(new String[]{String.valueOf(code), p.optString("name"),
-                    PmDb.fmt(o), PmDb.fmt(d), PmDb.fmt(h), PmDb.fmt(r)});
+                    PmDb.fmt(open), PmDb.fmt(o), PmDb.fmt(d), PmDb.fmt(h), PmDb.fmt(r), PmDb.fmt(close)});
         }
         if (rows.size() == 1) {
             LinearLayout empty = Ui.card(this, Ui.CARD);

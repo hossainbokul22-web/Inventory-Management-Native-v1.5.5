@@ -295,7 +295,23 @@ final class PmDb extends SQLiteOpenHelper {
         return 0;
     }
 
-    double itemUseOn(int itemCode, String date) {
+    
+    /** FG opening = previous day closing: output before date − delivery − reject (hold stays). */
+    double openingProduct(int productCode, String date) {
+        return sumKind("output", productCode, date, true)
+                - sumKind("delivery", productCode, date, true)
+                - sumKind("reject", productCode, date, true);
+    }
+
+    /** FG closing = Opening + Output − Delivery − Reject. */
+    double closingProduct(int productCode, String date) {
+        return openingProduct(productCode, date)
+                + sumKindOn("output", productCode, date)
+                - sumKindOn("delivery", productCode, date)
+                - sumKindOn("reject", productCode, date);
+    }
+
+double itemUseOn(int itemCode, String date) {
         try (Cursor c = getReadableDatabase().rawQuery(
                 "SELECT COALESCE(SUM(e.qty * r.q),0) FROM entries e JOIN recipes r ON r.p=e.code AND r.i=? " +
                         "WHERE e.kind='output' AND e.date=?",
