@@ -1,6 +1,6 @@
 # Inventory Management — Native Android
 
-**Current version: 1.5.1**
+**Current version: 1.5.5**
 
 ## v1.5.1
 - Fixed missing `requestNotifPermission()` (notification permission on Android 13+)
