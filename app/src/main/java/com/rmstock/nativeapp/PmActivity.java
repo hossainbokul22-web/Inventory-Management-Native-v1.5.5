@@ -521,8 +521,6 @@ public class PmActivity extends Activity {
             prodCard.addView(row);
         }
         add(prodCard);
-    }
-
 
         // ---- Production Opening sheet (monthly baseline for Production tab) ----
         LinearLayout openCard = Ui.card(this, Ui.CARD);
@@ -584,6 +582,9 @@ public class PmActivity extends Activity {
         add(openCard);
 
     
+    }
+
+
     private void editRecipeDialog(int pCode, String pName) {
         LinearLayout box = new LinearLayout(this);
         box.setOrientation(LinearLayout.VERTICAL);
