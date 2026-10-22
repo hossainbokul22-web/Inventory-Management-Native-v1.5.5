@@ -1165,26 +1165,36 @@ content.addView(rowSpace,new LinearLayout.LayoutParams(1,dp(6)));}
 private void refreshDailyList(){showDaily();}
  private void editReceive(JSONObject r){try{LinearLayout b=new LinearLayout(this);b.setOrientation(LinearLayout.VERTICAL);EditText d=dateField("Date"),q=edit("Quantity"),v=edit("Voucher No"),n=edit("Note");d.setText(r.optString("date"));q.setText(fmt(r.optDouble("qty")));v.setText(r.optString("voucher_no"));n.setText(r.optString("note"));Spinner rm=new Spinner(this);ArrayList<String>a=new ArrayList<>();int sel=0,i=0;for(JSONObject x:db.rows("SELECT code||' — '||name AS label FROM rms ORDER BY CAST(code AS INTEGER)",null)){a.add(x.getString("label"));if(x.getString("code").equals(r.optString("rm_code")))sel=i;i++;}rm.setAdapter(new ArrayAdapter<String>(this,android.R.layout.simple_spinner_dropdown_item,a));rm.setSelection(sel);b.addView(d);b.addView(rm);b.addView(q);b.addView(v);b.addView(n);new AlertDialog.Builder(this).setTitle("Edit Receive").setView(b).setNegativeButton("Cancel",null).setPositiveButton("Save",(x,w)->{try{double amount=num(q.getText().toString());if(amount<=0)throw new Exception("Quantity required");String code=String.valueOf(rm.getSelectedItem()).split(" — ")[0];ContentValues z=new ContentValues();z.put("date",ymd(d));z.put("rm_code",code);z.put("qty",amount);z.put("voucher_no",v.getText().toString());z.put("note",n.getText().toString());db.update("receives",z,"id=?",new String[]{r.getString("id")});toast("Receive updated ✔");showDaily();}catch(Exception e){error(e);}}).show();}catch(Exception e){error(e);}}
  private void showBatch(){clear("Input Batch — Editable Batch Count");try{
-  EditText d=dateField("Production Date"),q=edit("Batch Count"),shift=edit("Shift 1/2/3");d.setText(today());
+  EditText d=dateField("Production Date"),q=edit("Batch Count");d.setText(today());
   Spinner p=new Spinner(this);ArrayList<String>a=new ArrayList<>();for(JSONObject x:db.rows("SELECT code||' — '||name AS label FROM products ORDER BY code",null))a.add(x.getString("label"));
   p.setAdapter(new ArrayAdapter<String>(this,android.R.layout.simple_spinner_dropdown_item,a));
-add(d);add(p);add(shift);add(q);
-d.setTextSize(15);shift.setTextSize(15);q.setTextSize(15);
+  Spinner shiftSp=new Spinner(this);
+  ArrayList<String> shiftLabs=new ArrayList<>();
+  shiftLabs.add("— none —"); shiftLabs.add("A"); shiftLabs.add("B"); shiftLabs.add("C"); shiftLabs.add("General");
+  shiftSp.setAdapter(new ArrayAdapter<String>(this,android.R.layout.simple_spinner_dropdown_item,shiftLabs));
+  shiftSp.setSelection(0);
+add(d);add(Ui.muted(this,"Product"));add(p);
+add(Ui.muted(this,"Shift (optional)"));add(shiftSp);
+add(Ui.muted(this,"Batch Count"));add(q);
+d.setTextSize(15);q.setTextSize(15);
 d.setPadding(dp(12),dp(12),dp(12),dp(12));
-shift.setPadding(dp(12),dp(12),dp(12),dp(12));
 q.setPadding(dp(12),dp(12),dp(12),dp(12));
 p.setPadding(dp(8),dp(8),dp(8),dp(8));
+shiftSp.setPadding(dp(8),dp(8),dp(8),dp(8));
   Button save=btn("Save Batch Count");
 save.setTextSize(15);
 save.setAllCaps(false);
-save.setPadding(dp(12),dp(10),dp(12),dp(10));save.setOnClickListener(v->{try{String label=String.valueOf(p.getSelectedItem());if(label==null||label.equals("null"))throw new Exception("Product required");String code=label.split(" — ")[0];int sh=Integer.parseInt(shift.getText().toString().trim());int bc=batchCount(q.getText().toString());if(sh<1||sh>3)throw new Exception("Shift must be 1, 2 or 3");if(bc<0)throw new Exception("Batch Count cannot be negative");
+save.setPadding(dp(12),dp(10),dp(12),dp(10));save.setOnClickListener(v->{try{String label=String.valueOf(p.getSelectedItem());if(label==null||label.equals("null"))throw new Exception("Product required");String code=label.split(" — ")[0];
+    int pos=shiftSp.getSelectedItemPosition();
+    int sh=(pos<=0)?0:pos; // 0=none, 1=A, 2=B, 3=C, 4=General
+    int bc=batchCount(q.getText().toString());if(bc<0)throw new Exception("Batch Count cannot be negative");
     String day=ymd(d);if(db.monthLocked(day))throw new Exception("Month locked");
     ContentValues z=new ContentValues();z.put("date",day);z.put("product_code",Integer.parseInt(code));z.put("shift",sh);z.put("qty",bc);z.put("saved_at",new Date().toString());
     JSONObject existing=db.one("SELECT id FROM batches WHERE date=? AND product_code=? AND shift=?",new String[]{day,code,String.valueOf(sh)});long batchId;if(existing==null){batchId=db.insert("batches",z);}else{batchId=existing.getLong("id");db.update("batches",z,"id=?",new String[]{existing.getString("id")});}syncBatchLog(batchId,ymd(d),Integer.parseInt(code),sh,bc,new Date().toString());toast("Batch Count saved ✔");showBatch();
   }catch(Exception e){error(e);}});add(save);
   add(title("Saved Batch Counts — Edit"));
   for(JSONObject x:db.rows("SELECT b.id,b.date,b.product_code,p.name,b.shift,b.qty FROM batches b LEFT JOIN products p ON p.code=b.product_code ORDER BY b.date DESC,b.shift ASC,b.id DESC LIMIT 100",null)){
-    LinearLayout r=row();TextView t=new TextView(this);t.setText(x.optString("date")+" | "+x.optString("name")+" | Shift "+x.optString("shift")+" | Batch Count: "+batchCountText(x.optDouble("qty",0)));t.setLayoutParams(new LinearLayout.LayoutParams(0,-2,1));r.addView(t);
+    LinearLayout r=row();TextView t=new TextView(this);t.setText(x.optString("date")+" | "+x.optString("name")+" | Shift "+shiftLabel(x.optInt("shift",0))+" | Batch Count: "+batchCountText(x.optDouble("qty",0)));t.setLayoutParams(new LinearLayout.LayoutParams(0,-2,1));r.addView(t);
     Button e=btn("Edit");e.setOnClickListener(v->editBatchCount(x));r.addView(e,new LinearLayout.LayoutParams(dp(90),dp(52)));
     Button dl=Ui.secondary(this,"Delete");dl.setTextColor(Ui.BAD);dl.setOnClickListener(v->Guard.run(this,db,"Delete batch count",true,()->new AlertDialog.Builder(this).setTitle("Delete this batch count?").setMessage(x.optString("date")+" | "+x.optString("name")+" | Shift "+x.optString("shift")+"\nIts raw material use is removed from stock too.").setNegativeButton("Cancel",null).setPositiveButton("Delete",(dd,ww)->{db.delete("mixing2_batch_log","batch_id=?",new String[]{x.optString("id")});db.delete("batches","id=?",new String[]{x.optString("id")});toast("Batch count deleted");showBatch();}).show()));
     r.addView(dl,Ui.lp(this,dp(90),dp(52),0,6,0,0,0));add(r);
@@ -1863,15 +1873,16 @@ private void applyVoiceFixCommand(String raw){
         map.put("A",new double[]{0,0});
         map.put("B",new double[]{0,0});
         map.put("C",new double[]{0,0});
-        map.put("Other",new double[]{0,0});
+        map.put("General",new double[]{0,0});
+        map.put("none",new double[]{0,0});
         for(JSONObject x:db.rows("SELECT shift,SUM(qty) q FROM batches WHERE date=? GROUP BY shift",new String[]{d})){
             String sh=normShift(x.optString("shift"));
-            double[] a=map.get(sh); if(a==null){a=map.get("Other");}
+            double[] a=map.get(sh); if(a==null){a=map.get("none");}
             a[0]+=x.optDouble("q",0);
         }
         for(JSONObject x:db.rows("SELECT shift,SUM(consumption) q FROM mixing2_batch_log WHERE date=? GROUP BY shift",new String[]{d})){
             String sh=normShift(x.optString("shift"));
-            double[] a=map.get(sh); if(a==null){a=map.get("Other");}
+            double[] a=map.get(sh); if(a==null){a=map.get("none");}
             a[1]+=x.optDouble("q",0);
         }
         for(java.util.Map.Entry<String,double[]> e:map.entrySet()){
@@ -1888,14 +1899,18 @@ private void applyVoiceFixCommand(String raw){
     }catch(Exception ignored){}
  }
  private String normShift(String s){
-    if(s==null)return "Other";
+    if(s==null||s.trim().isEmpty())return "none";
     s=s.trim();
     if(s.equals("1")||s.equalsIgnoreCase("A"))return "A";
     if(s.equals("2")||s.equalsIgnoreCase("B"))return "B";
     if(s.equals("3")||s.equalsIgnoreCase("C"))return "C";
-    if(s.equals("0")||s.equalsIgnoreCase("General")||s.equalsIgnoreCase("G"))return "Other";
-    if(s.equalsIgnoreCase("A")||s.equalsIgnoreCase("B")||s.equalsIgnoreCase("C"))return s.toUpperCase(Locale.US);
-    return "Other";
+    if(s.equals("4")||s.equalsIgnoreCase("General")||s.equalsIgnoreCase("G"))return "General";
+    if(s.equals("0")||s.equalsIgnoreCase("none")||s.equals("— none —"))return "none";
+    return "none";
+ }
+ private String shiftLabel(int sh){
+    if(sh==1)return "A"; if(sh==2)return "B"; if(sh==3)return "C"; if(sh==4)return "General";
+    return "none";
  }
  private void showOwnerPack(){
     clear("Owner pack");
