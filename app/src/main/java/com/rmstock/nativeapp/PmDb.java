@@ -23,7 +23,7 @@ import java.util.Map;
  */
 final class PmDb extends SQLiteOpenHelper {
     private static final String NAME = "rm_pm.db";
-    private static final int VER = 1;
+    private static final int VER = 2;
     private final Context ctx;
 
     PmDb(Context c) {
@@ -39,11 +39,16 @@ final class PmDb extends SQLiteOpenHelper {
         db.execSQL("CREATE TABLE entries(id INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT, code INTEGER, date TEXT, qty REAL, shift TEXT, voucher TEXT, note TEXT)");
         db.execSQL("CREATE TABLE meta(k TEXT PRIMARY KEY, v TEXT)");
         db.execSQL("CREATE INDEX idx_entries ON entries(kind, code, date)");
+        db.execSQL("CREATE TABLE IF NOT EXISTS product_openings(product_code INTEGER NOT NULL, ym TEXT NOT NULL, qty REAL NOT NULL DEFAULT 0, PRIMARY KEY(product_code, ym))");
         seed(db);
     }
 
     @Override
-    public void onUpgrade(SQLiteDatabase db, int o, int n) {}
+    public void onUpgrade(SQLiteDatabase db, int o, int n) {
+        if (o < 2) {
+            db.execSQL("CREATE TABLE IF NOT EXISTS product_openings(product_code INTEGER NOT NULL, ym TEXT NOT NULL, qty REAL NOT NULL DEFAULT 0, PRIMARY KEY(product_code, ym))");
+        }
+    }
 
     private void seed(SQLiteDatabase db) {
         try {
@@ -298,10 +303,50 @@ final class PmDb extends SQLiteOpenHelper {
     
     /** FG opening = previous day closing: output before date − delivery − reject (hold stays). */
     double openingProduct(int productCode, String date) {
-        return sumKind("output", productCode, date, true)
-                - sumKind("delivery", productCode, date, true)
-                - sumKind("reject", productCode, date, true);
+        /* Month baseline from Master "Production Opening" sheet + movements from month-start to day-before.
+           On 1st of month Opening = sheet value only. Later days = previous day closing chain. */
+        if (date == null || date.length() < 10) return 0;
+        String ym = date.substring(0, 7);
+        String monthStart = ym + "-01";
+        double base = getProductOpening(productCode, ym);
+        base += sumKindRange("output", productCode, monthStart, date);
+        base -= sumKindRange("delivery", productCode, monthStart, date);
+        base -= sumKindRange("reject", productCode, monthStart, date);
+        return base;
     }
+
+    /** Sum kind where date >= fromInclusive AND date < toExclusive */
+    double sumKindRange(String kind, int code, String fromInclusive, String toExclusive) {
+        try (Cursor c = getReadableDatabase().rawQuery(
+                "SELECT COALESCE(SUM(qty),0) FROM entries WHERE kind=? AND code=? AND date>=? AND date<?",
+                new String[]{kind, String.valueOf(code), fromInclusive, toExclusive})) {
+            if (c.moveToFirst()) return c.getDouble(0);
+        }
+        return 0;
+    }
+
+    double getProductOpening(int productCode, String ym) {
+        try (Cursor c = getReadableDatabase().rawQuery(
+                "SELECT qty FROM product_openings WHERE product_code=? AND ym=?",
+                new String[]{String.valueOf(productCode), ym})) {
+            if (c.moveToFirst()) return c.getDouble(0);
+        }
+        return 0;
+    }
+
+    void setProductOpening(int productCode, String ym, double qty) {
+        ContentValues cv = new ContentValues();
+        cv.put("product_code", productCode);
+        cv.put("ym", ym);
+        cv.put("qty", qty);
+        getWritableDatabase().insertWithOnConflict("product_openings", null, cv, SQLiteDatabase.CONFLICT_REPLACE);
+    }
+
+    void deleteProductOpening(int productCode, String ym) {
+        getWritableDatabase().delete("product_openings", "product_code=? AND ym=?",
+                new String[]{String.valueOf(productCode), ym});
+    }
+
 
     /** FG closing = Opening + Output − Delivery − Reject. */
     double closingProduct(int productCode, String date) {
