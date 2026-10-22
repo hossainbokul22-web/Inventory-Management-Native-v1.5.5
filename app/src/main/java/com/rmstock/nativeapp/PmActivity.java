@@ -534,7 +534,8 @@ public class PmActivity extends Activity {
         final LinearLayout openList = new LinearLayout(this);
         openList.setOrientation(LinearLayout.VERTICAL);
         openCard.addView(openList);
-        Runnable fillOpen = () -> {
+        final Runnable[] fillOpen = new Runnable[1];
+        fillOpen[0] = () -> {
             openList.removeAllViews();
             String ym = openYm.getText().toString().trim();
             if (ym.length() < 7) { toast("Month YYYY-MM"); return; }
@@ -560,13 +561,13 @@ public class PmActivity extends Activity {
                         double vq = Double.parseDouble(qtyEt.getText().toString().trim().replace(',', '.'));
                         pm.setProductOpening(fcode, fym, vq);
                         toast("Opening saved");
-                        fillOpen.run();
+                        fillOpen[0].run();
                     } catch (Exception e) { toast("Invalid qty"); }
                 });
                 delB.setOnClickListener(v2 -> Guard.run(this, db, "Delete production opening", true, () -> {
                     pm.deleteProductOpening(fcode, fym);
                     toast("Opening cleared");
-                    fillOpen.run();
+                    fillOpen[0].run();
                 }));
                 btns.addView(saveB);
                 btns.addView(delB);
@@ -577,8 +578,8 @@ public class PmActivity extends Activity {
                 openList.addView(Ui.muted(this, "No products yet — add products above first."));
             }
         };
-        loadOpen.setOnClickListener(v -> fillOpen.run());
-        fillOpen.run();
+        loadOpen.setOnClickListener(v -> fillOpen[0].run());
+        fillOpen[0].run();
         add(openCard);
 
     
