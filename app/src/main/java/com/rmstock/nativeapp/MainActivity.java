@@ -173,7 +173,36 @@ public class MainActivity extends Activity {
         addYieldLiveCard();
         addShiftWiseSummary();
         addSmartSuggestions();
-        try{Button asst=Ui.secondary(this,"Assistant — command / voice");asst.setOnClickListener(v->showAssistant());add(asst);}catch(Exception ignored){}
+        // Quick access: Boss report + AI voucher (dashboard)
+        try{
+            LinearLayout quick=Ui.card(this,Ui.CARD);
+            quick.addView(Ui.text(this,"Quick actions",15,Ui.NAVY_TEXT,true));
+            quick.addView(Ui.muted(this,"Boss report needs internet when you share. Voucher scan works offline."));
+            LinearLayout rowQ=new LinearLayout(this);
+            rowQ.setOrientation(LinearLayout.HORIZONTAL);
+            Button bossM=Ui.primary(this,"Send report → Boss");
+            bossM.setOnClickListener(v->{
+                // opens Assistant with monthly send (email/WhatsApp chooser)
+                showAssistant();
+                toast("Tap «This month → boss» or type: send monthly to boss");
+            });
+            Button bossD=Ui.secondary(this,"Today → Boss");
+            bossD.setOnClickListener(v->runAssistantCommand("send daily to boss"));
+            rowQ.addView(bossM,Ui.lp(this,0,dp(48),1,0,0,6,0));
+            rowQ.addView(bossD,Ui.lp(this,0,dp(48),1,6,0,0,0));
+            quick.addView(rowQ);
+            LinearLayout rowQ2=new LinearLayout(this);
+            rowQ2.setOrientation(LinearLayout.HORIZONTAL);
+            rowQ2.setPadding(0,dp(8),0,0);
+            Button scan=Ui.primary(this,"Scan voucher (AI)");
+            scan.setOnClickListener(v->showAI());
+            Button asst=Ui.secondary(this,"Assistant");
+            asst.setOnClickListener(v->showAssistant());
+            rowQ2.addView(scan,Ui.lp(this,0,dp(48),1,0,0,6,0));
+            rowQ2.addView(asst,Ui.lp(this,0,dp(48),1,6,0,0,0));
+            quick.addView(rowQ2);
+            add(quick);
+        }catch(Exception ignored){}
 
         String d=today();
         List<String> receives=new ArrayList<>(), uses=new ArrayList<>(), batches=new ArrayList<>(), closings=new ArrayList<>();
