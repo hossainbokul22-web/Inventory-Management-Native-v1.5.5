@@ -2129,14 +2129,16 @@ private void applyVoiceFixCommand(String raw){
         List<String> lines=new ArrayList<>();
         for(JSONObject p:products){
             int code=p.optInt("code");
-            JSONObject y=db.one("SELECT input_kg,output_kg,formula,enabled FROM process_loss_defs WHERE product_code=?",new String[]{String.valueOf(code)});
+            JSONObject y=db.one("SELECT input_kg,output_kg,formula,standard_pct,enabled FROM process_loss_defs WHERE product_code=?",new String[]{String.valueOf(code)});
             if(y==null||y.optInt("enabled",1)==0)continue;
             String formula=y.optString("formula","");
             if(formula==null||formula.trim().isEmpty())continue;
             double in=y.optDouble("input_kg",0), out=y.optDouble("output_kg",0);
             Double pct=evalProcessLossFormula(formula,in,out);
             if(pct==null)continue;
-            lines.add(p.optString("name","Product "+code)+"  "+fmt(pct)+"%");
+            double std=y.optDouble("standard_pct",0);
+            // name|actual|standard  (for color + display)
+            lines.add(p.optString("name","Product "+code)+"|"+fmt(pct)+"|"+fmt(std));
         }
         LinearLayout card=new LinearLayout(this);
         card.setOrientation(LinearLayout.VERTICAL);
@@ -2155,10 +2157,10 @@ private void applyVoiceFixCommand(String raw){
             circle.setText("Set in More → Process Loss %");
             circle.setTextSize(14);
             circle.setTypeface(null,Typeface.NORMAL);
+            circle.setTextColor(Ui.NAVY_TEXT);
+            circle.setBackground(Ui.shape(this,Ui.CARD,Ui.LINE,48));
         }else{
-            String x=lines.get(0);
-            int k=x.lastIndexOf("  ");
-            circle.setText(k<0?x:Ui.twoLine(x.substring(k+2),x.substring(0,k)));
+            applyProcessLossLine(circle, lines.get(0));
         }
         card.addView(circle);
         card.addView(Ui.muted(this,"Rotates every "+fmt(liveGap())+"s · formula in Process Loss sheet"));
@@ -2170,11 +2172,8 @@ private void applyVoiceFixCommand(String raw){
         task[0]=()->{
             if(!circle.isAttachedToWindow())return;
             pos[0]=(pos[0]+1)%lines.size();
-            String x=lines.get(pos[0]);
-            int k=x.lastIndexOf("  ");
-            CharSequence t=k<0?x:Ui.twoLine(x.substring(k+2),x.substring(0,k));
             circle.animate().cancel();circle.setAlpha(0.2f);
-            circle.setText(t);
+            applyProcessLossLine(circle, lines.get(pos[0]));
             circle.animate().alpha(1f).setDuration(200).start();
             main.postDelayed(task[0],gap);
         };
@@ -2215,22 +2214,27 @@ private void applyVoiceFixCommand(String raw){
             card.addView(Ui.text(this,code+" — "+p.optString("name"),15,Ui.NAVY_TEXT,true));
             final EditText inEt=edit("Input kg");
             final EditText outEt=edit("Output kg");
+            final EditText stdEt=edit("Standard process loss %");
             final EditText fEt=edit("Formula");
             inEt.setInputType(android.text.InputType.TYPE_CLASS_NUMBER|android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL);
             outEt.setInputType(android.text.InputType.TYPE_CLASS_NUMBER|android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL);
+            stdEt.setInputType(android.text.InputType.TYPE_CLASS_NUMBER|android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL);
             if(y!=null){
                 inEt.setText(fmt(y.optDouble("input_kg",0)));
                 outEt.setText(fmt(y.optDouble("output_kg",0)));
+                stdEt.setText(fmt(y.optDouble("standard_pct",0)));
                 fEt.setText(y.optString("formula",""));
             }else{
                 fEt.setText("(input-output)*100/input");
+                stdEt.setText("0");
             }
             final android.widget.CheckBox en=new android.widget.CheckBox(this);
             en.setText("Show on dashboard");
             en.setChecked(y==null||y.optInt("enabled",1)==1);
             card.addView(Ui.muted(this,"Input kg")); card.addView(inEt);
             card.addView(Ui.muted(this,"Output kg")); card.addView(outEt);
-            card.addView(Ui.muted(this,"Formula")); card.addView(fEt);
+            card.addView(Ui.muted(this,"Standard process loss %")); card.addView(stdEt);
+            card.addView(Ui.muted(this,"Formula (actual loss %)")); card.addView(fEt);
             card.addView(en);
             Double preview=evalProcessLossFormula(fEt.getText().toString(), num(inEt.getText().toString()), num(outEt.getText().toString()));
             TextView prev=Ui.text(this,"Preview: "+(preview==null?"—":fmt(preview)+"%"),14,Ui.INK,true);
@@ -2245,6 +2249,7 @@ private void applyVoiceFixCommand(String raw){
                         z.put("input_kg",num(inEt.getText().toString()));
                         z.put("output_kg",num(outEt.getText().toString()));
                         z.put("formula",fEt.getText().toString().trim());
+                        z.put("standard_pct",num(stdEt.getText().toString()));
                         z.put("enabled",en.isChecked()?1:0);
                         JSONObject exists=db.one("SELECT product_code FROM process_loss_defs WHERE product_code=?",new String[]{String.valueOf(fcode)});
                         if(exists==null)db.insert("process_loss_defs",z);
