@@ -2123,6 +2123,39 @@ private void applyVoiceFixCommand(String raw){
  }
 
 
+
+ /** line: name|actualPct|standardPct — color by actual vs standard */
+ private void applyProcessLossLine(TextView circle, String line){
+    try{
+        String[] p=line.split("\\|");
+        String name=p.length>0?p[0]:"—";
+        double actual=p.length>1?num(p[1]):0;
+        double std=p.length>2?num(p[2]):0;
+        String big=fmt(actual)+"%";
+        String small=name+(std>0?" · std "+fmt(std)+"%":"");
+        circle.setText(Ui.twoLine(big, small));
+        circle.setTextSize(22);
+        circle.setTypeface(null,Typeface.BOLD);
+        int stroke;
+        if(std<=0){
+            stroke=Ui.NAVY_TEXT;
+            circle.setTextColor(Ui.NAVY_TEXT);
+        }else if(actual<=std){
+            stroke=Color.parseColor("#2E7D32");
+            circle.setTextColor(Color.parseColor("#1B5E20"));
+        }else if(actual<=std+2.0){
+            stroke=Color.parseColor("#F9A825");
+            circle.setTextColor(Color.parseColor("#F57F17"));
+        }else{
+            stroke=Color.parseColor("#C62828");
+            circle.setTextColor(Color.parseColor("#B71C1C"));
+        }
+        circle.setBackground(Ui.shape(this,Ui.CARD,stroke,48));
+    }catch(Exception e){
+        circle.setText(line);
+    }
+ }
+
  private void addProcessLossLiveCard(){
     try{
         List<JSONObject> products=db.rows("SELECT code,name FROM products ORDER BY code",null);
