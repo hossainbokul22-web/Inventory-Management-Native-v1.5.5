@@ -945,7 +945,59 @@ for(int i=0;i<content.getChildCount();i++){
         zoomBar.addView(zIn,Ui.lp(this,0,dp(44),1,4,0,4,0));
         zoomBar.addView(zReset,Ui.lp(this,0,dp(44),1,4,0,0,0));
         add(zoomBar);
-        add(Ui.muted(this,"Pinch-style control for the RM × Product recipe grid. Cell size and text scale together."));
+        
+add(Ui.muted(this,"Pinch-style control for the RM × Product recipe grid. Cell size and text scale together."));
+
+        // Quick line: Product → RM → qty → Save (writes into grid cell)
+        LinearLayout quick=Ui.card(this,Ui.CARD);
+        quick.addView(Ui.text(this,"Quick recipe line",15,Ui.NAVY_TEXT,true));
+        quick.addView(Ui.muted(this,"Select Product, then RM, enter qty per batch, Save. Goes into the recipe cell. Grid cells stay editable. Guard/PIN required."));
+        final Spinner qProd=new Spinner(this);
+        final Spinner qRm=new Spinner(this);
+        final List<Integer> qProdCodes=new ArrayList<>();
+        final List<String> qRmCodes=new ArrayList<>();
+        ArrayList<String> qProdLabs=new ArrayList<>();
+        ArrayList<String> qRmLabs=new ArrayList<>();
+        for(JSONObject pr:db.rows("SELECT code,name FROM products ORDER BY code",null)){
+            qProdCodes.add(pr.optInt("code"));
+            qProdLabs.add(pr.optInt("code")+" — "+pr.optString("name"));
+        }
+        for(JSONObject rm:db.rows("SELECT code,name FROM rms ORDER BY CAST(code AS INTEGER)",null)){
+            qRmCodes.add(rm.optString("code"));
+            qRmLabs.add(rm.optString("code")+" — "+rm.optString("name"));
+        }
+        qProd.setAdapter(new ArrayAdapter<>(this,android.R.layout.simple_spinner_dropdown_item,qProdLabs));
+        qRm.setAdapter(new ArrayAdapter<>(this,android.R.layout.simple_spinner_dropdown_item,qRmLabs));
+        final EditText qQty=edit("Qty per batch");
+        qQty.setInputType(android.text.InputType.TYPE_CLASS_NUMBER|android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL);
+        quick.addView(Ui.muted(this,"Product")); quick.addView(qProd);
+        quick.addView(Ui.muted(this,"Raw material (RM)")); quick.addView(qRm);
+        quick.addView(Ui.muted(this,"Qty in recipe")); quick.addView(qQty);
+        Button qSave=btn("Save line to recipe");
+        qSave.setOnClickListener(v->{
+            Guard.run(this,db,"Save recipe line",true,()->{
+                try{
+                    if(qProdCodes.isEmpty()||qRmCodes.isEmpty())throw new Exception("Add products and RMs first");
+                    int pc=qProdCodes.get(qProd.getSelectedItemPosition());
+                    String rc=qRmCodes.get(qRm.getSelectedItemPosition());
+                    double qty=num(qQty.getText().toString());
+                    if(qty<0)throw new Exception("Qty cannot be negative");
+                    ContentValues z=new ContentValues();
+                    z.put("rm_code",rc);
+                    z.put("product_code",pc);
+                    z.put("qty",qty);
+                    JSONObject exists=db.one("SELECT qty FROM recipes WHERE rm_code=? AND product_code=?",new String[]{rc,String.valueOf(pc)});
+                    if(exists==null)db.insert("recipes",z);
+                    else db.update("recipes",z,"rm_code=? AND product_code=?",new String[]{rc,String.valueOf(pc)});
+                    db.audit(user(),role(),"recipe_line",pc+"|"+rc+"="+qty);
+                    toast("Recipe line saved ✔");
+                    showRecipe();
+                }catch(Exception ex){error(ex);}
+            });
+        });
+        quick.addView(qSave);
+        add(quick);
+
 
         // Recipe copy / archive
         LinearLayout copyCard=Ui.card(this,Ui.CARD);
@@ -1100,6 +1152,8 @@ for(int i=0;i<content.getChildCount();i++){
         Button save=btn("Save All Recipes");
         save.setOnClickListener(v->{
             if(!open())return;
+            if(!admin()){toast("Admin/Editor only");return;}
+            Guard.run(this,db,"Save all recipes",true,()->{
             try{
                 for(int i=1;i<t.getChildCount();i++){
                     TableRow tr=(TableRow)t.getChildAt(i);
@@ -1121,6 +1175,7 @@ for(int i=0;i<content.getChildCount();i++){
                 db.audit(user(),role(),"recipe_save","all");
                 toast("Recipe saved ✔");
             }catch(Exception ex){error(ex);}
+            });
         });
         add(save);
     }catch(Exception e){error(e);}
