@@ -124,7 +124,22 @@ public class MainActivity extends Activity {
  }
  private String ymd(EditText e)throws Exception{String t=e.getText().toString().trim();if(!PlanLogic.validDate(t))throw new Exception("Please pick a valid date");return t;}
 
-    private void clear(String head){currentScreen=head;for(Runnable task:dashboardRunnables)main.removeCallbacks(task);dashboardRunnables.clear();content.removeAllViews();add(title(lbl(head)));highlightNav();}
+    
+ /** Jump ScrollView to top so edit form is visible without dragging */
+ private void scrollFormTop(){
+    try{
+        if(content==null)return;
+        android.view.ViewParent par=content.getParent();
+        while(par!=null && !(par instanceof ScrollView)) par=par.getParent();
+        if(par instanceof ScrollView){
+            final ScrollView sv=(ScrollView)par;
+            sv.post(()->{ sv.fullScroll(View.FOCUS_UP); sv.smoothScrollTo(0,0); });
+        }
+        content.post(()->{ if(content.getChildCount()>0) content.getChildAt(0).requestFocus(); });
+    }catch(Exception ignored){}
+ }
+
+private void clear(String head){currentScreen=head;for(Runnable task:dashboardRunnables)main.removeCallbacks(task);dashboardRunnables.clear();content.removeAllViews();add(title(lbl(head)));highlightNav();}
 
  @Override public void onBackPressed(){
     String h=currentScreen==null?"":currentScreen;
@@ -1250,7 +1265,7 @@ row.addView(tv("ID: "+r.optString("id")+"   "+r.optString("date")+"   RM: "+r.op
 row.addView(tv(r.optString("note"),1));
 Button editB=btn("Edit");
 editB.setTextSize(14);
-editB.setAllCaps(false);editB.setOnClickListener(xx->{d.setText(r.optString("date"));q.setText(fmt(r.optDouble("qty")));v.setText(r.optString("voucher_no"));note.setText(r.optString("note"));lot.setText(r.optString("lot"));exp.setText(r.optString("expiry"));String target=r.optString("rm_code");for(int i=0;i<a.size();i++)if(a.get(i).startsWith(target+" — ")){rm.setSelection(i);break;}save.setText("Update Receive #"+r.optString("id"));save.setOnClickListener(uu->{try{ContentValues z=new ContentValues();z.put("date",ymd(d));z.put("rm_code",String.valueOf(rm.getSelectedItem()).split(" — ",2)[0].trim());z.put("qty",num(q.getText().toString()));z.put("voucher_no",v.getText().toString().trim());z.put("note",note.getText().toString().trim());z.put("lot",lot.getText().toString().trim());z.put("expiry",expiryOf(exp));int n=db.getWritableDatabase().update("receives",z,"id=?",new String[]{r.optString("id")});if(n!=1)throw new Exception("Update failed");toast("Receive updated ✔");showDaily();}catch(Exception e){error(e);}});});
+editB.setAllCaps(false);editB.setOnClickListener(xx->{d.setText(r.optString("date"));q.setText(fmt(r.optDouble("qty")));v.setText(r.optString("voucher_no"));note.setText(r.optString("note"));lot.setText(r.optString("lot"));exp.setText(r.optString("expiry"));String target=r.optString("rm_code");for(int i=0;i<a.size();i++)if(a.get(i).startsWith(target+" — ")){rm.setSelection(i);break;}save.setText("Update Receive #"+r.optString("id"));scrollFormTop();q.requestFocus();save.setOnClickListener(uu->{try{ContentValues z=new ContentValues();z.put("date",ymd(d));z.put("rm_code",String.valueOf(rm.getSelectedItem()).split(" — ",2)[0].trim());z.put("qty",num(q.getText().toString()));z.put("voucher_no",v.getText().toString().trim());z.put("note",note.getText().toString().trim());z.put("lot",lot.getText().toString().trim());z.put("expiry",expiryOf(exp));int n=db.getWritableDatabase().update("receives",z,"id=?",new String[]{r.optString("id")});if(n!=1)throw new Exception("Update failed");toast("Receive updated ✔");showDaily();}catch(Exception e){error(e);}});});
 row.setPadding(dp(12),dp(10),dp(12),dp(10));
 row.setBackgroundColor(Ui.CARD);
 row.addView(editB);
@@ -1295,7 +1310,39 @@ save.setPadding(dp(12),dp(10),dp(12),dp(10));save.setOnClickListener(v->{try{Str
   add(title("Saved Batch Counts — Edit"));
   for(JSONObject x:db.rows("SELECT b.id,b.date,b.product_code,p.name,b.shift,b.qty FROM batches b LEFT JOIN products p ON p.code=b.product_code ORDER BY b.date DESC,b.shift ASC,b.id DESC LIMIT 100",null)){
     LinearLayout r=row();TextView t=new TextView(this);t.setText(x.optString("date")+" | "+x.optString("name")+" | Shift "+shiftLabel(x.optInt("shift",0))+" | Batch Count: "+batchCountText(x.optDouble("qty",0)));t.setLayoutParams(new LinearLayout.LayoutParams(0,-2,1));r.addView(t);
-    Button e=btn("Edit");e.setOnClickListener(v->editBatchCount(x));r.addView(e,new LinearLayout.LayoutParams(dp(90),dp(52)));
+    Button e=btn("Edit");e.setOnClickListener(v->{
+      try{
+        d.setText(x.optString("date"));
+        q.setText(batchCountText(x.optDouble("qty",0)));
+        String pc=x.optString("product_code");
+        for(int i=0;i<a.size();i++) if(a.get(i).startsWith(pc+" — ")||a.get(i).startsWith(pc+" —")){p.setSelection(i);break;}
+        int sh=x.optInt("shift",0);
+        if(sh>=0 && sh<shiftSp.getCount()) shiftSp.setSelection(sh); else shiftSp.setSelection(0);
+        save.setText("Update Batch #"+x.optString("id"));
+        final String editId=x.optString("id");
+        save.setOnClickListener(sv->{
+          try{
+            String label=String.valueOf(p.getSelectedItem());
+            if(label==null||label.equals("null"))throw new Exception("Product required");
+            String code=label.split(" — ")[0];
+            int pos=shiftSp.getSelectedItemPosition();
+            int sh2=(pos<=0)?0:pos;
+            int bc=batchCount(q.getText().toString());
+            if(bc<0)throw new Exception("Batch Count cannot be negative");
+            String day=ymd(d);
+            if(db.monthLocked(day))throw new Exception("Month locked");
+            ContentValues z=new ContentValues();
+            z.put("date",day);z.put("product_code",Integer.parseInt(code));z.put("shift",sh2);z.put("qty",bc);z.put("saved_at",new Date().toString());
+            db.update("batches",z,"id=?",new String[]{editId});
+            syncBatchLog(Long.parseLong(editId),day,Integer.parseInt(code),sh2,bc,new Date().toString());
+            toast("Batch updated ✔");
+            showBatch();
+          }catch(Exception ex){error(ex);}
+        });
+        scrollFormTop();
+        q.requestFocus();
+      }catch(Exception ex){error(ex);}
+    });r.addView(e,new LinearLayout.LayoutParams(dp(90),dp(52)));
     Button dl=Ui.secondary(this,"Delete");dl.setTextColor(Ui.BAD);dl.setOnClickListener(v->Guard.run(this,db,"Delete batch count",true,()->new AlertDialog.Builder(this).setTitle("Delete this batch count?").setMessage(x.optString("date")+" | "+x.optString("name")+" | Shift "+x.optString("shift")+"\nIts raw material use is removed from stock too.").setNegativeButton("Cancel",null).setPositiveButton("Delete",(dd,ww)->{db.delete("mixing2_batch_log","batch_id=?",new String[]{x.optString("id")});db.delete("batches","id=?",new String[]{x.optString("id")});toast("Batch count deleted");showBatch();}).show()));
     r.addView(dl,Ui.lp(this,dp(90),dp(52),0,6,0,0,0));add(r);
   }
