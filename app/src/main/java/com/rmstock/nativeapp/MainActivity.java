@@ -171,6 +171,7 @@ public class MainActivity extends Activity {
 
         // Yield % rotating card (product-wise)
         addYieldLiveCard();
+        addProcessLossLiveCard();
         addShiftWiseSummary();
         addSmartSuggestions();
         // Quick access: Boss report + AI voucher (dashboard)
@@ -315,7 +316,7 @@ public class MainActivity extends Activity {
 
  private void showMore(){
     clear("More");
-    String[][] items={{"Wastage","Spoilage and loss, taken out of stock","waste"},{"Stock Count","Physical count against the book stock","count"},{"Daily Summary","One-page PDF to share with the owner","summary"},{"Batch Planner","What do I need for the batches I plan?","planner"},{"Master — Raw materials","Add, edit or delete raw materials","rm"},{"Master — Products","Add, edit or delete products","prod"},{"Recipe","Raw material per batch for each product","recipe"},{"Custom sheets","Your own sheets and formulas","custom"},{"Yield % sheet","Per-product formulas + history + stages","yield"},{"Owner pack","One-page stock + yield + shorts for the owner","owner"},{"Audit log","Who changed what (offline trail)","audit"},{"Assistant","Command box: fix entry, report to boss, open screens","fix"},{"Scan voucher (AI)","Offline OCR draft, voucher photo is kept","ai"},{"Daily PM Report","Packaging stock, production and delivery reports","pm"},{"Settings","Roles, month lock, backup share, names","settings"}};
+    String[][] items={{"Wastage","Spoilage and loss, taken out of stock","waste"},{"Stock Count","Physical count against the book stock","count"},{"Daily Summary","One-page PDF to share with the owner","summary"},{"Batch Planner","What do I need for the batches I plan?","planner"},{"Master — Raw materials","Add, edit or delete raw materials","rm"},{"Master — Products","Add, edit or delete products","prod"},{"Recipe","Raw material per batch for each product","recipe"},{"Custom sheets","Your own sheets and formulas","custom"},{"Yield % sheet","Per-product formulas + history + stages","yield"},{"Process Loss %","Per-product process loss formula + dashboard card","ploss"},{"Owner pack","One-page stock + yield + shorts for the owner","owner"},{"Audit log","Who changed what (offline trail)","audit"},{"Assistant","Command box: fix entry, report to boss, open screens","fix"},{"Scan voucher (AI)","Offline OCR draft, voucher photo is kept","ai"},{"Daily PM Report","Packaging stock, production and delivery reports","pm"},{"Settings","Roles, month lock, backup share, names","settings"}};
     for(String[] it:items){
         final String k=it[2];
         LinearLayout c=Ui.card(this,Ui.CARD);
@@ -327,7 +328,7 @@ public class MainActivity extends Activity {
             else if(k.equals("recipe"))gateOpen("Recipe",()->showRecipe());
             else if(k.equals("settings"))gateOpen("Settings",()->showSettings());
             else if(k.equals("waste"))showWastage();else if(k.equals("count"))showCount();else if(k.equals("summary"))showSummary();
-            else if(k.equals("planner"))showRmPlanner();else if(k.equals("custom"))showCustom();else if(k.equals("yield"))showYieldSheet();else if(k.equals("owner"))showOwnerPack();else if(k.equals("audit"))showAuditLog();else if(k.equals("ai"))showAI();else if(k.equals("fix"))showAssistant();else openDailyPm();});
+            else if(k.equals("planner"))showRmPlanner();else if(k.equals("custom"))showCustom();else if(k.equals("yield"))showYieldSheet();else if(k.equals("ploss"))showProcessLossSheet();else if(k.equals("owner"))showOwnerPack();else if(k.equals("audit"))showAuditLog();else if(k.equals("ai"))showAI();else if(k.equals("fix"))showAssistant();else openDailyPm();});
         addCard(c);
     }
  }
@@ -2119,6 +2120,145 @@ private void applyVoiceFixCommand(String raw){
     if(!db.canEdit()){toast("Operator role: view only");return false;}
     if(dateOrYm!=null&&db.monthLocked(dateOrYm)){toast("Month locked (finalized)");return false;}
     return true;
+ }
+
+
+ private void addProcessLossLiveCard(){
+    try{
+        List<JSONObject> products=db.rows("SELECT code,name FROM products ORDER BY code",null);
+        List<String> lines=new ArrayList<>();
+        for(JSONObject p:products){
+            int code=p.optInt("code");
+            JSONObject y=db.one("SELECT input_kg,output_kg,formula,enabled FROM process_loss_defs WHERE product_code=?",new String[]{String.valueOf(code)});
+            if(y==null||y.optInt("enabled",1)==0)continue;
+            String formula=y.optString("formula","");
+            if(formula==null||formula.trim().isEmpty())continue;
+            double in=y.optDouble("input_kg",0), out=y.optDouble("output_kg",0);
+            Double pct=evalProcessLossFormula(formula,in,out);
+            if(pct==null)continue;
+            lines.add(p.optString("name","Product "+code)+"  "+fmt(pct)+"%");
+        }
+        LinearLayout card=new LinearLayout(this);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setPadding(dp(14),dp(12),dp(14),dp(12));
+        card.setBackground(Ui.shape(this,Color.parseColor("#FFF3E0"),Ui.LINE,16));
+        card.addView(Ui.text(this,"Process Loss %",13,Ui.MUTED,true));
+        TextView circle=new TextView(this);
+        circle.setGravity(Gravity.CENTER);
+        circle.setTextSize(22);
+        circle.setTypeface(null,Typeface.BOLD);
+        circle.setTextColor(Ui.NAVY_TEXT);
+        circle.setPadding(dp(8),dp(10),dp(8),dp(10));
+        circle.setBackground(Ui.shape(this,Ui.CARD,Color.parseColor("#E65100"),48));
+        circle.setMinHeight(dp(72));
+        if(lines.isEmpty()){
+            circle.setText("Set in More → Process Loss %");
+            circle.setTextSize(14);
+            circle.setTypeface(null,Typeface.NORMAL);
+        }else{
+            String x=lines.get(0);
+            int k=x.lastIndexOf("  ");
+            circle.setText(k<0?x:Ui.twoLine(x.substring(k+2),x.substring(0,k)));
+        }
+        card.addView(circle);
+        card.addView(Ui.muted(this,"Rotates every "+fmt(liveGap())+"s · formula in Process Loss sheet"));
+        add(card);
+        if(lines.size()<=1)return;
+        final int[] pos={0};
+        final long gap=(long)(liveGap()*1000);
+        final Runnable[] task=new Runnable[1];
+        task[0]=()->{
+            if(!circle.isAttachedToWindow())return;
+            pos[0]=(pos[0]+1)%lines.size();
+            String x=lines.get(pos[0]);
+            int k=x.lastIndexOf("  ");
+            CharSequence t=k<0?x:Ui.twoLine(x.substring(k+2),x.substring(0,k));
+            circle.animate().cancel();circle.setAlpha(0.2f);
+            circle.setText(t);
+            circle.animate().alpha(1f).setDuration(200).start();
+            main.postDelayed(task[0],gap);
+        };
+        dashboardRunnables.add(task[0]);
+        main.postDelayed(task[0],gap);
+    }catch(Exception e){/* non-fatal */}
+ }
+
+ private Double evalProcessLossFormula(String formula,double inputKg,double outputKg){
+    try{
+        double loss=inputKg-outputKg;
+        String f=formula.toLowerCase(Locale.US).trim();
+        f=f.replace("input_kg",String.valueOf(inputKg));
+        f=f.replace("output_kg",String.valueOf(outputKg));
+        f=f.replace("input",String.valueOf(inputKg));
+        f=f.replace("output",String.valueOf(outputKg));
+        f=f.replace("loss",String.valueOf(loss));
+        f=f.replace("×","*").replace("÷","/").replace(" ","");
+        if(f.isEmpty())return null;
+        double v=evalSimple(f);
+        if(Double.isNaN(v)||Double.isInfinite(v))return null;
+        return Math.round(v*100.0)/100.0;
+    }catch(Exception e){return null;}
+ }
+
+ private void showProcessLossSheet(){
+    clear("Process Loss % sheet");
+    if(!admin()){toast("Admin/Editor only");return;}
+    try{
+        LinearLayout intro=Ui.card(this,Ui.CARD);
+        intro.addView(Ui.text(this,"Process Loss formulas",16,Ui.NAVY_TEXT,true));
+        intro.addView(Ui.muted(this,"Per product: Input kg, Output kg, and formula. Tokens: input, output, loss (=input−output). Example: (input-output)*100/input   or   loss*100/input"));
+        add(intro);
+        for(JSONObject p:db.rows("SELECT code,name FROM products ORDER BY code",null)){
+            int code=p.optInt("code");
+            JSONObject y=db.one("SELECT * FROM process_loss_defs WHERE product_code=?",new String[]{String.valueOf(code)});
+            LinearLayout card=Ui.card(this,Ui.CARD);
+            card.addView(Ui.text(this,code+" — "+p.optString("name"),15,Ui.NAVY_TEXT,true));
+            final EditText inEt=edit("Input kg");
+            final EditText outEt=edit("Output kg");
+            final EditText fEt=edit("Formula");
+            inEt.setInputType(android.text.InputType.TYPE_CLASS_NUMBER|android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL);
+            outEt.setInputType(android.text.InputType.TYPE_CLASS_NUMBER|android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL);
+            if(y!=null){
+                inEt.setText(fmt(y.optDouble("input_kg",0)));
+                outEt.setText(fmt(y.optDouble("output_kg",0)));
+                fEt.setText(y.optString("formula",""));
+            }else{
+                fEt.setText("(input-output)*100/input");
+            }
+            final android.widget.CheckBox en=new android.widget.CheckBox(this);
+            en.setText("Show on dashboard");
+            en.setChecked(y==null||y.optInt("enabled",1)==1);
+            card.addView(Ui.muted(this,"Input kg")); card.addView(inEt);
+            card.addView(Ui.muted(this,"Output kg")); card.addView(outEt);
+            card.addView(Ui.muted(this,"Formula")); card.addView(fEt);
+            card.addView(en);
+            Double preview=evalProcessLossFormula(fEt.getText().toString(), num(inEt.getText().toString()), num(outEt.getText().toString()));
+            TextView prev=Ui.text(this,"Preview: "+(preview==null?"—":fmt(preview)+"%"),14,Ui.INK,true);
+            card.addView(prev);
+            final int fcode=code;
+            Button save=btn("Save");
+            save.setOnClickListener(v->{
+                Guard.run(this,db,"Save process loss",true,()->{
+                    try{
+                        ContentValues z=new ContentValues();
+                        z.put("product_code",fcode);
+                        z.put("input_kg",num(inEt.getText().toString()));
+                        z.put("output_kg",num(outEt.getText().toString()));
+                        z.put("formula",fEt.getText().toString().trim());
+                        z.put("enabled",en.isChecked()?1:0);
+                        JSONObject exists=db.one("SELECT product_code FROM process_loss_defs WHERE product_code=?",new String[]{String.valueOf(fcode)});
+                        if(exists==null)db.insert("process_loss_defs",z);
+                        else db.update("process_loss_defs",z,"product_code=?",new String[]{String.valueOf(fcode)});
+                        db.audit(user(),role(),"process_loss",String.valueOf(fcode));
+                        toast("Saved ✔");
+                        showProcessLossSheet();
+                    }catch(Exception e){error(e);}
+                });
+            });
+            card.addView(save);
+            add(card);
+        }
+    }catch(Exception e){error(e);}
  }
 
  private void addYieldLiveCard(){
