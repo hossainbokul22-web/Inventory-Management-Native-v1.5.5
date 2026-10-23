@@ -79,7 +79,7 @@ public class PmActivity extends Activity {
 
         LinearLayout bar = new LinearLayout(this);
         bar.setGravity(Gravity.CENTER_VERTICAL);
-        bar.setBackgroundColor(Ui.NAVY);
+        bar.setBackgroundColor(Color.BLACK);
         bar.setPadding(Ui.dp(this, 6), Ui.dp(this, 8), Ui.dp(this, 14), Ui.dp(this, 8));
         TextView back = Ui.text(this, "‹  Back", 16, Color.WHITE, true);
         back.setPadding(Ui.dp(this, 10), Ui.dp(this, 6), Ui.dp(this, 14), Ui.dp(this, 6));
@@ -87,20 +87,25 @@ public class PmActivity extends Activity {
         bar.addView(back);
         titleTv = Ui.text(this, pm.meta("appTitle", "Daily PM Report"), 16, Color.WHITE, true);
         bar.addView(titleTv, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
-        statusTv = Ui.text(this, "", 12, Color.argb(200, 255, 255, 255), false);
+        statusTv = Ui.text(this, "", 11, Color.WHITE, true);
+        statusTv.setBackground(Ui.shape(this, Color.parseColor("#333333"), Color.parseColor("#333333"), 14));
+        statusTv.setPadding(Ui.dp(this, 10), Ui.dp(this, 4), Ui.dp(this, 10), Ui.dp(this, 4));
         bar.addView(statusTv);
         root.addView(bar);
 
         HorizontalScrollView hsv = new HorizontalScrollView(this);
         hsv.setHorizontalScrollBarEnabled(false);
-        hsv.setBackgroundColor(Ui.CARD);
+        hsv.setBackgroundColor(Color.WHITE);
         LinearLayout tabs = new LinearLayout(this);
         tabs.setOrientation(LinearLayout.HORIZONTAL);
         tabs.setPadding(Ui.dp(this, 4), 0, Ui.dp(this, 4), 0);
         for (int i = 0; i < TABS.length; i++) {
             final int idx = i;
             TextView t = Ui.text(this, TABS[i], 13, Ui.MUTED, true);
-            t.setPadding(Ui.dp(this, 14), Ui.dp(this, 12), Ui.dp(this, 14), Ui.dp(this, 12));
+            t.setPadding(Ui.dp(this, 16), Ui.dp(this, 10), Ui.dp(this, 16), Ui.dp(this, 10));
+            LinearLayout.LayoutParams tlp = new LinearLayout.LayoutParams(-2, -2);
+            tlp.setMargins(Ui.dp(this, 4), Ui.dp(this, 8), Ui.dp(this, 4), Ui.dp(this, 8));
+            t.setLayoutParams(tlp);
             t.setTag(idx);
             t.setOnClickListener(v -> {
                 if (idx == 4 || idx == 5) {
@@ -144,8 +149,9 @@ public class PmActivity extends Activity {
         for (int i = 0; i < tabs.getChildCount(); i++) {
             TextView t = (TextView) tabs.getChildAt(i);
             boolean on = i == tab;
-            t.setTextColor(on ? Ui.NAVY_TEXT : Ui.MUTED);
-            t.setBackgroundColor(on ? Ui.SOFT_BLUE : Color.TRANSPARENT);
+            t.setTextColor(on ? Color.WHITE : Ui.MUTED);
+            t.setBackground(Ui.shape(this, on ? Color.BLACK : Color.TRANSPARENT, on ? Color.BLACK : Ui.LINE, 20));
+            t.setPadding(Ui.dp(this, 16), Ui.dp(this, 10), Ui.dp(this, 16), Ui.dp(this, 10));
         }
         switch (tab) {
             case 0: showEntry(); break;
@@ -167,83 +173,153 @@ public class PmActivity extends Activity {
 
     private void showEntry() {
         LinearLayout card = Ui.card(this, Ui.CARD);
-        card.addView(Ui.text(this, "New entry", 16, Ui.NAVY_TEXT, true));
+        card.addView(Ui.text(this, "New entry", 17, Color.BLACK, true));
 
-        final Spinner kindSp = new Spinner(this);
-        kindSp.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, PmDb.KIND_LABELS));
-        kindSp.setSelection(Math.min(savedKindPosition, PmDb.KIND_LABELS.length-1));
-        card.addView(Ui.muted(this, "Type"));
-        card.addView(kindSp);
+        final int[] kindIdx = {Math.min(savedKindPosition, PmDb.KIND_LABELS.length - 1)};
+        HorizontalScrollView kindScroll = new HorizontalScrollView(this);
+        kindScroll.setHorizontalScrollBarEnabled(false);
+        final LinearLayout kindRow = new LinearLayout(this);
+        kindRow.setOrientation(LinearLayout.HORIZONTAL);
+        final TextView[] kindChips = new TextView[PmDb.KIND_LABELS.length];
+        Runnable paintKinds = () -> {
+            for (int i = 0; i < kindChips.length; i++) {
+                boolean on = i == kindIdx[0];
+                kindChips[i].setTextColor(on ? Color.BLACK : Ui.MUTED);
+                kindChips[i].setBackground(Ui.shape(this, Ui.CARD, on ? Color.BLACK : Ui.LINE, 20));
+                kindChips[i].setTypeface(null, on ? Typeface.BOLD : Typeface.NORMAL);
+            }
+        };
+        for (int i = 0; i < PmDb.KIND_LABELS.length; i++) {
+            final int fi = i;
+            TextView chip = Ui.text(this, PmDb.KIND_LABELS[i], 13, Ui.MUTED, true);
+            chip.setPadding(Ui.dp(this, 14), Ui.dp(this, 10), Ui.dp(this, 14), Ui.dp(this, 10));
+            LinearLayout.LayoutParams clp = new LinearLayout.LayoutParams(-2, -2);
+            clp.setMargins(0, 0, Ui.dp(this, 8), 0);
+            chip.setLayoutParams(clp);
+            kindChips[i] = chip;
+            kindRow.addView(chip);
+        }
+        kindScroll.addView(kindRow);
+        card.addView(kindScroll);
+        paintKinds.run();
 
-        final EditText dateEt = field("Date (YYYY-MM-DD)", stockDate);
+        LinearLayout row1 = new LinearLayout(this);
+        row1.setOrientation(LinearLayout.HORIZONTAL);
+        LinearLayout cDate = new LinearLayout(this);
+        cDate.setOrientation(LinearLayout.VERTICAL);
+        cDate.addView(Ui.muted(this, "Date"));
+        final EditText dateEt = field("Date", stockDate);
         dateEt.setFocusable(false);
         dateEt.setOnClickListener(v -> pickDate(dateEt));
-        card.addView(Ui.muted(this, "Date"));
-        card.addView(dateEt);
-
+        cDate.addView(dateEt);
+        LinearLayout cItem = new LinearLayout(this);
+        cItem.setOrientation(LinearLayout.VERTICAL);
+        cItem.addView(Ui.muted(this, "Item / Product"));
         final Spinner codeSp = new Spinner(this);
+        cItem.addView(codeSp);
+        row1.addView(cDate, new LinearLayout.LayoutParams(0, -2, 1));
+        row1.addView(new View(this), new LinearLayout.LayoutParams(Ui.dp(this, 10), 1));
+        row1.addView(cItem, new LinearLayout.LayoutParams(0, -2, 1));
+        card.addView(row1);
+
         final List<JSONObject> selectedRecords = new ArrayList<>();
-        Runnable refreshChoices = () -> {
+        final Runnable[] refreshHolder = new Runnable[1];
+        refreshHolder[0] = () -> {
             selectedRecords.clear();
-            List<JSONObject> records = kindSp.getSelectedItemPosition() <= 1
-                    ? pm.items() : pm.products();
+            List<JSONObject> records = kindIdx[0] <= 1 ? pm.items() : pm.products();
             List<String> labels = new ArrayList<>();
             for (JSONObject o : records) {
                 selectedRecords.add(o);
                 labels.add(o.optInt("code") + " — " + o.optString("name"));
             }
             if (labels.isEmpty()) labels.add("No items available");
-            codeSp.setAdapter(new ArrayAdapter<>(this,
-                    android.R.layout.simple_spinner_dropdown_item, labels));
-            int restoreIndex=0;
-            for(int j=0;j<selectedRecords.size();j++){
-                if(selectedRecords.get(j).optInt("code")==savedCode){restoreIndex=j;break;}
+            codeSp.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, labels));
+            int restore = 0;
+            for (int j = 0; j < selectedRecords.size(); j++) {
+                if (selectedRecords.get(j).optInt("code") == savedCode) { restore = j; break; }
             }
-            codeSp.setSelection(restoreIndex);
+            codeSp.setSelection(restore);
         };
-        card.addView(Ui.muted(this, "Item / Product"));
-        card.addView(codeSp);
-        refreshChoices.run();
-        kindSp.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
-            @Override public void onItemSelected(android.widget.AdapterView<?> parent, View view,
-                    int position, long id) { refreshChoices.run(); }
-            @Override public void onNothingSelected(android.widget.AdapterView<?> parent) {}
-        });
+        for (int i = 0; i < kindChips.length; i++) {
+            final int fi = i;
+            kindChips[i].setOnClickListener(v -> {
+                kindIdx[0] = fi;
+                paintKinds.run();
+                refreshHolder[0].run();
+            });
+        }
+        refreshHolder[0].run();
 
+        card.addView(Ui.muted(this, "Quantity"));
+        LinearLayout qtyRow = new LinearLayout(this);
+        qtyRow.setOrientation(LinearLayout.HORIZONTAL);
+        qtyRow.setGravity(Gravity.CENTER_VERTICAL);
         final EditText qtyEt = field("Qty", "");
         qtyEt.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
-        card.addView(Ui.muted(this, "Quantity"));
-        card.addView(qtyEt);
+        qtyRow.addView(qtyEt, new LinearLayout.LayoutParams(0, -2, 1));
+        LinearLayout quick = new LinearLayout(this);
+        quick.setOrientation(LinearLayout.VERTICAL);
+        for (int qv : new int[]{10, 50, 100}) {
+            final int addv = qv;
+            Button qb = Ui.secondary(this, "+" + addv);
+            qb.setOnClickListener(v -> {
+                try {
+                    double cur = qtyEt.getText().toString().trim().isEmpty() ? 0
+                            : Double.parseDouble(qtyEt.getText().toString().trim().replace(',', '.'));
+                    qtyEt.setText(PmDb.fmt(cur + addv));
+                } catch (Exception e) { qtyEt.setText(String.valueOf(addv)); }
+            });
+            LinearLayout.LayoutParams qlp = new LinearLayout.LayoutParams(-2, -2);
+            qlp.setMargins(Ui.dp(this, 6), 0, 0, Ui.dp(this, 4));
+            quick.addView(qb, qlp);
+        }
+        qtyRow.addView(quick);
+        card.addView(qtyRow);
 
+        LinearLayout row2 = new LinearLayout(this);
+        row2.setOrientation(LinearLayout.HORIZONTAL);
+        LinearLayout cShift = new LinearLayout(this);
+        cShift.setOrientation(LinearLayout.VERTICAL);
+        cShift.addView(Ui.muted(this, "Shift"));
         final Spinner shiftSp = new Spinner(this);
         List<String> shifts = new ArrayList<>();
         shifts.add("— none —");
         for (String s : SHIFTS) shifts.add(s);
         shiftSp.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, shifts));
-        card.addView(Ui.muted(this, "Shift (optional)"));
-        card.addView(shiftSp);
-
+        cShift.addView(shiftSp);
+        LinearLayout cVch = new LinearLayout(this);
+        cVch.setOrientation(LinearLayout.VERTICAL);
+        cVch.addView(Ui.muted(this, "Voucher / Ref"));
         final EditText voucherEt = field("Voucher", "");
-        card.addView(Ui.muted(this, "Voucher / ref"));
-        card.addView(voucherEt);
+        cVch.addView(voucherEt);
+        row2.addView(cShift, new LinearLayout.LayoutParams(0, -2, 1));
+        row2.addView(new View(this), new LinearLayout.LayoutParams(Ui.dp(this, 10), 1));
+        row2.addView(cVch, new LinearLayout.LayoutParams(0, -2, 1));
+        card.addView(row2);
 
-        final EditText noteEt = field("Note", "");
         card.addView(Ui.muted(this, "Note"));
+        final EditText noteEt = field("Note", "");
+        noteEt.setMinLines(2);
+        noteEt.setSingleLine(false);
         card.addView(noteEt);
 
-        Button save = Ui.primary(this, "Save entry");
+        LinearLayout actions = new LinearLayout(this);
+        actions.setOrientation(LinearLayout.HORIZONTAL);
+        actions.setPadding(0, Ui.dp(this, 12), 0, 0);
+        Button clear = Ui.secondary(this, "Clear");
+        clear.setOnClickListener(v -> {
+            qtyEt.setText(""); voucherEt.setText(""); noteEt.setText(""); shiftSp.setSelection(0);
+        });
+        Button save = Ui.primary(this, "✓  Save entry");
         save.setOnClickListener(v -> {
-            int ki = kindSp.getSelectedItemPosition();
-            String kind = PmDb.KINDS[ki];
             String date = dateEt.getText().toString().trim();
-            int code;
-            double qty;
+            stockDate = date;
+            String kind = PmDb.KINDS[kindIdx[0]];
+            int code; double qty;
             try {
                 int selected = codeSp.getSelectedItemPosition();
-                if (selectedRecords.isEmpty() || selected < 0 || selected >= selectedRecords.size()) {
-                    toast("Select an item or product first");
-                    return;
-                }
+                if (selectedRecords.isEmpty() || selected < 0 || selected >= selectedRecords.size())
+                    throw new Exception("pick");
                 code = selectedRecords.get(selected).optInt("code");
                 qty = Double.parseDouble(qtyEt.getText().toString().trim().replace(',', '.'));
             } catch (Exception e) {
@@ -252,20 +328,21 @@ public class PmActivity extends Activity {
             }
             if (date.length() < 8) { toast("Invalid date"); return; }
             String shift = shiftSp.getSelectedItemPosition() == 0 ? "" : SHIFTS[shiftSp.getSelectedItemPosition() - 1];
-            savedKindPosition=kindSp.getSelectedItemPosition();
-            savedCode=code;
+            savedKindPosition = kindIdx[0];
+            savedCode = code;
             pm.addEntry(kind, code, date, qty, shift, voucherEt.getText().toString().trim(), noteEt.getText().toString().trim());
             toast("Saved");
-            qtyEt.setText("");
-            voucherEt.setText("");
-            noteEt.setText("");
+            qtyEt.setText(""); voucherEt.setText(""); noteEt.setText("");
             render();
         });
-        card.addView(save);
+        actions.addView(clear, new LinearLayout.LayoutParams(0, -2, 1));
+        actions.addView(new View(this), new LinearLayout.LayoutParams(Ui.dp(this, 10), 1));
+        actions.addView(save, new LinearLayout.LayoutParams(0, -2, 1));
+        card.addView(actions);
         add(card);
 
         LinearLayout list = Ui.card(this, Ui.CARD);
-        list.addView(Ui.text(this, "Recent entries", 15, Ui.NAVY_TEXT, true));
+        list.addView(Ui.text(this, "Recent entries", 16, Color.BLACK, true));
         List<JSONObject> recent = pm.recentEntries(40);
         if (recent.isEmpty()) list.addView(Ui.muted(this, "No entries yet"));
         for (JSONObject e : recent) {
@@ -273,22 +350,43 @@ public class PmActivity extends Activity {
             String kind = e.optString("kind");
             int code = e.optInt("code");
             String name = kind.equals("receive") || kind.equals("ret") ? pm.itemName(code) : pm.productName(code);
-            String line = e.optString("date") + " · " + kindLabel(kind) + " · " + code + " " + name
-                    + " · " + PmDb.fmt(e.optDouble("qty"));
-            if (!e.optString("shift").isEmpty()) line += " · " + e.optString("shift");
             LinearLayout row = new LinearLayout(this);
-            row.setOrientation(LinearLayout.VERTICAL);
-            row.setPadding(0, Ui.dp(this, 6), 0, Ui.dp(this, 6));
-            row.addView(Ui.text(this, line, 13, Ui.INK, false));
-            TextView del = Ui.text(this, "Delete", 12, Ui.BAD, true);
-            del.setOnClickListener(v -> Guard.run(this, db, "Delete entry", true, () -> {
-                pm.deleteEntry(id);
-                toast("Deleted");
-                render();
-            }));
-            row.addView(del);
+            row.setOrientation(LinearLayout.HORIZONTAL);
+            row.setGravity(Gravity.CENTER_VERTICAL);
+            row.setPadding(0, Ui.dp(this, 10), 0, Ui.dp(this, 10));
+            TextView badge = Ui.text(this, kindLabel(kind), 11, Color.WHITE, true);
+            int bg = kind.equals("output") ? Color.parseColor("#4CAF50")
+                    : kind.equals("receive") ? Color.parseColor("#2196F3")
+                    : kind.equals("delivery") ? Color.parseColor("#FF9800")
+                    : kind.equals("reject") || kind.equals("ret") ? Color.parseColor("#F44336")
+                    : Ui.NAVY;
+            badge.setBackground(Ui.shape(this, bg, bg, 16));
+            badge.setPadding(Ui.dp(this, 10), Ui.dp(this, 6), Ui.dp(this, 10), Ui.dp(this, 6));
+            row.addView(badge);
+            LinearLayout mid = new LinearLayout(this);
+            mid.setOrientation(LinearLayout.VERTICAL);
+            mid.setPadding(Ui.dp(this, 10), 0, Ui.dp(this, 8), 0);
+            mid.addView(Ui.text(this, code + "  " + name, 14, Color.BLACK, true));
+            String sub = e.optString("date");
+            if (!e.optString("shift").isEmpty()) sub += " · " + e.optString("shift");
+            if (!e.optString("voucher").isEmpty()) sub += " · " + e.optString("voucher");
+            mid.addView(Ui.muted(this, sub));
+            row.addView(mid, new LinearLayout.LayoutParams(0, -2, 1));
+            row.addView(Ui.text(this, PmDb.fmt(e.optDouble("qty")), 15, Color.BLACK, true));
+            row.setOnLongClickListener(v -> {
+                Guard.run(this, db, "Delete entry", true, () -> {
+                    pm.deleteEntry(id);
+                    toast("Deleted");
+                    render();
+                });
+                return true;
+            });
             list.addView(row);
+            View div = new View(this);
+            div.setBackgroundColor(Ui.LINE);
+            list.addView(div, new LinearLayout.LayoutParams(-1, 1));
         }
+        list.addView(Ui.muted(this, "Long-press a row to delete"));
         add(list);
     }
 
