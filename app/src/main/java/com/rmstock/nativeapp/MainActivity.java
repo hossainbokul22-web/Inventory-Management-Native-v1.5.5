@@ -187,6 +187,7 @@ private void clear(String head){currentScreen=head;for(Runnable task:dashboardRu
         // Yield % rotating card (product-wise)
         addYieldLiveCard();
         addProcessLossLiveCard();
+        try{Button cs=Ui.secondary(this,"Custom sheets");cs.setOnClickListener(v->showCustom());add(cs);}catch(Exception ignored){}
         addShiftWiseSummary();
         addSmartSuggestions();
         // Quick access: Boss report + AI voucher (dashboard)
@@ -1357,7 +1358,132 @@ save.setPadding(dp(12),dp(10),dp(12),dp(10));save.setOnClickListener(v->{try{Str
    .setView(bc).setNegativeButton("Cancel",null).setPositiveButton("Save Edit",(dialog,which)->{try{int n=batchCount(bc.getText().toString());ContentValues z=new ContentValues();z.put("qty",n);z.put("saved_at",new Date().toString());db.update("batches",z,"id=?",new String[]{x.getString("id")});syncBatchLog(x.getLong("id"),x.getString("date"),x.getInt("product_code"),x.getInt("shift"),n,new Date().toString());toast("Batch Count updated ✔");showBatch();}catch(Exception e){error(e);}}).show();
  }
  private int findSpinnerIndex(Spinner p,String code){for(int i=0;i<p.getCount();i++){String s=String.valueOf(p.getItemAtPosition(i));if(s.startsWith(code+" — "))return i;}return 0;}
- private void showCustom(){clear("Custom Sheets — Native Dynamic Designer");if(!admin())return;EditText name=edit("Sheet Name"),desc=edit("Description");add(name);add(desc);Button create=btn("Create Custom Sheet");create.setOnClickListener(v->{try{String id="S"+System.currentTimeMillis(),sn=name.getText().toString().trim();if(sn.isEmpty())throw new Exception("Sheet name required");if(db.one("SELECT id FROM custom_sheets WHERE lower(name)=lower(?)",new String[]{sn})!=null)throw new Exception("Duplicate Sheet Name");ContentValues x=new ContentValues();x.put("id",id);x.put("name",sn);x.put("description",desc.getText().toString().trim());x.put("access","owner");db.insert("custom_sheets",x);showCustomDefinition(id,sn);}catch(Exception e){error(e);}});add(create);try{for(JSONObject sh:db.rows("SELECT * FROM custom_sheets ORDER BY name",null)){String sid=sh.optString("id"),sname=sh.optString("name");LinearLayout sr=row();Button open=btn("Open: "+sname);open.setOnClickListener(v->openCustom(sid,sname));sr.addView(open,new LinearLayout.LayoutParams(0,dp(52),1));Button editSheet=btn("Edit");editSheet.setOnClickListener(v->showCustomDefinition(sid,sname));sr.addView(editSheet,new LinearLayout.LayoutParams(dp(90),dp(52)));add(sr);}}catch(Exception e){error(e);}}
+ private void showCustom(){
+    clear("Custom Sheets");
+    if(!admin()){toast("Admin/Editor only");return;}
+    try{
+        LinearLayout intro=Ui.card(this,Ui.CARD);
+        intro.addView(Ui.text(this,"Factory sheets",17,Color.BLACK,true));
+        intro.addView(Ui.muted(this,"Templates for daily use. Formulas can use live stock: rm_stock(\"101\"), today_receive(\"101\"), today_use(\"101\"), today_batch(\"5\"). Export CSV from any open sheet."));
+        add(intro);
+
+        LinearLayout tpl=Ui.card(this,Ui.CARD);
+        tpl.addView(Ui.text(this,"Ready templates",15,Ui.NAVY_TEXT,true));
+        String[][] templates={
+            {"Daily production log","prodlog"},
+            {"RM issue / return","rmissue"},
+            {"QA checklist","qa"},
+            {"Wastage detail","waste"},
+            {"Shift handover","handover"}
+        };
+        for(String[] t:templates){
+            final String key=t[1];
+            Button b=Ui.secondary(this,"+ "+t[0]);
+            b.setOnClickListener(v->Guard.run(this,db,"Create template sheet",true,()->createSheetTemplate(key)));
+            tpl.addView(b);
+        }
+        add(tpl);
+
+        LinearLayout create=Ui.card(this,Ui.CARD);
+        create.addView(Ui.text(this,"Blank sheet",15,Ui.NAVY_TEXT,true));
+        final EditText name=edit("Sheet Name"),desc=edit("Description");
+        create.addView(name);create.addView(desc);
+        Button mk=Ui.primary(this,"Create blank sheet");
+        mk.setOnClickListener(v->{
+            try{
+                String id="S"+System.currentTimeMillis(),sn=name.getText().toString().trim();
+                if(sn.isEmpty())throw new Exception("Sheet name required");
+                if(db.one("SELECT id FROM custom_sheets WHERE lower(name)=lower(?)",new String[]{sn})!=null)
+                    throw new Exception("Duplicate Sheet Name");
+                ContentValues x=new ContentValues();
+                x.put("id",id);x.put("name",sn);x.put("description",desc.getText().toString().trim());x.put("access","owner");
+                db.insert("custom_sheets",x);
+                showCustomDefinition(id,sn);
+            }catch(Exception e){error(e);}
+        });
+        create.addView(mk);
+        add(create);
+
+        LinearLayout list=Ui.card(this,Ui.CARD);
+        list.addView(Ui.text(this,"Your sheets",15,Ui.NAVY_TEXT,true));
+        List<JSONObject> sheets=db.rows("SELECT * FROM custom_sheets ORDER BY name",null);
+        if(sheets.isEmpty()) list.addView(Ui.muted(this,"No sheets yet — pick a template above."));
+        for(JSONObject sh:sheets){
+            final String sid=sh.optString("id"),sname=sh.optString("name");
+            LinearLayout card=new LinearLayout(this);
+            card.setOrientation(LinearLayout.VERTICAL);
+            card.setPadding(0,dp(10),0,dp(10));
+            card.addView(Ui.text(this,sname,15,Color.BLACK,true));
+            String d0=sh.optString("description");
+            if(!d0.isEmpty()) card.addView(Ui.muted(this,d0));
+            LinearLayout row=new LinearLayout(this);
+            row.setOrientation(LinearLayout.HORIZONTAL);
+            Button open=Ui.primary(this,"Open");
+            open.setOnClickListener(v->openCustom(sid,sname));
+            Button edit=Ui.secondary(this,"Columns");
+            edit.setOnClickListener(v->showCustomDefinition(sid,sname));
+            Button del=Ui.secondary(this,"Delete");
+            del.setTextColor(Ui.BAD);
+            del.setOnClickListener(v->Guard.run(this,db,"Delete custom sheet",true,()->{
+                db.delete("custom_rows","sheet_id=?",new String[]{sid});
+                db.delete("custom_cols","sheet_id=?",new String[]{sid});
+                db.delete("custom_sheets","id=?",new String[]{sid});
+                toast("Deleted");
+                showCustom();
+            }));
+            row.addView(open,new LinearLayout.LayoutParams(0,dp(48),1));
+            row.addView(edit,new LinearLayout.LayoutParams(0,dp(48),1));
+            row.addView(del,new LinearLayout.LayoutParams(0,dp(48),1));
+            card.addView(row);
+            View div=new View(this);div.setBackgroundColor(Ui.LINE);
+            list.addView(card);
+            list.addView(div,new LinearLayout.LayoutParams(-1,1));
+        }
+        add(list);
+    }catch(Exception e){error(e);}
+ }
+
+ private void createSheetTemplate(String key){
+    try{
+        String title, desc;
+        String[][] cols;
+        if("prodlog".equals(key)){
+            title="Daily production log"; desc="Date, product, batch, shift, note";
+            cols=new String[][]{{"Date","date",""},{"Product","product_dropdown",""},{"Batch","number",""},{"Shift","text",""},{"Note","text",""}};
+        }else if("rmissue".equals(key)){
+            title="RM issue / return"; desc="RM movement log";
+            cols=new String[][]{{"Date","date",""},{"RM","rm_dropdown",""},{"Qty","number",""},{"Type","text",""},{"Note","text",""}};
+        }else if("qa".equals(key)){
+            title="QA checklist"; desc="OK/Fail checks";
+            cols=new String[][]{{"Date","date",""},{"Item","text",""},{"Result","text",""},{"Remark","text",""}};
+        }else if("waste".equals(key)){
+            title="Wastage detail"; desc="Wastage by RM";
+            cols=new String[][]{{"Date","date",""},{"RM","rm_dropdown",""},{"Qty","number",""},{"Reason","text",""}};
+        }else if("handover".equals(key)){
+            title="Shift handover"; desc="Shift notes";
+            cols=new String[][]{{"Date","date",""},{"Shift","text",""},{"Stock note","text",""},{"Pending","text",""}};
+        }else return;
+        String base=title;
+        String sn=base;
+        int n=2;
+        while(db.one("SELECT id FROM custom_sheets WHERE lower(name)=lower(?)",new String[]{sn})!=null){
+            sn=base+" ("+n+")"; n++;
+        }
+        String id="S"+System.currentTimeMillis();
+        ContentValues x=new ContentValues();
+        x.put("id",id);x.put("name",sn);x.put("description",desc);x.put("access","owner");
+        db.insert("custom_sheets",x);
+        int pos=1;
+        for(String[] c:cols){
+            ContentValues col=new ContentValues();
+            col.put("sheet_id",id);col.put("name",c[0]);col.put("type",c[1]);col.put("formula",c[2]);col.put("position",pos++);
+            db.insert("custom_cols",col);
+        }
+        toast("Template created ✔");
+        openCustom(id,sn);
+    }catch(Exception e){error(e);}
+ }
+
  private void showCustomDefinition(String id,String currentName){clear("Sheet Definition — "+currentName);try{JSONObject sh=db.one("SELECT * FROM custom_sheets WHERE id=?",new String[]{id});if(sh==null)throw new Exception("Sheet not found");EditText nm=edit("Sheet Name");nm.setText(sh.optString("name"));EditText ds=edit("Description");ds.setText(sh.optString("description"));add(nm);add(ds);Button saveHead=btn("Save Sheet Name / Description");saveHead.setOnClickListener(v->{try{String nn=nm.getText().toString().trim();if(nn.isEmpty())throw new Exception("Sheet name required");JSONObject dup=db.one("SELECT id FROM custom_sheets WHERE lower(name)=lower(?) AND id<>?",new String[]{nn,id});if(dup!=null)throw new Exception("Duplicate Sheet Name");ContentValues x=new ContentValues();x.put("name",nn);x.put("description",ds.getText().toString().trim());db.update("custom_sheets",x,"id=?",new String[]{id});toast("Sheet definition saved ✔");showCustomDefinition(id,nn);}catch(Exception e){error(e);}});add(saveHead);Button addCol=btn("+ Add Column");addCol.setOnClickListener(v->columnDialog(id,-1));add(addCol);List<JSONObject> cs=db.rows("SELECT * FROM custom_cols WHERE sheet_id=? ORDER BY position",new String[]{id});for(JSONObject c:cs){long cid=c.getLong("id");LinearLayout r=row();TextView lab=new TextView(this);lab.setText(c.optString("position")+"  "+c.optString("name")+"  ["+c.optString("type")+"]"+(c.optString("formula").isEmpty()?"":"  "+c.optString("formula")));r.addView(lab,new LinearLayout.LayoutParams(0,dp(58),1));Button ed=btn("Edit");ed.setOnClickListener(v->columnDialog(id,cid));r.addView(ed,new LinearLayout.LayoutParams(dp(78),dp(52)));Button up=btn("↑");up.setOnClickListener(v->{moveColumn(cid,id,-1);});r.addView(up,new LinearLayout.LayoutParams(dp(45),dp(52)));Button dn=btn("↓");dn.setOnClickListener(v->{moveColumn(cid,id,1);});r.addView(dn,new LinearLayout.LayoutParams(dp(45),dp(52)));Button del=btn("Delete");del.setOnClickListener(v->{new AlertDialog.Builder(this).setTitle("Delete Column?").setMessage("Existing row values for this column will no longer be shown.").setNegativeButton("Cancel",null).setPositiveButton("Delete",(a,b)->{db.delete("custom_cols","id=?",new String[]{String.valueOf(cid)});repositionColumns(id);showCustomDefinition(id,nm.getText().toString());}).show();});r.addView(del,new LinearLayout.LayoutParams(dp(82),dp(52)));add(r);}Button open=btn("Open Sheet Rows");open.setOnClickListener(v->openCustom(id,nm.getText().toString()));add(open);Button delSheet=btn("Delete Sheet");delSheet.setOnClickListener(v->{new AlertDialog.Builder(this).setTitle("Delete Sheet?").setMessage("This removes the sheet definition and its rows permanently.").setNegativeButton("Cancel",null).setPositiveButton("Delete",(a,b)->{try{db.getWritableDatabase().beginTransaction();db.delete("custom_rows","sheet_id=?",new String[]{id});db.delete("custom_cols","sheet_id=?",new String[]{id});db.delete("custom_sheets","id=?",new String[]{id});db.getWritableDatabase().setTransactionSuccessful();db.getWritableDatabase().endTransaction();toast("Sheet deleted ✔");showCustom();}catch(Exception e){try{db.getWritableDatabase().endTransaction();}catch(Exception ignored){}error(e);}}).show();});add(delSheet);}catch(Exception e){error(e);}}
  private void columnDialog(String sheetId,long colId){LinearLayout box=new LinearLayout(this);box.setOrientation(LinearLayout.VERTICAL);box.setPadding(dp(12),0,dp(12),0);EditText name=edit("Column Name"),formula=edit("Formula e.g. =B2*C2 or =SUM(D2:F2) or =IF(E2<0,\"SHORTAGE\",\"OK\")");Spinner type=new Spinner(this);String[] types={"text","number","date","formula","rm_dropdown","product_dropdown"};type.setAdapter(new ArrayAdapter<String>(this,android.R.layout.simple_spinner_dropdown_item,types));box.addView(name);box.addView(type);box.addView(formula);try{if(colId>0){JSONObject c=db.one("SELECT * FROM custom_cols WHERE id=?",new String[]{String.valueOf(colId)});if(c!=null){name.setText(c.optString("name"));formula.setText(c.optString("formula"));String ct=c.optString("type","text");for(int i=0;i<types.length;i++)if(types[i].equals(ct))type.setSelection(i);}}}catch(Exception e){error(e);return;}new AlertDialog.Builder(this).setTitle(colId>0?"Edit Column":"Add Column").setView(box).setNegativeButton("Cancel",null).setPositiveButton("Save",(d,w)->{try{String cn=name.getText().toString().trim();String ct=types[type.getSelectedItemPosition()];String f=formula.getText().toString().trim();if(cn.isEmpty())throw new Exception("Column name required");if(ct.equals("formula")&&f.isEmpty())throw new Exception("Formula required for formula column");JSONObject dup=db.one("SELECT id FROM custom_cols WHERE sheet_id=? AND lower(name)=lower(?) AND id<>?",new String[]{sheetId,cn,String.valueOf(colId)});if(dup!=null)throw new Exception("Duplicate Column Name");ContentValues x=new ContentValues();x.put("sheet_id",sheetId);x.put("name",cn);x.put("type",ct);x.put("formula",ct.equals("formula")?f:"");if(colId>0){JSONObject oldCol=db.one("SELECT name FROM custom_cols WHERE id=?",new String[]{String.valueOf(colId)});String oldName=oldCol==null?cn:oldCol.optString("name");db.update("custom_cols",x,"id=?",new String[]{String.valueOf(colId)});if(!oldName.equals(cn)){for(JSONObject rr:db.rows("SELECT id,row_json FROM custom_rows WHERE sheet_id=?",new String[]{sheetId})){JSONObject jo=new JSONObject(rr.optString("row_json","{}"));if(jo.has(oldName)){Object val=jo.remove(oldName);jo.put(cn,val);ContentValues rv=new ContentValues();rv.put("row_json",jo.toString());db.update("custom_rows",rv,"id=?",new String[]{rr.getString("id")});}}}}else{x.put("position",nextColumnPosition(sheetId));db.insert("custom_cols",x);}toast("Column saved ✔");showCustomDefinition(sheetId,db.one("SELECT name FROM custom_sheets WHERE id=?",new String[]{sheetId}).optString("name"));}catch(Exception e){error(e);}}).show();}
  private int nextColumnPosition(String id){try{JSONObject x=db.one("SELECT COALESCE(MAX(position),-1)+1 p FROM custom_cols WHERE sheet_id=?",new String[]{id});return x==null?0:x.getInt("p");}catch(Exception e){return 0;}}
@@ -1366,8 +1492,14 @@ save.setPadding(dp(12),dp(10),dp(12),dp(10));save.setOnClickListener(v->{try{Str
      clear(name);
      try{
          List<JSONObject> cols=db.rows("SELECT * FROM custom_cols WHERE sheet_id=? ORDER BY position",new String[]{id});
-         Button def=btn("Edit Sheet Name / Columns");
-         def.setOnClickListener(v->showCustomDefinition(id,name));add(def);
+         LinearLayout top=new LinearLayout(this);top.setOrientation(LinearLayout.HORIZONTAL);
+         Button def=btn("Columns");
+         def.setOnClickListener(v->showCustomDefinition(id,name));
+         Button exp=Ui.secondary(this,"Export CSV");
+         exp.setOnClickListener(v->exportCustomCsv(id,name));
+         top.addView(def,new LinearLayout.LayoutParams(0,dp(48),1));
+         top.addView(exp,new LinearLayout.LayoutParams(0,dp(48),1));
+         add(top);
          HorizontalScrollView hs=new HorizontalScrollView(this);
          TableLayout table=new TableLayout(this);TableRow h=new TableRow(this);
          for(JSONObject c:cols)h.addView(tv(c.getString("name"),1));
@@ -1471,7 +1603,53 @@ save.setPadding(dp(12),dp(10),dp(12),dp(10));save.setOnClickListener(v->{try{Str
          add(addrow);
      }catch(Exception e){error(e);}
  }
- private String calcFormula(String formula,JSONObject row,List<JSONObject> cols){try{String f=formula.trim();if(f.startsWith("="))f=f.substring(1).trim();java.util.regex.Matcher m=java.util.regex.Pattern.compile("(?i)^SUM\\(([^)]+)\\)$").matcher(f);if(m.find()){double sum=0;for(String ref:expandRange(m.group(1),cols))sum+=cellValue(ref,row,cols);return fmt(sum);}m=java.util.regex.Pattern.compile("(?i)^IF\\((.*?),(.*?),(.*?)\\)$").matcher(f);if(m.find()){String cond=m.group(1).trim(),a=stripQuote(m.group(2).trim()),b=stripQuote(m.group(3).trim());return evalCondition(cond,row,cols)?a:b;}String op=findOperator(f);if(op!=null){String[] z=f.split(java.util.regex.Pattern.quote(op),2);double a=cellValue(z[0].trim(),row,cols),b=cellValue(z[1].trim(),row,cols);if(op.equals("+"))return fmt(a+b);if(op.equals("-"))return fmt(a-b);if(op.equals("*"))return fmt(a*b);if(op.equals("/"))return b==0?"0":fmt(a/b);}return row.optString(f,f);}catch(Exception e){return "#ERR";}}
+ 
+ private String replaceLiveToken(String f,String name,int kind){
+    try{
+        java.util.regex.Pattern pat=java.util.regex.Pattern.compile("(?i)"+name+"\\(\\s*[\"']?([^\"')]+)[\"']?\\s*\\)");
+        java.util.regex.Matcher m=pat.matcher(f);
+        StringBuffer sb=new StringBuffer();
+        while(m.find()){
+            String code=m.group(1).trim();
+            double v=0;
+            if(kind==0)v=liveRmClosing(code);
+            else if(kind==1)v=liveTodaySum("receives","qty","rm_code",code);
+            else if(kind==2)v=liveTodaySum("mixing2_batch_log","consumption","rm_code",code);
+            else if(kind==3)v=liveTodayBatch(code);
+            m.appendReplacement(sb, java.util.regex.Matcher.quoteReplacement(fmt(v)));
+        }
+        m.appendTail(sb);
+        return sb.toString();
+    }catch(Exception e){return f;}
+ }
+ private double liveRmClosing(String code){
+    try{
+        JSONObject rm=db.one("SELECT opening FROM rms WHERE code=?",new String[]{code});
+        double open=rm==null?0:rm.optDouble("opening",0);
+        JSONObject r=db.one("SELECT COALESCE(SUM(qty),0) q FROM receives WHERE rm_code=?",new String[]{code});
+        JSONObject u=db.one("SELECT COALESCE(SUM(consumption),0) q FROM mixing2_batch_log WHERE rm_code=?",new String[]{code});
+        return open+(r==null?0:r.optDouble("q"))-(u==null?0:u.optDouble("q"));
+    }catch(Exception e){return 0;}
+ }
+ private double liveTodaySum(String table,String col,String codeCol,String code){
+    try{
+        JSONObject r=db.one("SELECT COALESCE(SUM("+col+"),0) q FROM "+table+" WHERE "+codeCol+"=? AND date=?",new String[]{code,today()});
+        return r==null?0:r.optDouble("q");
+    }catch(Exception e){return 0;}
+ }
+ private double liveTodayBatch(String productCode){
+    try{
+        JSONObject r=db.one("SELECT COALESCE(SUM(qty),0) q FROM batches WHERE product_code=? AND date=?",new String[]{productCode,today()});
+        return r==null?0:r.optDouble("q");
+    }catch(Exception e){return 0;}
+ }
+
+private String calcFormula(String formula,JSONObject row,List<JSONObject> cols){try{String f=formula.trim();if(f.startsWith("="))f=f.substring(1).trim();
+        f=replaceLiveToken(f,"rm_stock",0);
+        f=replaceLiveToken(f,"today_receive",1);
+        f=replaceLiveToken(f,"today_use",2);
+        f=replaceLiveToken(f,"today_batch",3);
+java.util.regex.Matcher m=java.util.regex.Pattern.compile("(?i)^SUM\\(([^)]+)\\)$").matcher(f);if(m.find()){double sum=0;for(String ref:expandRange(m.group(1),cols))sum+=cellValue(ref,row,cols);return fmt(sum);}m=java.util.regex.Pattern.compile("(?i)^IF\\((.*?),(.*?),(.*?)\\)$").matcher(f);if(m.find()){String cond=m.group(1).trim(),a=stripQuote(m.group(2).trim()),b=stripQuote(m.group(3).trim());return evalCondition(cond,row,cols)?a:b;}String op=findOperator(f);if(op!=null){String[] z=f.split(java.util.regex.Pattern.quote(op),2);double a=cellValue(z[0].trim(),row,cols),b=cellValue(z[1].trim(),row,cols);if(op.equals("+"))return fmt(a+b);if(op.equals("-"))return fmt(a-b);if(op.equals("*"))return fmt(a*b);if(op.equals("/"))return b==0?"0":fmt(a/b);}return row.optString(f,f);}catch(Exception e){return "#ERR";}}
  private String findOperator(String s){for(String op:new String[]{"+","-","*","/"}){int p=s.indexOf(op,1);if(p>0)return op;}return null;}
  private boolean evalCondition(String c,JSONObject row,List<JSONObject> cols){for(String op:new String[]{">=","<=","!=","=","<",">"}){int p=c.indexOf(op);if(p>0){double a=cellValue(c.substring(0,p).trim(),row,cols),b=cellValue(c.substring(p+op.length()).trim(),row,cols);if(op.equals(">="))return a>=b;if(op.equals("<="))return a<=b;if(op.equals("!="))return a!=b;if(op.equals("="))return a==b;if(op.equals("<"))return a<b;return a>b;}}return false;}
  private String stripQuote(String s){return s.length()>=2&&s.startsWith("\"")&&s.endsWith("\"")?s.substring(1,s.length()-1):s;}
