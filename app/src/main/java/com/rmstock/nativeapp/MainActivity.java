@@ -1488,6 +1488,42 @@ save.setPadding(dp(12),dp(10),dp(12),dp(10));save.setOnClickListener(v->{try{Str
  private void columnDialog(String sheetId,long colId){LinearLayout box=new LinearLayout(this);box.setOrientation(LinearLayout.VERTICAL);box.setPadding(dp(12),0,dp(12),0);EditText name=edit("Column Name"),formula=edit("Formula e.g. =B2*C2 or =SUM(D2:F2) or =IF(E2<0,\"SHORTAGE\",\"OK\")");Spinner type=new Spinner(this);String[] types={"text","number","date","formula","rm_dropdown","product_dropdown"};type.setAdapter(new ArrayAdapter<String>(this,android.R.layout.simple_spinner_dropdown_item,types));box.addView(name);box.addView(type);box.addView(formula);try{if(colId>0){JSONObject c=db.one("SELECT * FROM custom_cols WHERE id=?",new String[]{String.valueOf(colId)});if(c!=null){name.setText(c.optString("name"));formula.setText(c.optString("formula"));String ct=c.optString("type","text");for(int i=0;i<types.length;i++)if(types[i].equals(ct))type.setSelection(i);}}}catch(Exception e){error(e);return;}new AlertDialog.Builder(this).setTitle(colId>0?"Edit Column":"Add Column").setView(box).setNegativeButton("Cancel",null).setPositiveButton("Save",(d,w)->{try{String cn=name.getText().toString().trim();String ct=types[type.getSelectedItemPosition()];String f=formula.getText().toString().trim();if(cn.isEmpty())throw new Exception("Column name required");if(ct.equals("formula")&&f.isEmpty())throw new Exception("Formula required for formula column");JSONObject dup=db.one("SELECT id FROM custom_cols WHERE sheet_id=? AND lower(name)=lower(?) AND id<>?",new String[]{sheetId,cn,String.valueOf(colId)});if(dup!=null)throw new Exception("Duplicate Column Name");ContentValues x=new ContentValues();x.put("sheet_id",sheetId);x.put("name",cn);x.put("type",ct);x.put("formula",ct.equals("formula")?f:"");if(colId>0){JSONObject oldCol=db.one("SELECT name FROM custom_cols WHERE id=?",new String[]{String.valueOf(colId)});String oldName=oldCol==null?cn:oldCol.optString("name");db.update("custom_cols",x,"id=?",new String[]{String.valueOf(colId)});if(!oldName.equals(cn)){for(JSONObject rr:db.rows("SELECT id,row_json FROM custom_rows WHERE sheet_id=?",new String[]{sheetId})){JSONObject jo=new JSONObject(rr.optString("row_json","{}"));if(jo.has(oldName)){Object val=jo.remove(oldName);jo.put(cn,val);ContentValues rv=new ContentValues();rv.put("row_json",jo.toString());db.update("custom_rows",rv,"id=?",new String[]{rr.getString("id")});}}}}else{x.put("position",nextColumnPosition(sheetId));db.insert("custom_cols",x);}toast("Column saved ✔");showCustomDefinition(sheetId,db.one("SELECT name FROM custom_sheets WHERE id=?",new String[]{sheetId}).optString("name"));}catch(Exception e){error(e);}}).show();}
  private int nextColumnPosition(String id){try{JSONObject x=db.one("SELECT COALESCE(MAX(position),-1)+1 p FROM custom_cols WHERE sheet_id=?",new String[]{id});return x==null?0:x.getInt("p");}catch(Exception e){return 0;}}
  private void repositionColumns(String id){try{List<JSONObject> cs=db.rows("SELECT id FROM custom_cols WHERE sheet_id=? ORDER BY position,id",new String[]{id});for(int i=0;i<cs.size();i++){ContentValues x=new ContentValues();x.put("position",i);db.update("custom_cols",x,"id=?",new String[]{cs.get(i).getString("id")});}}catch(Exception ignored){}}
+
+ private void exportCustomCsv(String id,String name){
+    try{
+        List<JSONObject> cols=db.rows("SELECT * FROM custom_cols WHERE sheet_id=? ORDER BY position",new String[]{id});
+        StringBuilder sb=new StringBuilder();
+        for(int i=0;i<cols.size();i++){
+            if(i>0)sb.append(',');
+            sb.append('"').append(cols.get(i).optString("name").replace("\"","\"\"")).append('"');
+        }
+        sb.append('\n');
+        for(JSONObject rr:db.rows("SELECT * FROM custom_rows WHERE sheet_id=? ORDER BY id",new String[]{id})){
+            JSONObject data=new JSONObject(rr.optString("row_json","{}"));
+            for(int i=0;i<cols.size();i++){
+                if(i>0)sb.append(',');
+                String key=cols.get(i).optString("name");
+                String val=data.optString(key,"");
+                if("formula".equals(cols.get(i).optString("type")))
+                    val=calcFormula(cols.get(i).optString("formula"),data,cols);
+                sb.append('"').append(val.replace("\"","\"\"")).append('"');
+            }
+            sb.append('\n');
+        }
+        String safe=name.replaceAll("[^a-zA-Z0-9_]","_");
+        File f=new File(getCacheDir(),"sheet_"+safe+".csv");
+        FileOutputStream out=new FileOutputStream(f);
+        out.write(sb.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        out.close();
+        Uri uri=FileProvider.getUriForFile(this,getPackageName()+".fileprovider",f);
+        Intent share=new Intent(Intent.ACTION_SEND);
+        share.setType("text/csv");
+        share.putExtra(Intent.EXTRA_STREAM,uri);
+        share.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        startActivity(Intent.createChooser(share,"Share sheet CSV"));
+    }catch(Exception e){error(e);}
+ }
+
  private void openCustom(String id,String name){
      clear(name);
      try{
