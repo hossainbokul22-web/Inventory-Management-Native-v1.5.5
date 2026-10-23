@@ -276,7 +276,22 @@ public class MainActivity extends Activity {
         LinearLayout ov=Ui.card(this,Ui.CARD);
         for(JSONObject rm:desc){double cv=nz(closeMap.get(rm.optString("code")));ov.addView(Ui.barRow(this,rm.optString("code")+"  "+rm.optString("name"),fmt(cv)+" "+rm.optString("uom"),Math.max(0,cv)/maxClose,cv<0?Ui.BAD:Ui.ACCENT));}
         add(ov);
-        TextView owner=new TextView(this);owner.setText("Owner / Admin • Full offline access");owner.setTextSize(12);owner.setTextColor(Ui.MUTED);owner.setPadding(0,dp(14),0,dp(10));add(owner);
+        LinearLayout foot=new LinearLayout(this);
+        foot.setOrientation(LinearLayout.HORIZONTAL);
+        foot.setPadding(0,dp(14),0,dp(10));
+        TextView ownerL=new TextView(this);
+        ownerL.setText("Developed by MD. Bokul Hossain,\nDiploma in Food Technology  • Inventory Management");
+        ownerL.setTextSize(11);
+        ownerL.setTextColor(Ui.MUTED);
+        ownerL.setGravity(Gravity.START|Gravity.TOP);
+        TextView ownerR=new TextView(this);
+        ownerR.setText("Edinburgh  দুর্গের মতো  হয়তো রহস্যময় জীবন— সুন্দর, তবে কাছে গেলে আরও গভীর, পরিবর্তনশীল  আপনি হাসলে একটা জীবন নীলকান্তমণির মতো অমূল্য\nIntrovert Mimusops");
+        ownerR.setTextSize(10);
+        ownerR.setTextColor(Ui.MUTED);
+        ownerR.setGravity(Gravity.END|Gravity.TOP);
+        foot.addView(ownerL,new LinearLayout.LayoutParams(0,-2,1));
+        foot.addView(ownerR,new LinearLayout.LayoutParams(0,-2,1));
+        add(foot);
     }catch(Exception e){error(e);}
  }
  private Map<String,Double> sumMap(String sql,String[] args)throws Exception{Map<String,Double> m=new HashMap<>();for(JSONObject r:db.rows(sql,args))m.put(r.optString("k"),r.optDouble("v",0));return m;}
