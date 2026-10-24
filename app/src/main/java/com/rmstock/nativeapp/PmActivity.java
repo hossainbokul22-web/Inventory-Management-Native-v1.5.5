@@ -1291,6 +1291,40 @@ public class PmActivity extends Activity {
         }
     }
 
+
+    /**
+     * Fit a PDF table cell within the available width.
+     * Long text is shortened with an ellipsis.
+     */
+    private String fitPdfCell(String text, float maxWidth, Paint paint) {
+        if (text == null || text.isEmpty()) {
+            return "";
+        }
+
+        if (paint == null || maxWidth <= 0) {
+            return "";
+        }
+
+        if (paint.measureText(text) <= maxWidth) {
+            return text;
+        }
+
+        String ellipsis = "\u2026";
+        float availableWidth = maxWidth - paint.measureText(ellipsis);
+
+        if (availableWidth <= 0) {
+            return "";
+        }
+
+        int end = text.length();
+
+        while (end > 0 && paint.measureText(text, 0, end) > availableWidth) {
+            end--;
+        }
+
+        return text.substring(0, end) + ellipsis;
+    }
+
     private void exportPdf(String title, List<String[]> rows, String tag) {
         try {
             PdfDocument doc = new PdfDocument();
