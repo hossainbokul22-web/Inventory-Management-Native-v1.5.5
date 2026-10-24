@@ -712,9 +712,9 @@ c2.addView(Ui.text(this,"Tab names",15,Ui.NAVY_TEXT,true));
 
         LinearLayout c6=Ui.card(this,Ui.CARD);
         c6.addView(Ui.text(this,"Data clean-up",15,Ui.NAVY_TEXT,true));
-        c6.addView(Ui.muted(this,"Delete entries of one month, or everything. Raw materials, products and recipes are never touched. Every delete asks for the fingerprint and a confirmation. Make a backup first."));
+        c6.addView(Ui.muted(this,"RM + PM clear in one place (Admin). Masters/recipes never touched. Guard + confirm. Backup first."));
         final EditText mo=dateField("Pick any date in the month");mo.setText(today());c6.addView(mo);
-        String[][] dels={{"Delete receives of this month","receives"},{"Delete batch counts of this month","batches"},{"Delete wastage of this month","waste"},{"Delete stock counts of this month","counts"},{"Delete ALL entries (all months)","all"}};
+        String[][] dels={{"Delete receives of this month","receives"},{"Delete batch counts of this month","batches"},{"Delete wastage of this month","waste"},{"Delete stock counts of this month","counts"},{"Delete PM entries of this month","pm_month"},{"Delete ALL PM entries (all months)","pm_all"},{"Delete ALL RM entries (all months)","all"}};
         for(String[] dx:dels){final String k=dx[1],label=dx[0];Button b=Ui.secondary(this,label);b.setTextColor(Ui.BAD);b.setOnClickListener(v->{String m=mo.getText().toString().trim();if(!k.equals("all")&&!PlanLogic.validDate(m)){toast("Pick a date first");return;}final String month=m.length()>=7?m.substring(0,7):"";confirmDo(label+"?",k.equals("all")?"Every receive, batch count, wastage and stock count will be deleted.":"Month "+month+". This cannot be undone.",()->wipe(k,month));});c6.addView(b,Ui.lp(this,-1,-2,0,0,3,0,3));}
         addCard(c6);
 
@@ -763,9 +763,20 @@ c2.addView(Ui.text(this,"Tab names",15,Ui.NAVY_TEXT,true));
             else if(what.equals("batches")){x.execSQL("DELETE FROM mixing2_batch_log WHERE batch_id IN (SELECT id FROM batches WHERE date LIKE ?)",new Object[]{like});x.delete("batches","date LIKE ?",new String[]{like});}
             else if(what.equals("waste"))x.delete("mixing2_batch_log","batch_id<0 AND date LIKE ?",new String[]{like});
             else if(what.equals("counts"))x.delete("counts","date LIKE ?",new String[]{like});
+            else if(what.equals("pm_month")){
+                // handled after transaction via PmDb
+            }
+            else if(what.equals("pm_all")){
+                // handled after transaction via PmDb
+            }
             else{x.delete("receives",null,null);x.delete("mixing2_batch_log",null,null);x.delete("batches",null,null);x.delete("counts",null,null);}
             x.setTransactionSuccessful();
         }finally{x.endTransaction();}
+        if(what.equals("pm_month")){
+            new PmDb(this).getWritableDatabase().delete("entries","date LIKE ?",new String[]{month+"-%"});
+        }else if(what.equals("pm_all")){
+            new PmDb(this).clearAllEntries();
+        }
         toast("Deleted");showSettings();
     }catch(Exception e){error(e);}
  }

@@ -966,13 +966,7 @@ public class PmActivity extends Activity {
         LinearLayout card = Ui.card(this, Ui.CARD);
         card.addView(Ui.text(this, "Unified backup", 16, Ui.NAVY_TEXT, true));
         card.addView(Ui.muted(this, "RM + PM + Yield are backed up together from the main app:\nMore → Settings → Unified backup (RM + PM + Yield).\n\nOne JSON file restores everything. Separate PM-only export is no longer used."));
-        Button wipe = Ui.secondary(this, "Clear all PM entries only");
-        wipe.setOnClickListener(v -> Guard.run(this, db, "Clear all PM entries", true, () -> {
-            pm.clearAllEntries();
-            toast("Entries cleared");
-            render();
-        }));
-        card.addView(wipe);
+        card.addView(Ui.muted(this, "To clear PM entries: main app More → Settings → Data clean-up."));
         add(card);
     }
 
