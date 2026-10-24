@@ -29,11 +29,6 @@ public class MainActivity extends Activity {
     names.addView(brandView);
     names.addView(Ui.text(this,"Inventory Management",12,0xFFBFD3E8,false));
     header.addView(names,new LinearLayout.LayoutParams(0,-2,1));
-    TextView pmChip=Ui.text(this,"Daily PM ›",13,0xFFFFFFFF,true);
-    pmChip.setPadding(dp(12),dp(7),dp(12),dp(7));
-    pmChip.setBackground(Ui.shape(this,0x33FFFFFF,0x66FFFFFF,16));
-    pmChip.setOnClickListener(v->openDailyPm());
-    header.addView(pmChip);
     TextView gear=Ui.text(this,"\u2699",22,0xFFFFFFFF,false);
     gear.setPadding(dp(12),dp(4),dp(4),dp(4));
     gear.setOnClickListener(v->gateOpen("Settings",()->showSettings()));
@@ -55,8 +50,8 @@ public class MainActivity extends Activity {
     navRow.setBackgroundColor(Ui.CARD);
     navRow.setPadding(dp(4),dp(4),dp(4),dp(4));
     navViews.clear();navIcons.clear();navKeys.clear();
-    String[] keys={"Home","Entry","Batch","Reports","More"};
-    int[] icons={R.drawable.ic_nav_home,R.drawable.ic_nav_entry,R.drawable.ic_nav_batch,R.drawable.ic_nav_reports,R.drawable.ic_nav_more};
+    String[] keys={"Home","Entry","Batch","Reports","PM","More"};
+    int[] icons={R.drawable.ic_nav_home,R.drawable.ic_nav_entry,R.drawable.ic_nav_batch,R.drawable.ic_nav_reports,R.drawable.ic_nav_reports,R.drawable.ic_nav_more};
     for(int i=0;i<keys.length;i++){
         final String key=keys[i];
         LinearLayout cell=new LinearLayout(this);
@@ -81,7 +76,7 @@ public class MainActivity extends Activity {
     setContentView(root);
  }
  private void go(String key){
-    if(key.equals("Home"))showDashboard();else if(key.equals("Entry"))showDaily();else if(key.equals("Batch"))showBatch();else if(key.equals("Reports"))showReports();else showMore();
+    if(key.equals("Home"))showDashboard();else if(key.equals("Entry"))showDaily();else if(key.equals("Batch"))showBatch();else if(key.equals("Reports"))showReports();else if(key.equals("PM"))openDailyPm();else showMore();
  }
  private String navKeyFor(String s){
     if(s==null||s.startsWith("Dashboard"))return "Home";

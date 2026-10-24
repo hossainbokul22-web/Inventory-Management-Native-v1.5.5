@@ -24,8 +24,8 @@ final class Ui {
         dark = (c.getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
         NAVY = Color.rgb(20, 55, 95);
         ACCENT = Color.rgb(31, 157, 126);
-        TAB = dark ? new int[]{Color.rgb(110, 168, 255), Color.rgb(76, 208, 138), Color.rgb(255, 176, 74), Color.rgb(190, 146, 255), Color.rgb(167, 186, 198)}
-                   : new int[]{Color.rgb(36, 87, 166), Color.rgb(29, 154, 91), Color.rgb(224, 123, 0), Color.rgb(123, 63, 196), Color.rgb(84, 110, 122)};
+        TAB = dark ? new int[]{Color.rgb(110, 168, 255), Color.rgb(76, 208, 138), Color.rgb(255, 176, 74), Color.rgb(190, 146, 255), Color.rgb(255, 140, 120), Color.rgb(167, 186, 198)}
+                   : new int[]{Color.rgb(36, 87, 166), Color.rgb(29, 154, 91), Color.rgb(224, 123, 0), Color.rgb(123, 63, 196), Color.rgb(200, 70, 50), Color.rgb(84, 110, 122)};
         TAB_SOFT = new int[TAB.length];
         for (int i = 0; i < TAB.length; i++) TAB_SOFT[i] = (TAB[i] & 0x00FFFFFF) | 0x28000000;
         if (dark) {
