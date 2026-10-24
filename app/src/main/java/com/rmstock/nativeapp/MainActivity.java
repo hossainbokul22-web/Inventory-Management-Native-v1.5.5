@@ -1055,7 +1055,6 @@ add(Ui.muted(this,"Pinch-style control for the RM × Product recipe grid. Cell s
         quick.addView(Ui.muted(this,"Qty in recipe")); quick.addView(qQty);
         Button qSave=btn("Save line to recipe");
         qSave.setOnClickListener(v->{
-            Guard.run(this,db,"Save recipe line",true,()->{
                 try{
                     if(qProdCodes.isEmpty()||qRmCodes.isEmpty())throw new Exception("Add products and RMs first");
                     int pc=qProdCodes.get(qProd.getSelectedItemPosition());
@@ -1073,7 +1072,6 @@ add(Ui.muted(this,"Pinch-style control for the RM × Product recipe grid. Cell s
                     toast("Recipe line saved ✔");
                     showRecipe();
                 }catch(Exception ex){error(ex);}
-            });
         });
         quick.addView(qSave);
         add(quick);
