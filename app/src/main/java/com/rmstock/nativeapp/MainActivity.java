@@ -1182,8 +1182,25 @@ save.setPadding(dp(12),dp(10),dp(12),dp(10));save.setOnClickListener(x->{try{
 String label=String.valueOf(rm.getSelectedItem());if(label==null||label.equals("null"))throw new Exception("RM required");
 String day=ymd(d);if(db.monthLocked(day)){toast("Month locked");return;}String code=label.split(" — ",2)[0].trim();ContentValues z=new ContentValues();z.put("date",day);z.put("rm_code",code);z.put("qty",num(q.getText().toString()));z.put("voucher_no",v.getText().toString().trim());z.put("note",note.getText().toString().trim());z.put("source","manual");z.put("lot",lot.getText().toString().trim());z.put("expiry",expiryOf(exp));db.insert("receives",z);toast("Receive saved ✔");showDaily();
 }catch(Exception e){error(e);}});add(save);
-add(tv("Recent Entries (latest 100)",1));
-for(JSONObject r:db.rows("SELECT * FROM receives ORDER BY date DESC,id DESC LIMIT 100",null)){LinearLayout row=new LinearLayout(this);row.setOrientation(LinearLayout.VERTICAL);row.setPadding(dp(6),dp(8),dp(6),dp(8));
+// List range: today | last 7 days (does not change monthly reports / DB)
+String entryRange=db.setting("entry_list_range","7");
+if(!"today".equals(entryRange)) entryRange="7";
+final String entryRangeF=entryRange;
+LinearLayout rangeRow=new LinearLayout(this);
+rangeRow.setOrientation(LinearLayout.HORIZONTAL);
+rangeRow.setPadding(0,dp(6),0,dp(6));
+Button bToday=Ui.secondary(this,"Today");
+Button b7=Ui.secondary(this,"Last 7 days");
+if("today".equals(entryRangeF)){ bToday.setBackground(Ui.shape(this,Ui.NAVY_TEXT,Ui.NAVY_TEXT,20)); bToday.setTextColor(Color.WHITE); }
+else { b7.setBackground(Ui.shape(this,Ui.NAVY_TEXT,Ui.NAVY_TEXT,20)); b7.setTextColor(Color.WHITE); }
+bToday.setOnClickListener(v->{ db.setSetting("entry_list_range","today"); showDaily(); });
+b7.setOnClickListener(v->{ db.setSetting("entry_list_range","7"); showDaily(); });
+rangeRow.addView(bToday,new LinearLayout.LayoutParams(0,dp(44),1));
+rangeRow.addView(b7,new LinearLayout.LayoutParams(0,dp(44),1));
+add(rangeRow);
+String fromDay="today".equals(entryRangeF)?today():PlanLogic.shiftDate(today(),-6);
+add(tv("Recent Entries ("+("today".equals(entryRangeF)?"Today":"Last 7 days")+")",1));
+for(JSONObject r:db.rows("SELECT * FROM receives WHERE date>=? ORDER BY date DESC,id DESC LIMIT 200",new String[]{fromDay})){LinearLayout row=new LinearLayout(this);row.setOrientation(LinearLayout.VERTICAL);row.setPadding(dp(6),dp(8),dp(6),dp(8));
 row.addView(tv("ID: "+r.optString("id")+"   "+r.optString("date")+"   RM: "+r.optString("rm_code")+"   Qty: "+fmt(r.optDouble("qty"))+"   Voucher: "+r.optString("voucher_no")+(r.optString("lot").isEmpty()?"":"   Lot: "+r.optString("lot"))+(r.optString("expiry").isEmpty()?"":"   Exp: "+r.optString("expiry")),1));
 row.addView(tv(r.optString("note"),1));
 Button editB=btn("Edit");
@@ -1230,8 +1247,24 @@ save.setPadding(dp(12),dp(10),dp(12),dp(10));save.setOnClickListener(v->{try{Str
     ContentValues z=new ContentValues();z.put("date",day);z.put("product_code",Integer.parseInt(code));z.put("shift",sh);z.put("qty",bc);z.put("saved_at",new Date().toString());
     JSONObject existing=db.one("SELECT id FROM batches WHERE date=? AND product_code=? AND shift=?",new String[]{day,code,String.valueOf(sh)});long batchId;if(existing==null){batchId=db.insert("batches",z);}else{batchId=existing.getLong("id");db.update("batches",z,"id=?",new String[]{existing.getString("id")});}syncBatchLog(batchId,ymd(d),Integer.parseInt(code),sh,bc,new Date().toString());toast("Batch Count saved ✔");showBatch();
   }catch(Exception e){error(e);}});add(save);
-  add(title("Saved Batch Counts — Edit"));
-  for(JSONObject x:db.rows("SELECT b.id,b.date,b.product_code,p.name,b.shift,b.qty FROM batches b LEFT JOIN products p ON p.code=b.product_code ORDER BY b.date DESC,b.shift ASC,b.id DESC LIMIT 100",null)){
+  String batchRange=db.setting("batch_list_range","7");
+  if(!"today".equals(batchRange)) batchRange="7";
+  final String batchRangeF=batchRange;
+  LinearLayout br=new LinearLayout(this);
+  br.setOrientation(LinearLayout.HORIZONTAL);
+  br.setPadding(0,dp(6),0,dp(6));
+  Button bt=Ui.secondary(this,"Today");
+  Button b7b=Ui.secondary(this,"Last 7 days");
+  if("today".equals(batchRangeF)){ bt.setBackground(Ui.shape(this,Ui.NAVY_TEXT,Ui.NAVY_TEXT,20)); bt.setTextColor(Color.WHITE); }
+  else { b7b.setBackground(Ui.shape(this,Ui.NAVY_TEXT,Ui.NAVY_TEXT,20)); b7b.setTextColor(Color.WHITE); }
+  bt.setOnClickListener(v->{ db.setSetting("batch_list_range","today"); showBatch(); });
+  b7b.setOnClickListener(v->{ db.setSetting("batch_list_range","7"); showBatch(); });
+  br.addView(bt,new LinearLayout.LayoutParams(0,dp(44),1));
+  br.addView(b7b,new LinearLayout.LayoutParams(0,dp(44),1));
+  add(br);
+  String batchFrom="today".equals(batchRangeF)?today():PlanLogic.shiftDate(today(),-6);
+  add(title("Saved Batch Counts — "+("today".equals(batchRangeF)?"Today":"Last 7 days")));
+  for(JSONObject x:db.rows("SELECT b.id,b.date,b.product_code,p.name,b.shift,b.qty FROM batches b LEFT JOIN products p ON p.code=b.product_code WHERE b.date>=? ORDER BY b.date DESC,b.shift ASC,b.id DESC LIMIT 200",new String[]{batchFrom})){
     LinearLayout r=row();TextView t=new TextView(this);t.setText(x.optString("date")+" | "+x.optString("name")+" | Shift "+shiftLabel(x.optInt("shift",0))+" | Batch Count: "+batchCountText(x.optDouble("qty",0)));t.setLayoutParams(new LinearLayout.LayoutParams(0,-2,1));r.addView(t);
     Button e=btn("Edit");e.setOnClickListener(v->{
       try{
