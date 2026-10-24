@@ -113,8 +113,8 @@ final class PmDb extends SQLiteOpenHelper {
         getWritableDatabase().insertWithOnConflict("meta", null, cv, SQLiteDatabase.CONFLICT_REPLACE);
     }
 
-    static final String[] KINDS = {"receive", "ret", "output", "delivery", "hold", "reject"};
-    static final String[] KIND_LABELS = {"Receive", "Return", "Output", "Delivery", "QA Hold", "Reject"};
+    static final String[] KINDS = {"receive", "ret", "output", "delivery", "hold", "reject", "qa_pass"};
+    static final String[] KIND_LABELS = {"Receive", "Return", "Output", "Delivery", "QA Hold", "Reject", "QA Pass"};
 
     List<JSONObject> items() {
         List<JSONObject> out = new ArrayList<>();
@@ -302,7 +302,83 @@ final class PmDb extends SQLiteOpenHelper {
 
     
     /** FG opening = previous day closing: output before date − delivery − reject (hold stays). */
-    double openingProduct(int productCode, String date) {
+    
+    /** Qty for kind+code+date, optional shift ("" / General = blank or General). */
+    double sumKindOnShift(String kind, int code, String date, String shift) {
+        String sh = shift == null ? "" : shift.trim();
+        boolean gen = sh.isEmpty() || sh.equalsIgnoreCase("General");
+        String sql;
+        String[] args;
+        if (gen) {
+            sql = "SELECT COALESCE(SUM(qty),0) FROM entries WHERE kind=? AND code=? AND date=? AND (shift='' OR shift='General' OR shift IS NULL)";
+            args = new String[]{kind, String.valueOf(code), date};
+        } else {
+            sql = "SELECT COALESCE(SUM(qty),0) FROM entries WHERE kind=? AND code=? AND date=? AND shift=?";
+            args = new String[]{kind, String.valueOf(code), date, sh};
+        }
+        try (Cursor c = getReadableDatabase().rawQuery(sql, args)) {
+            return c.moveToFirst() ? c.getDouble(0) : 0;
+        }
+    }
+
+    double sumKindBeforeShift(String kind, int code, String beforeExclusive, String shift) {
+        String sh = shift == null ? "" : shift.trim();
+        boolean gen = sh.isEmpty() || sh.equalsIgnoreCase("General");
+        String sql;
+        String[] args;
+        if (gen) {
+            sql = "SELECT COALESCE(SUM(qty),0) FROM entries WHERE kind=? AND code=? AND date<? AND (shift='' OR shift='General' OR shift IS NULL)";
+            args = new String[]{kind, String.valueOf(code), beforeExclusive};
+        } else {
+            sql = "SELECT COALESCE(SUM(qty),0) FROM entries WHERE kind=? AND code=? AND date<? AND shift=?";
+            args = new String[]{kind, String.valueOf(code), beforeExclusive, sh};
+        }
+        try (Cursor c = getReadableDatabase().rawQuery(sql, args)) {
+            return c.moveToFirst() ? c.getDouble(0) : 0;
+        }
+    }
+
+    /** Outstanding hold before date: sum(hold) - sum(qa_pass) before date (not below 0). Product-level if shift null. */
+    double previousHold(int code, String date, String shift) {
+        double h = sumKindBeforeShift("hold", code, date, shift);
+        double p = sumKindBeforeShift("qa_pass", code, date, shift);
+        return Math.max(0, h - p);
+    }
+
+    double todayHold(int code, String date, String shift) {
+        return sumKindOnShift("hold", code, date, shift);
+    }
+
+    double todayQaPass(int code, String date, String shift) {
+        return sumKindOnShift("qa_pass", code, date, shift);
+    }
+
+    double todayProduction(int code, String date, String shift) {
+        return sumKindOnShift("output", code, date, shift);
+    }
+
+    double todayDelivery(int code, String date, String shift) {
+        return sumKindOnShift("delivery", code, date, shift);
+    }
+
+    /**
+     * Available = Opening + Production + QA Pass - (Today Hold + Previous Hold)
+     * Closing (floor) = Opening + Production - Delivery
+     */
+    double fgAvailable(int code, String date, String shift) {
+        double open = openingProduct(code, date);
+        return open + todayProduction(code, date, shift) + todayQaPass(code, date, shift)
+                - (todayHold(code, date, shift) + previousHold(code, date, shift));
+    }
+
+    double fgClosingFloor(int code, String date, String shift) {
+        // Floor stock: opening + production - delivery (hold/pass stay on floor)
+        // Shift-wise production/delivery; opening is product-level baseline for the day
+        double open = openingProduct(code, date);
+        return open + todayProduction(code, date, shift) - todayDelivery(code, date, shift);
+    }
+
+double openingProduct(int productCode, String date) {
         /* Month baseline from Master "Production Opening" sheet + movements from month-start to day-before.
            On 1st of month Opening = sheet value only. Later days = previous day closing chain. */
         if (date == null || date.length() < 10) return 0;

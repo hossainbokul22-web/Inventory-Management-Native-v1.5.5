@@ -50,7 +50,7 @@ import java.util.Locale;
  */
 public class PmActivity extends Activity {
     private static final int REQ_IMPORT = 91, REQ_SAVE = 92;
-    private static final String[] TABS = {"Entry", "Daily", "Monthly", "Production", "Master", "Settings", "Backup"};
+    private static final String[] TABS = {"Entry", "Daily", "Monthly", "Production", "FG Daily", "Master", "Settings", "Backup"};
     private static final String[] SHIFTS = {"A", "B", "C", "General"};
 
     private PmDb pm;
@@ -108,7 +108,7 @@ public class PmActivity extends Activity {
             t.setLayoutParams(tlp);
             t.setTag(idx);
             t.setOnClickListener(v -> {
-                if (idx == 4 || idx == 5) {
+                if (idx == 5 || idx == 6) {
                     Guard.run(this, db, TABS[idx], false, () -> { tab = idx; render(); });
                 } else {
                     tab = idx;
@@ -158,9 +158,10 @@ public class PmActivity extends Activity {
             case 1: showDaily(); break;
             case 2: showMonthly(); break;
             case 3: showProduction(); break;
-            case 4: showMaster(); break;
-            case 5: showSettings(); break;
-            case 6: showBackup(); break;
+            case 4: showFgDaily(); break;
+            case 5: showMaster(); break;
+            case 6: showSettings(); break;
+            case 7: showBackup(); break;
         }
     }
 
@@ -515,6 +516,130 @@ public class PmActivity extends Activity {
         } else {
             addReportTable("Production — " + date, rows, date);
         }
+    }
+
+
+    private void showFgDaily() {
+        final String[] SH = {"A", "B", "C", "General"};
+        LinearLayout head = Ui.card(this, Ui.CARD);
+        head.addView(Ui.text(this, "FG Daily Sheet", 17, Color.BLACK, true));
+        head.addView(Ui.muted(this, "Available = Opening + Production + QA Pass − (Today Hold + Previous Hold). Closing (floor) = Opening + Production − Delivery. Entry types: Output, QA Hold, QA Pass, Delivery."));
+        final EditText dateEt = field("Date", stockDate);
+        dateEt.setFocusable(false);
+        dateEt.setOnClickListener(v -> pickDate(dateEt));
+        head.addView(Ui.muted(this, "Date"));
+        head.addView(dateEt);
+        Button go = Ui.primary(this, "Show sheet");
+        head.addView(go);
+        Button monthBtn = Ui.secondary(this, "Month day-wise records");
+        monthBtn.setOnClickListener(v -> showFgMonthly());
+        head.addView(monthBtn);
+        add(head);
+
+        final LinearLayout sheet = new LinearLayout(this);
+        sheet.setOrientation(LinearLayout.VERTICAL);
+        add(sheet);
+
+        Runnable fill = () -> {
+            sheet.removeAllViews();
+            String date = dateEt.getText().toString().trim();
+            stockDate = date;
+            if (date.length() < 8) { toast("Invalid date"); return; }
+            List<JSONObject> products = pm.products();
+            if (products.isEmpty()) {
+                sheet.addView(Ui.muted(this, "No products in Master"));
+                return;
+            }
+            for (JSONObject pr : products) {
+                int code = pr.optInt("code");
+                String pname = pr.optString("name");
+                LinearLayout card = Ui.card(this, Ui.CARD);
+                card.addView(Ui.text(this, code + " — " + pname, 15, Ui.NAVY_TEXT, true));
+                double open = pm.openingProduct(code, date);
+                card.addView(Ui.muted(this, "Opening CTN (day): " + PmDb.fmt(open)));
+
+                double tProd = 0, tHold = 0, tPrev = 0, tPass = 0, tDel = 0, tAvail = 0, tClose = 0;
+                for (String sh : SH) {
+                    double prod = pm.todayProduction(code, date, sh);
+                    double hold = pm.todayHold(code, date, sh);
+                    double prev = pm.previousHold(code, date, sh);
+                    double pass = pm.todayQaPass(code, date, sh);
+                    double del = pm.todayDelivery(code, date, sh);
+                    double avail = open + prod + pass - (hold + prev);
+                    double close = open + prod - del;
+                    tProd += prod; tHold += hold; tPrev += prev; tPass += pass; tDel += del; tAvail += avail; tClose += close;
+                    String line = "Shift " + sh
+                            + "\n  Open " + PmDb.fmt(open)
+                            + " | PrevHold " + PmDb.fmt(prev)
+                            + " | TodayHold " + PmDb.fmt(hold)
+                            + "\n  Prod " + PmDb.fmt(prod)
+                            + " | QA Pass " + PmDb.fmt(pass)
+                            + " | Available " + PmDb.fmt(avail)
+                            + "\n  Delivery " + PmDb.fmt(del)
+                            + " | Closing " + PmDb.fmt(close);
+                    card.addView(Ui.text(this, line, 12, Ui.INK, false));
+                }
+                card.addView(Ui.text(this, "TOTAL  Prod " + PmDb.fmt(tProd)
+                        + " | Hold " + PmDb.fmt(tHold) + " | PrevHold " + PmDb.fmt(tPrev)
+                        + " | Pass " + PmDb.fmt(tPass)
+                        + " | Avail " + PmDb.fmt(tAvail)
+                        + " | Del " + PmDb.fmt(tDel)
+                        + " | Close Σshifts " + PmDb.fmt(tClose), 13, Color.BLACK, true));
+                card.addView(Ui.muted(this, "Edit wrong qty: Entry tab → find row → long-press delete / re-save. QA Pass chip on Entry."));
+                sheet.addView(card);
+            }
+        };
+        go.setOnClickListener(v -> fill.run());
+        fill.run();
+    }
+
+    private void showFgMonthly() {
+        content.removeAllViews();
+        LinearLayout card = Ui.card(this, Ui.CARD);
+        card.addView(Ui.text(this, "FG Daily — Month day-wise", 16, Ui.NAVY_TEXT, true));
+        final EditText ymEt = field("Month YYYY-MM", monthYm);
+        card.addView(Ui.muted(this, "Month"));
+        card.addView(ymEt);
+        Button load = Ui.primary(this, "Load days");
+        card.addView(load);
+        Button back = Ui.secondary(this, "Back to FG Daily");
+        back.setOnClickListener(v -> { tab = 4; render(); });
+        card.addView(back);
+        add(card);
+        final LinearLayout list = new LinearLayout(this);
+        list.setOrientation(LinearLayout.VERTICAL);
+        add(list);
+        load.setOnClickListener(v -> {
+            list.removeAllViews();
+            String ym = ymEt.getText().toString().trim();
+            if (ym.length() < 7) { toast("YYYY-MM"); return; }
+            monthYm = ym;
+            // days that have any FG movement
+            try {
+                java.util.LinkedHashSet<String> days = new java.util.LinkedHashSet<>();
+                for (JSONObject e : pm.recentEntries(5000)) {
+                    String d = e.optString("date");
+                    if (d.startsWith(ym)) {
+                        String k = e.optString("kind");
+                        if (k.equals("output") || k.equals("hold") || k.equals("qa_pass") || k.equals("delivery") || k.equals("reject"))
+                            days.add(d);
+                    }
+                }
+                if (days.isEmpty()) list.addView(Ui.muted(this, "No FG entries this month"));
+                java.util.ArrayList<String> sorted = new java.util.ArrayList<>(days);
+                java.util.Collections.sort(sorted);
+                java.util.Collections.reverse(sorted);
+                for (String d : sorted) {
+                    Button b = Ui.secondary(this, d + "  → open FG sheet");
+                    b.setOnClickListener(vv -> {
+                        stockDate = d;
+                        tab = 4;
+                        render();
+                    });
+                    list.addView(b);
+                }
+            } catch (Exception ex) { toast(ex.getMessage()); }
+        });
     }
 
     private void showMaster() {
