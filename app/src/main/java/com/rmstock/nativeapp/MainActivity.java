@@ -1189,14 +1189,12 @@ final String entryRangeF=entryRange;
 LinearLayout rangeRow=new LinearLayout(this);
 rangeRow.setOrientation(LinearLayout.HORIZONTAL);
 rangeRow.setPadding(0,dp(6),0,dp(6));
-Button bToday=Ui.secondary(this,"Today");
-Button b7=Ui.secondary(this,"Last 7 days");
-if("today".equals(entryRangeF)){ bToday.setBackground(Ui.shape(this,Ui.NAVY_TEXT,Ui.NAVY_TEXT,20)); bToday.setTextColor(Color.WHITE); }
-else { b7.setBackground(Ui.shape(this,Ui.NAVY_TEXT,Ui.NAVY_TEXT,20)); b7.setTextColor(Color.WHITE); }
+Button bToday=btn("today".equals(entryRangeF)?"● Today":"Today");
+Button b7=btn("7".equals(entryRangeF)?"● Last 7 days":"Last 7 days");
 bToday.setOnClickListener(v->{ db.setSetting("entry_list_range","today"); showDaily(); });
 b7.setOnClickListener(v->{ db.setSetting("entry_list_range","7"); showDaily(); });
-rangeRow.addView(bToday,new LinearLayout.LayoutParams(0,dp(44),1));
-rangeRow.addView(b7,new LinearLayout.LayoutParams(0,dp(44),1));
+rangeRow.addView(bToday,new LinearLayout.LayoutParams(0,dp(48),1));
+rangeRow.addView(b7,new LinearLayout.LayoutParams(0,dp(48),1));
 add(rangeRow);
 String fromDay="today".equals(entryRangeF)?today():PlanLogic.shiftDate(today(),-6);
 add(tv("Recent Entries ("+("today".equals(entryRangeF)?"Today":"Last 7 days")+")",1));
@@ -1253,14 +1251,12 @@ save.setPadding(dp(12),dp(10),dp(12),dp(10));save.setOnClickListener(v->{try{Str
   LinearLayout br=new LinearLayout(this);
   br.setOrientation(LinearLayout.HORIZONTAL);
   br.setPadding(0,dp(6),0,dp(6));
-  Button bt=Ui.secondary(this,"Today");
-  Button b7b=Ui.secondary(this,"Last 7 days");
-  if("today".equals(batchRangeF)){ bt.setBackground(Ui.shape(this,Ui.NAVY_TEXT,Ui.NAVY_TEXT,20)); bt.setTextColor(Color.WHITE); }
-  else { b7b.setBackground(Ui.shape(this,Ui.NAVY_TEXT,Ui.NAVY_TEXT,20)); b7b.setTextColor(Color.WHITE); }
+  Button bt=btn("today".equals(batchRangeF)?"● Today":"Today");
+  Button b7b=btn("7".equals(batchRangeF)?"● Last 7 days":"Last 7 days");
   bt.setOnClickListener(v->{ db.setSetting("batch_list_range","today"); showBatch(); });
   b7b.setOnClickListener(v->{ db.setSetting("batch_list_range","7"); showBatch(); });
-  br.addView(bt,new LinearLayout.LayoutParams(0,dp(44),1));
-  br.addView(b7b,new LinearLayout.LayoutParams(0,dp(44),1));
+  br.addView(bt,new LinearLayout.LayoutParams(0,dp(48),1));
+  br.addView(b7b,new LinearLayout.LayoutParams(0,dp(48),1));
   add(br);
   String batchFrom="today".equals(batchRangeF)?today():PlanLogic.shiftDate(today(),-6);
   add(title("Saved Batch Counts — "+("today".equals(batchRangeF)?"Today":"Last 7 days")));
