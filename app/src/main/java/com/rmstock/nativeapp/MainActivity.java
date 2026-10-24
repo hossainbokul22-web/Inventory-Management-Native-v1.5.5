@@ -1109,6 +1109,11 @@ add(Ui.muted(this,"Pinch-style control for the RM × Product recipe grid. Cell s
                         e.setText(q==null?"0":fmt(q.getDouble("qty")));
                     }catch(Exception ex){e.setText("0");}
                     e.setTag(r.optString("code")+"|"+p.optString("code"));
+                    e.setFocusable(false);
+                    e.setFocusableInTouchMode(false);
+                    e.setClickable(false);
+                    e.setLongClickable(false);
+                    e.setEnabled(false);
                     tr.addView(e,new TableRow.LayoutParams(cellW,cellH));
                 }
                 t.addView(tr);
@@ -1132,9 +1137,38 @@ add(Ui.muted(this,"Pinch-style control for the RM × Product recipe grid. Cell s
         });
         zReset.setOnClickListener(v->{zoom[0]=1f;applyZoom.run();});
 
+        final boolean[] recipeUnlocked={false};
+        Button unlockBtn=Ui.secondary(this,"Unlock recipe edit (security)");
+        unlockBtn.setOnClickListener(v->{
+            if(recipeUnlocked[0]){ toast("Already unlocked"); return; }
+            Guard.run(this,db,"Unlock recipe grid",true,()->{
+                recipeUnlocked[0]=true;
+                try{
+                    for(int i=1;i<t.getChildCount();i++){
+                        TableRow tr=(TableRow)t.getChildAt(i);
+                        for(int j=1;j<tr.getChildCount();j++){
+                            View cell=tr.getChildAt(j);
+                            if(cell instanceof EditText){
+                                EditText e=(EditText)cell;
+                                e.setEnabled(true);
+                                e.setFocusable(true);
+                                e.setFocusableInTouchMode(true);
+                                e.setClickable(true);
+                            }
+                        }
+                    }
+                    unlockBtn.setText("Recipe unlocked — edit cells");
+                    toast("Recipe cells unlocked");
+                }catch(Exception ex){error(ex);}
+            });
+        });
+        add(unlockBtn);
+        add(Ui.muted(this,"Cells are locked until Unlock (Guard/PIN). Save still requires security."));
+
         Button save=btn("Save All Recipes");
         save.setOnClickListener(v->{
             if(!open())return;
+            if(!recipeUnlocked[0]){toast("Unlock recipe edit first");return;}
             if(!admin()){toast("Admin/Editor only");return;}
             Guard.run(this,db,"Save all recipes",true,()->{
             try{
