@@ -50,7 +50,7 @@ import java.util.Locale;
  */
 public class PmActivity extends Activity {
     private static final int REQ_IMPORT = 91, REQ_SAVE = 92;
-    private static final String[] TABS = {"Entry", "Daily", "Monthly", "Production", "FG Daily", "Master", "Backup"};
+    private static final String[] TABS = {"Home", "Entry", "Daily", "Monthly", "Production", "FG Daily", "Master", "Backup"};
     private static final String[] SHIFTS = {"A", "B", "C", "General"};
 
     private PmDb pm;
@@ -109,7 +109,7 @@ public class PmActivity extends Activity {
             t.setLayoutParams(tlp);
             t.setTag(idx);
             t.setOnClickListener(v -> {
-                if (idx == 5) {
+                if (idx == 6) {
                     Guard.run(this, db, TABS[idx], false, () -> { pmNested = false; tab = idx; render(); });
                 } else {
                     pmNested = false;
@@ -177,13 +177,14 @@ public class PmActivity extends Activity {
             t.setPadding(Ui.dp(this, 16), Ui.dp(this, 10), Ui.dp(this, 16), Ui.dp(this, 10));
         }
         switch (tab) {
-            case 0: showEntry(); break;
-            case 1: showDaily(); break;
-            case 2: showMonthly(); break;
-            case 3: showProduction(); break;
-            case 4: showFgDaily(); break;
-            case 5: showMaster(); break;
-            case 6: showBackup(); break;
+            case 0: showPmDashboard(); break;
+            case 1: showEntry(); break;
+            case 2: showDaily(); break;
+            case 3: showMonthly(); break;
+            case 4: showProduction(); break;
+            case 5: showFgDaily(); break;
+            case 6: showMaster(); break;
+            case 7: showBackup(); break;
         }
     }
 
@@ -192,6 +193,117 @@ public class PmActivity extends Activity {
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         lp.setMargins(Ui.dp(this, 12), Ui.dp(this, 8), Ui.dp(this, 12), 0);
         content.addView(v, lp);
+    }
+
+
+    private void showPmDashboard() {
+        String date = stockDate == null || stockDate.isEmpty() ? PmDb.today() : stockDate;
+        stockDate = date;
+
+        LinearLayout head = Ui.card(this, Ui.CARD);
+        head.addView(Ui.text(this, "PM Dashboard", 18, Color.BLACK, true));
+        head.addView(Ui.muted(this, db.setting("company", "Inventory Management") + "  ·  " + date));
+        final EditText dateEt = field("Date", date);
+        dateEt.setFocusable(false);
+        dateEt.setOnClickListener(v -> pickDate(dateEt));
+        head.addView(Ui.muted(this, "Report date"));
+        head.addView(dateEt);
+        Button refresh = Ui.primary(this, "Refresh");
+        head.addView(refresh);
+        add(head);
+
+        final LinearLayout body = new LinearLayout(this);
+        body.setOrientation(LinearLayout.VERTICAL);
+        add(body);
+
+        Runnable fill = () -> {
+            body.removeAllViews();
+            String d = dateEt.getText().toString().trim();
+            if (d.length() < 8) d = PmDb.today();
+            stockDate = d;
+
+            double totProd = 0, totDel = 0, totHold = 0, totPass = 0;
+            try {
+                for (JSONObject pr : pm.products()) {
+                    int code = pr.optInt("code");
+                    totProd += pm.sumKindOn("output", code, d);
+                    totDel += pm.sumKindOn("delivery", code, d);
+                    totHold += pm.sumKindOn("hold", code, d);
+                    totPass += pm.sumKindOn("qa_pass", code, d);
+                }
+            } catch (Exception ignored) {}
+
+            LinearLayout kpi = Ui.card(this, Ui.CARD);
+            kpi.addView(Ui.text(this, "Today totals", 15, Ui.NAVY_TEXT, true));
+            kpi.addView(Ui.text(this,
+                    "Production  " + PmDb.fmt(totProd)
+                    + "\nDelivery    " + PmDb.fmt(totDel)
+                    + "\nQA Hold     " + PmDb.fmt(totHold)
+                    + "\nQA Pass     " + PmDb.fmt(totPass), 14, Ui.INK, false));
+            body.addView(kpi);
+
+            LinearLayout quick = Ui.card(this, Ui.CARD);
+            quick.addView(Ui.text(this, "Quick open", 15, Ui.NAVY_TEXT, true));
+            String[][] qs = {
+                {"Entry", "1"}, {"FG Daily", "5"}, {"Production", "4"}, {"Monthly", "3"}
+            };
+            LinearLayout row = new LinearLayout(this);
+            row.setOrientation(LinearLayout.HORIZONTAL);
+            for (String[] q : qs) {
+                final int ti = Integer.parseInt(q[1]);
+                Button b = Ui.secondary(this, q[0]);
+                b.setOnClickListener(v -> { pmNested = false; tab = ti; render(); });
+                row.addView(b, new LinearLayout.LayoutParams(0, Ui.dp(this, 48), 1));
+            }
+            quick.addView(row);
+            body.addView(quick);
+
+            LinearLayout prodCard = Ui.card(this, Ui.CARD);
+            prodCard.addView(Ui.text(this, "Products — Available / Closing", 15, Ui.NAVY_TEXT, true));
+            try {
+                List<JSONObject> products = pm.products();
+                if (products.isEmpty()) {
+                    prodCard.addView(Ui.muted(this, "No products in Master"));
+                } else {
+                    for (JSONObject pr : products) {
+                        int code = pr.optInt("code");
+                        String name = pr.optString("name");
+                        double open = pm.openingProduct(code, d);
+                        double prod = pm.sumKindOn("output", code, d);
+                        double pass = pm.sumKindOn("qa_pass", code, d);
+                        double holdT = pm.sumKindOn("hold", code, d);
+                        double prev = pm.previousHold(code, d, "General")
+                                + pm.previousHold(code, d, "A")
+                                + pm.previousHold(code, d, "B")
+                                + pm.previousHold(code, d, "C");
+                        // product-level available using day totals (all shifts)
+                        double avail = open + prod + pass - (holdT + Math.max(0,
+                                pm.sumKind("hold", code, d, true) - pm.sumKind("qa_pass", code, d, true)));
+                        // simpler product-level:
+                        double prevH = Math.max(0, pm.sumKind("hold", code, d, true) - pm.sumKind("qa_pass", code, d, true));
+                        avail = open + prod + pass - (holdT + prevH);
+                        double close = open + prod - pm.sumKindOn("delivery", code, d);
+                        TextView line = Ui.text(this,
+                                code + " · " + name
+                                + "\n  Open " + PmDb.fmt(open)
+                                + "  Avail " + PmDb.fmt(avail)
+                                + "  Close " + PmDb.fmt(close)
+                                + "  | P " + PmDb.fmt(prod) + " D " + PmDb.fmt(pm.sumKindOn("delivery", code, d)),
+                                12, Ui.INK, false);
+                        prodCard.addView(line);
+                        View div = new View(this);
+                        div.setBackgroundColor(Ui.LINE);
+                        prodCard.addView(div, new LinearLayout.LayoutParams(-1, 1));
+                    }
+                }
+            } catch (Exception e) {
+                prodCard.addView(Ui.muted(this, "Error: " + e.getMessage()));
+            }
+            body.addView(prodCard);
+            body.addView(Ui.muted(this, "Detail by shift → FG Daily. Entry for Output / Hold / QA Pass / Delivery."));
+        };
+        refresh.setOnClickListener(v -> fill.run());
+        fill.run();
     }
 
     private void showEntry() {
@@ -678,7 +790,7 @@ public class PmActivity extends Activity {
         Button load = Ui.primary(this, "Load days");
         card.addView(load);
         Button back = Ui.secondary(this, "Back to FG Daily");
-        back.setOnClickListener(v -> { pmNested = false; tab = 4; render(); });
+        back.setOnClickListener(v -> { pmNested = false; tab = 5; render(); });
         card.addView(back);
         add(card);
         final LinearLayout list = new LinearLayout(this);
@@ -708,7 +820,7 @@ public class PmActivity extends Activity {
                     Button b = Ui.secondary(this, d + "  → open FG sheet");
                     b.setOnClickListener(vv -> {
                         stockDate = d;
-                        tab = 4;
+                        tab = 5;
                         render();
                     });
                     list.addView(b);
