@@ -58,6 +58,7 @@ public class PmActivity extends Activity {
     private LinearLayout root, content;
     private TextView titleTv, statusTv;
     private int tab;
+    private boolean pmNested = false; // sub-screen inside a tab (e.g. FG month list)
     private int savedKindPosition=0, savedCode=-1;
     private String stockDate, monthYm;
     private File pendingFile;
@@ -83,7 +84,7 @@ public class PmActivity extends Activity {
         bar.setPadding(Ui.dp(this, 6), Ui.dp(this, 8), Ui.dp(this, 14), Ui.dp(this, 8));
         TextView back = Ui.text(this, "‹  Back", 16, Color.WHITE, true);
         back.setPadding(Ui.dp(this, 10), Ui.dp(this, 6), Ui.dp(this, 14), Ui.dp(this, 6));
-        back.setOnClickListener(v -> finish());
+        back.setOnClickListener(v -> handlePmBack());
         bar.addView(back);
         titleTv = Ui.text(this, pm.meta("appTitle", "Daily PM Report"), 16, Color.WHITE, true);
         bar.addView(titleTv, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
@@ -109,8 +110,9 @@ public class PmActivity extends Activity {
             t.setTag(idx);
             t.setOnClickListener(v -> {
                 if (idx == 5 || idx == 6) {
-                    Guard.run(this, db, TABS[idx], false, () -> { tab = idx; render(); });
+                    Guard.run(this, db, TABS[idx], false, () -> { pmNested = false; tab = idx; render(); });
                 } else {
+                    pmNested = false;
                     tab = idx;
                     render();
                 }
@@ -139,6 +141,27 @@ public class PmActivity extends Activity {
     private void updateStatus() {
         statusTv.setText(pm.entryCount() + " entries");
         titleTv.setText(pm.meta("appTitle", "Daily PM Report"));
+    }
+
+
+    @Override
+    public void onBackPressed() {
+        handlePmBack();
+    }
+
+    /** Phone back / header Back: nested → tab; other tab → Entry; Entry → leave PM (dashboard). */
+    private void handlePmBack() {
+        if (pmNested) {
+            pmNested = false;
+            render();
+            return;
+        }
+        if (tab != 0) {
+            tab = 0;
+            render();
+            return;
+        }
+        finish();
     }
 
     private void render() {
@@ -646,6 +669,7 @@ public class PmActivity extends Activity {
     }
 
     private void showFgMonthly() {
+        pmNested = true;
         content.removeAllViews();
         LinearLayout card = Ui.card(this, Ui.CARD);
         card.addView(Ui.text(this, "FG Daily — Month day-wise", 16, Ui.NAVY_TEXT, true));
@@ -655,7 +679,7 @@ public class PmActivity extends Activity {
         Button load = Ui.primary(this, "Load days");
         card.addView(load);
         Button back = Ui.secondary(this, "Back to FG Daily");
-        back.setOnClickListener(v -> { tab = 4; render(); });
+        back.setOnClickListener(v -> { pmNested = false; tab = 4; render(); });
         card.addView(back);
         add(card);
         final LinearLayout list = new LinearLayout(this);
