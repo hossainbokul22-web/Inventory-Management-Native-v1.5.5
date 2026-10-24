@@ -50,7 +50,7 @@ import java.util.Locale;
  */
 public class PmActivity extends Activity {
     private static final int REQ_IMPORT = 91, REQ_SAVE = 92;
-    private static final String[] TABS = {"Entry", "Daily", "Monthly", "Production", "FG Daily", "Master", "Settings", "Backup"};
+    private static final String[] TABS = {"Entry", "Daily", "Monthly", "Production", "FG Daily", "Master", "Backup"};
     private static final String[] SHIFTS = {"A", "B", "C", "General"};
 
     private PmDb pm;
@@ -109,7 +109,7 @@ public class PmActivity extends Activity {
             t.setLayoutParams(tlp);
             t.setTag(idx);
             t.setOnClickListener(v -> {
-                if (idx == 5 || idx == 6) {
+                if (idx == 5) {
                     Guard.run(this, db, TABS[idx], false, () -> { pmNested = false; tab = idx; render(); });
                 } else {
                     pmNested = false;
@@ -183,8 +183,7 @@ public class PmActivity extends Activity {
             case 3: showProduction(); break;
             case 4: showFgDaily(); break;
             case 5: showMaster(); break;
-            case 6: showSettings(); break;
-            case 7: showBackup(); break;
+            case 6: showBackup(); break;
         }
     }
 
@@ -946,7 +945,7 @@ public class PmActivity extends Activity {
 
         LinearLayout sec = Ui.card(this, Ui.CARD);
         sec.addView(Ui.text(this, "Security", 15, Ui.NAVY_TEXT, true));
-        sec.addView(Ui.muted(this, "Same fingerprint / PIN lock as the main RM Stock app. Asked before Master, Settings and every delete."));
+        sec.addView(Ui.muted(this, "Same fingerprint / PIN lock as the main RM Stock app. Asked before Master and every delete. App Settings: main app More → Settings."));
         Button gb = Ui.secondary(this, "Protection: " + (Guard.enabled(db) ? "ON — tap to turn off" : "OFF — tap to turn on"));
         gb.setOnClickListener(v -> {
             if (Guard.enabled(db)) {

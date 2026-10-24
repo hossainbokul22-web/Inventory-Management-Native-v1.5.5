@@ -611,7 +611,31 @@ private void showSummary(){
         cBoss.addView(saveBoss);addCard(cBoss);
 
         LinearLayout c2=Ui.card(this,Ui.CARD);
-        c2.addView(Ui.text(this,"Tab names",15,Ui.NAVY_TEXT,true));
+        
+        LinearLayout cPm=Ui.card(this,Ui.CARD);
+        cPm.addView(Ui.text(this,"Daily PM labels",15,Ui.NAVY_TEXT,true));
+        cPm.addView(Ui.muted(this,"Used on Daily PM reports / PDF. Same Settings for RM + PM — no separate PM Settings tab."));
+        final EditText prepBy=edit("Prepared by (PM reports)");
+        final EditText pmTitle=edit("PM screen title");
+        try{
+            PmDb pmDb=new PmDb(this);
+            prepBy.setText(pmDb.meta("preparedBy",""));
+            pmTitle.setText(pmDb.meta("appTitle","Daily PM Report"));
+        }catch(Exception ignored){}
+        cPm.addView(Ui.muted(this,"Prepared by"));cPm.addView(prepBy);
+        cPm.addView(Ui.muted(this,"PM title"));cPm.addView(pmTitle);
+        Button savePm=btn("Save PM labels");
+        savePm.setOnClickListener(v->{
+            try{
+                PmDb pmDb=new PmDb(this);
+                pmDb.setMeta("preparedBy",prepBy.getText().toString().trim());
+                pmDb.setMeta("appTitle",pmTitle.getText().toString().trim());
+                toast("PM labels saved ✔");
+            }catch(Exception e){error(e);}
+        });
+        cPm.addView(savePm);addCard(cPm);
+
+c2.addView(Ui.text(this,"Tab names",15,Ui.NAVY_TEXT,true));
         c2.addView(Ui.muted(this,"Rename the five tabs at the bottom."));
         final String[] keys={"Home","Entry","Batch","Reports","More"};final EditText[] tf=new EditText[keys.length];
         for(int i=0;i<keys.length;i++){tf[i]=edit(keys[i]);tf[i].setText(tabName(keys[i]));c2.addView(tf[i]);}
