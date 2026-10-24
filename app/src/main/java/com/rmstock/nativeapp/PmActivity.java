@@ -203,24 +203,16 @@ public class PmActivity extends Activity {
         card.addView(kindScroll);
         paintKinds.run();
 
-        LinearLayout row1 = new LinearLayout(this);
-        row1.setOrientation(LinearLayout.HORIZONTAL);
-        LinearLayout cDate = new LinearLayout(this);
-        cDate.setOrientation(LinearLayout.VERTICAL);
-        cDate.addView(Ui.muted(this, "Date"));
+        // Date on its own row (top), Item/Product below
+        card.addView(Ui.muted(this, "Date"));
         final EditText dateEt = field("Date", stockDate);
         dateEt.setFocusable(false);
         dateEt.setOnClickListener(v -> pickDate(dateEt));
-        cDate.addView(dateEt);
-        LinearLayout cItem = new LinearLayout(this);
-        cItem.setOrientation(LinearLayout.VERTICAL);
-        cItem.addView(Ui.muted(this, "Item / Product"));
+        card.addView(dateEt);
+
+        card.addView(Ui.muted(this, "Item / Product"));
         final Spinner codeSp = new Spinner(this);
-        cItem.addView(codeSp);
-        row1.addView(cDate, new LinearLayout.LayoutParams(0, -2, 1));
-        row1.addView(new View(this), new LinearLayout.LayoutParams(Ui.dp(this, 10), 1));
-        row1.addView(cItem, new LinearLayout.LayoutParams(0, -2, 1));
-        card.addView(row1);
+        card.addView(codeSp);
 
         final List<JSONObject> selectedRecords = new ArrayList<>();
         final Runnable[] refreshHolder = new Runnable[1];
