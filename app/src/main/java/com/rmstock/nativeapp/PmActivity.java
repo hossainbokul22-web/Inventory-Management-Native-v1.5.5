@@ -17,6 +17,7 @@ import android.os.CancellationSignal;
 import android.os.ParcelFileDescriptor;
 import android.os.Bundle;
 import android.text.InputType;
+import android.text.TextUtils;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
@@ -626,6 +627,9 @@ public class PmActivity extends Activity {
         });
         top.addView(Ui.muted(this, "Opening = month Production Opening sheet (day 1) then previous day closing. Closing = Opening + Output − Delivery − Reject."));
         top.addView(go);
+        Button monthlyRep = Ui.secondary(this, "Monthly Production Report");
+        monthlyRep.setOnClickListener(v -> showMonthlyProductionReport());
+        top.addView(monthlyRep);
         add(top);
 
         String date = stockDate;
@@ -652,6 +656,146 @@ public class PmActivity extends Activity {
         }
     }
 
+
+
+    /** Month sheet: Opening (Master opening that month) + Prod − Reject − Delivery = Closing.
+        Next month Opening should be this Closing (carry button). Unit: CTN/PCS. */
+    private void showMonthlyProductionReport() {
+        pmNested = true;
+        content.removeAllViews();
+        LinearLayout head = Ui.card(this, Ui.CARD);
+        head.addView(Ui.text(this, "Monthly Production Report", 17, Color.BLACK, true));
+        head.addView(Ui.muted(this, "Unit: CTN/PCS. Opening = Master → Production Opening for this month. Closing = Opening + Production − Reject − Delivery. Next month Opening = this Closing."));
+        final EditText ymEt = field("Month YYYY-MM", monthYm);
+        head.addView(Ui.muted(this, "Month"));
+        head.addView(ymEt);
+        Button load = Ui.primary(this, "Show report");
+        head.addView(load);
+        Button back = Ui.secondary(this, "Back to Production");
+        back.setOnClickListener(v -> { pmNested = false; tab = 4; render(); });
+        head.addView(back);
+        add(head);
+
+        final LinearLayout host = new LinearLayout(this);
+        host.setOrientation(LinearLayout.VERTICAL);
+        add(host);
+
+        load.setOnClickListener(v -> {
+            host.removeAllViews();
+            String ym = ymEt.getText().toString().trim();
+            if (ym.length() < 7) { toast("Use YYYY-MM"); return; }
+            monthYm = ym;
+
+            List<String[]> rows = new ArrayList<>();
+            rows.add(new String[]{"Item (code + name)", "Opening", "Production", "Reject", "Delivery", "Closing"});
+
+            double tO = 0, tP = 0, tR = 0, tD = 0, tC = 0;
+            for (JSONObject p : pm.products()) {
+                int code = p.optInt("code");
+                String item = code + " — " + p.optString("name");
+                double open = pm.getProductOpening(code, ym);
+                double prod = pm.sumKindMonth("output", code, ym);
+                double rej = pm.sumKindMonth("reject", code, ym);
+                double del = pm.sumKindMonth("delivery", code, ym);
+                double close = open + prod - rej - del;
+                if (Math.abs(open) + prod + rej + del < 1e-9) continue;
+                rows.add(new String[]{
+                    item, PmDb.fmt(open), PmDb.fmt(prod), PmDb.fmt(rej), PmDb.fmt(del), PmDb.fmt(close)
+                });
+                tO += open; tP += prod; tR += rej; tD += del; tC += close;
+            }
+            if (rows.size() == 1) {
+                host.addView(Ui.muted(this, "No movement this month. Set openings in Master → Production Opening."));
+                return;
+            }
+            rows.add(new String[]{"TOTAL", PmDb.fmt(tO), PmDb.fmt(tP), PmDb.fmt(tR), PmDb.fmt(tD), PmDb.fmt(tC)});
+
+            String title = "Monthly Production Report — " + ym + " (CTN/PCS)";
+            // table + PDF/CSV via existing helper pattern
+            LinearLayout card = Ui.card(this, Ui.CARD);
+            card.addView(Ui.text(this, title, 15, Ui.NAVY_TEXT, true));
+            card.addView(Ui.muted(this, db.setting("company", "")));
+            HorizontalScrollView hsv = new HorizontalScrollView(this);
+            LinearLayout table = new LinearLayout(this);
+            table.setOrientation(LinearLayout.VERTICAL);
+            for (int r = 0; r < rows.size(); r++) {
+                String[] row = rows.get(r);
+                LinearLayout line = new LinearLayout(this);
+                line.setOrientation(LinearLayout.HORIZONTAL);
+                line.setPadding(Ui.dp(this, 2), Ui.dp(this, 6), Ui.dp(this, 2), Ui.dp(this, 6));
+                boolean headRow = r == 0;
+                boolean tot = "TOTAL".equals(row[0]);
+                if (headRow) line.setBackgroundColor(Ui.SOFT_BLUE);
+                else if (tot) line.setBackgroundColor(Color.parseColor("#EEEEEE"));
+                for (int c = 0; c < row.length; c++) {
+                    TextView tv = Ui.text(this, row[c] == null ? "" : row[c], headRow ? 11 : 12,
+                            headRow || tot ? Ui.NAVY_TEXT : Ui.INK, headRow || tot);
+                    tv.setPadding(Ui.dp(this, 6), 0, Ui.dp(this, 6), 0);
+                    tv.setMinWidth(Ui.dp(this, c == 0 ? 160 : 72));
+                    line.addView(tv);
+                }
+                table.addView(line);
+            }
+            hsv.addView(table);
+            card.addView(hsv);
+
+            final List<String[]> rowsF = rows;
+            final String ymF = ym;
+            LinearLayout actions = new LinearLayout(this);
+            actions.setOrientation(LinearLayout.HORIZONTAL);
+            Button csvB = Ui.secondary(this, "CSV");
+            csvB.setOnClickListener(vv -> exportCsv(title, rowsF, "mprod_" + ymF));
+            actions.addView(csvB, Ui.lp(this, 0, Ui.dp(this, 44), 1, 0, 0, 6, 0));
+            Button pdfB = Ui.secondary(this, "PDF / Print");
+            pdfB.setOnClickListener(vv -> exportPdf(title, rowsF, "mprod_" + ymF));
+            actions.addView(pdfB, Ui.lp(this, 0, Ui.dp(this, 44), 1, 6, 0, 6, 0));
+            Button boss = Ui.primary(this, "Send to boss");
+            boss.setOnClickListener(vv -> {
+                StringBuilder sb = new StringBuilder();
+                sb.append(title).append("\n").append(db.setting("company","")).append("\n\n");
+                for (String[] row : rowsF) {
+                    sb.append(TextUtils.join(" | ", row)).append("\n");
+                }
+                sb.append("\nUnit: CTN/PCS\n");
+                Intent i = new Intent(Intent.ACTION_SEND);
+                i.setType("text/plain");
+                String email = db.setting("boss_email", "");
+                if (email != null && email.contains("@"))
+                    i.putExtra(Intent.EXTRA_EMAIL, new String[]{email});
+                i.putExtra(Intent.EXTRA_SUBJECT, title);
+                i.putExtra(Intent.EXTRA_TEXT, sb.toString());
+                startActivity(Intent.createChooser(i, "Send monthly production to boss"));
+            });
+            actions.addView(boss, Ui.lp(this, 0, Ui.dp(this, 44), 1, 6, 0, 0, 0));
+            card.addView(actions);
+
+            Button carry = Ui.secondary(this, "Carry closings → next month Opening");
+            carry.setOnClickListener(vv -> Guard.run(this, db, "Carry month openings", true, () -> {
+                try {
+                    String[] p = ymF.split("-");
+                    int y = Integer.parseInt(p[0]), m = Integer.parseInt(p[1]);
+                    m++; if (m > 12) { m = 1; y++; }
+                    String nextYm = String.format(java.util.Locale.US, "%04d-%02d", y, m);
+                    int n = 0;
+                    for (JSONObject pr : pm.products()) {
+                        int code = pr.optInt("code");
+                        double open = pm.getProductOpening(code, ymF);
+                        double prod = pm.sumKindMonth("output", code, ymF);
+                        double rej = pm.sumKindMonth("reject", code, ymF);
+                        double del = pm.sumKindMonth("delivery", code, ymF);
+                        double close = open + prod - rej - del;
+                        if (Math.abs(open) + prod + rej + del < 1e-9) continue;
+                        pm.setProductOpening(code, nextYm, close);
+                        n++;
+                    }
+                    toast("Set " + n + " openings for " + nextYm);
+                } catch (Exception e) { toast(e.getMessage()); }
+            }));
+            card.addView(carry);
+            card.addView(Ui.muted(this, "Stock count (physical): use main app More → Stock Count for RM. FG count can be cross-checked from Closing column."));
+            host.addView(card);
+        });
+    }
 
     private void showFgDaily() {
         final String[] SH = {"A", "B", "C", "General"};
