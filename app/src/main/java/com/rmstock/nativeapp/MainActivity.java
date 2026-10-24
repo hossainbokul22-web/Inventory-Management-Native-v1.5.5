@@ -50,8 +50,8 @@ public class MainActivity extends Activity {
     navRow.setBackgroundColor(Ui.CARD);
     navRow.setPadding(dp(4),dp(4),dp(4),dp(4));
     navViews.clear();navIcons.clear();navKeys.clear();
-    String[] keys={"Home","Entry","Batch","Reports","PM","More"};
-    int[] icons={R.drawable.ic_nav_home,R.drawable.ic_nav_entry,R.drawable.ic_nav_batch,R.drawable.ic_nav_reports,R.drawable.ic_nav_reports,R.drawable.ic_nav_more};
+    String[] keys={"Home","Entry","Batch","Reports","More"};
+    int[] icons={R.drawable.ic_nav_home,R.drawable.ic_nav_entry,R.drawable.ic_nav_batch,R.drawable.ic_nav_reports,R.drawable.ic_nav_more};
     for(int i=0;i<keys.length;i++){
         final String key=keys[i];
         LinearLayout cell=new LinearLayout(this);
@@ -76,7 +76,7 @@ public class MainActivity extends Activity {
     setContentView(root);
  }
  private void go(String key){
-    if(key.equals("Home"))showDashboard();else if(key.equals("Entry"))showDaily();else if(key.equals("Batch"))showBatch();else if(key.equals("Reports"))showReports();else if(key.equals("PM"))openDailyPm();else showMore();
+    if(key.equals("Home"))showDashboard();else if(key.equals("Entry"))showDaily();else if(key.equals("Batch"))showBatch();else if(key.equals("Reports"))showReports();else showMore();
  }
  private String navKeyFor(String s){
     if(s==null||s.startsWith("Dashboard"))return "Home";
@@ -342,7 +342,7 @@ private void clear(String head){currentScreen=head;for(Runnable task:dashboardRu
 
  private void showMore(){
     clear("More");
-    String[][] items={{"Wastage","Spoilage and loss, taken out of stock","waste"},{"Stock Count","Physical count against the book stock","count"},{"Daily Summary","One-page PDF to share with the owner","summary"},{"Batch Planner","What do I need for the batches I plan?","planner"},{"Master — Raw materials","Add, edit or delete raw materials","rm"},{"Master — Products","Add, edit or delete products","prod"},{"Recipe","Raw material per batch for each product","recipe"},{"Custom sheets","Your own sheets and formulas","custom"},{"Yield % sheet","Per-product formulas + history + stages","yield"},{"Process Loss %","Per-product process loss formula + dashboard card","ploss"},{"Owner pack","One-page stock + yield + shorts for the owner","owner"},{"Audit log","Who changed what (offline trail)","audit"},{"Assistant","Command box: fix entry, report to boss, open screens","fix"},{"Scan voucher (AI)","Offline OCR draft, voucher photo is kept","ai"},{"Daily PM Report","Packaging stock, production and delivery reports","pm"},{"Settings","Roles, month lock, backup share, names","settings"}};
+    String[][] items={{"Daily PM Report","Packaging stock, production, FG Daily","pm"},{"Wastage","Spoilage and loss, taken out of stock","waste"},{"Stock Count","Physical count against the book stock","count"},{"Daily Summary","One-page PDF to share with the owner","summary"},{"Batch Planner","What do I need for the batches I plan?","planner"},{"Master — Raw materials","Add, edit or delete raw materials","rm"},{"Master — Products","Add, edit or delete products","prod"},{"Recipe","Raw material per batch for each product","recipe"},{"Custom sheets","Your own sheets and formulas","custom"},{"Yield % sheet","Per-product formulas + history + stages","yield"},{"Process Loss %","Per-product process loss formula + dashboard card","ploss"},{"Owner pack","One-page stock + yield + shorts for the owner","owner"},{"Audit log","Who changed what (offline trail)","audit"},{"Assistant","Command box: fix entry, report to boss, open screens","fix"},{"Scan voucher (AI)","Offline OCR draft, voucher photo is kept","ai"},{"Settings","Roles, month lock, backup share, names","settings"}};
     for(String[] it:items){
         final String k=it[2];
         LinearLayout c=Ui.card(this,Ui.CARD);
