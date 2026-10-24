@@ -684,8 +684,8 @@ public class PmActivity extends Activity {
 
             List<String[]> rows = new ArrayList<>();
             rows.add(new String[]{
-                "Item", "Shift", "Opening", "Prev QA Hold", "Today QA Hold",
-                "Today Prod", "Today QA Pass", "Available", "Delivery", "Closing"
+                "Item", "Shift", "Open", "PrevHold", "TodayHold",
+                "Prod", "QAPass", "Available", "Delivery", "Closing"
             });
 
             List<JSONObject> products = pm.products();
@@ -1150,56 +1150,66 @@ public class PmActivity extends Activity {
     private void exportPdf(String title, List<String[]> rows, String tag) {
         try {
             PdfDocument doc = new PdfDocument();
-            int pageW = 842, pageH = 595;
+            // A4 landscape always for wide tables (FG Daily)
+            final int pageW = 842, pageH = 595;
             int y = 0, pageNo = 0;
             PdfDocument.Page page = null;
             android.graphics.Canvas canvas = null;
             android.graphics.Paint paint = new android.graphics.Paint();
             paint.setAntiAlias(true);
-            paint.setTextSize(9);
+            paint.setTextSize(8);
             android.graphics.Paint head = new android.graphics.Paint(paint);
             head.setTypeface(Typeface.DEFAULT_BOLD);
-            head.setTextSize(11);
+            head.setTextSize(8);
+            android.graphics.Paint titleP = new android.graphics.Paint(paint);
+            titleP.setTypeface(Typeface.DEFAULT_BOLD);
+            titleP.setTextSize(10);
 
-            final int left = 24, top = 28, lineH = 14;
+            final int left = 18, top = 24, lineH = 12;
             int cols = rows.isEmpty() ? 1 : rows.get(0).length;
             float[] widths = new float[cols];
-            float total = pageW - 48f;
-            for (int c = 0; c < cols; c++) widths[c] = total / cols;
-            if (cols > 1) {
-                widths[1] = total * 0.28f;
-                float rest = (total - widths[1]) / (cols - 1);
-                for (int c = 0; c < cols; c++) if (c != 1) widths[c] = rest;
+            float total = pageW - 36f;
+            if (cols >= 9) {
+                // FG Daily weights: Item wide, Shift narrow, numbers share rest
+                float[] w = {0.18f, 0.07f, 0.08f, 0.09f, 0.09f, 0.08f, 0.08f, 0.10f, 0.09f, 0.09f};
+                for (int c = 0; c < cols; c++) widths[c] = total * (c < w.length ? w[c] : (1f / cols));
+            } else if (cols > 1) {
+                widths[0] = total * 0.22f;
+                float rest = (total - widths[0]) / (cols - 1);
+                for (int c = 1; c < cols; c++) widths[c] = rest;
+            } else {
+                widths[0] = total;
             }
 
             for (int r = 0; r < rows.size(); r++) {
-                if (page == null || y > pageH - 40) {
+                if (page == null || y > pageH - 36) {
                     if (page != null) doc.finishPage(page);
                     pageNo++;
                     PdfDocument.PageInfo info = new PdfDocument.PageInfo.Builder(pageW, pageH, pageNo).create();
                     page = doc.startPage(info);
                     canvas = page.getCanvas();
                     y = top;
-                    canvas.drawText(title + "  ·  " + db.setting("company",""), left, y, head);
-                    y += 16;
-                    canvas.drawText("Page " + pageNo, pageW - 80, top, paint);
-                    if (r > 0) {
+                    canvas.drawText(title + "  ·  " + db.setting("company",""), left, y, titleP);
+                    y += 14;
+                    canvas.drawText("Page " + pageNo + "  (landscape)", pageW - 120, top, paint);
+                    // repeat header on every page
+                    if (rows.size() > 0) {
                         String[] hdr = rows.get(0);
                         float x = left;
-                        for (int c = 0; c < hdr.length; c++) {
-                            canvas.drawText(hdr[c] == null ? "" : hdr[c], x, y, head);
+                        for (int c = 0; c < hdr.length && c < cols; c++) {
+                            String cell = hdr[c] == null ? "" : hdr[c];
+                            canvas.drawText(fitPdfCell(cell, widths[c], head), x, y, head);
                             x += widths[c];
                         }
                         y += lineH;
                     }
                 }
+                if (r == 0) continue; // already drawn as header
                 String[] row = rows.get(r);
                 float x = left;
-                android.graphics.Paint p = (r == 0) ? head : paint;
-                for (int c = 0; c < row.length; c++) {
+                for (int c = 0; c < row.length && c < cols; c++) {
                     String cell = row[c] == null ? "" : row[c];
-                    if (cell.length() > 28) cell = cell.substring(0, 27) + "…";
-                    canvas.drawText(cell, x, y, p);
+                    canvas.drawText(fitPdfCell(cell, widths[c], paint), x, y, paint);
                     x += widths[c];
                 }
                 y += lineH;
