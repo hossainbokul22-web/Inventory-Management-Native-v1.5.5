@@ -523,42 +523,49 @@ public class PmActivity extends Activity {
         final String[] SH = {"A", "B", "C", "General"};
         LinearLayout head = Ui.card(this, Ui.CARD);
         head.addView(Ui.text(this, "FG Daily Sheet", 17, Color.BLACK, true));
-        head.addView(Ui.muted(this, "Available = Opening + Production + QA Pass − (Today Hold + Previous Hold). Closing (floor) = Opening + Production − Delivery. Entry types: Output, QA Hold, QA Pass, Delivery."));
+        head.addView(Ui.muted(this, "Form layout for boss submit. PDF / CSV from table. Available = Open+Prod+Pass−(TodayHold+PrevHold). Closing = Open+Prod−Delivery."));
         final EditText dateEt = field("Date", stockDate);
         dateEt.setFocusable(false);
         dateEt.setOnClickListener(v -> pickDate(dateEt));
         head.addView(Ui.muted(this, "Date"));
         head.addView(dateEt);
-        Button go = Ui.primary(this, "Show sheet");
+        Button go = Ui.primary(this, "Show form");
         head.addView(go);
         Button monthBtn = Ui.secondary(this, "Month day-wise records");
         monthBtn.setOnClickListener(v -> showFgMonthly());
         head.addView(monthBtn);
         add(head);
 
-        final LinearLayout sheet = new LinearLayout(this);
-        sheet.setOrientation(LinearLayout.VERTICAL);
-        add(sheet);
+        final LinearLayout sheetHost = new LinearLayout(this);
+        sheetHost.setOrientation(LinearLayout.VERTICAL);
+        add(sheetHost);
 
         Runnable fill = () -> {
-            sheet.removeAllViews();
+            // rebuild only table area: clear children of root content after head — use host
+            sheetHost.removeAllViews();
+            // temporarily point add() target — we append into host manually
             String date = dateEt.getText().toString().trim();
             stockDate = date;
             if (date.length() < 8) { toast("Invalid date"); return; }
+
+            List<String[]> rows = new ArrayList<>();
+            rows.add(new String[]{
+                "Item", "Shift", "Opening", "Prev QA Hold", "Today QA Hold",
+                "Today Prod", "Today QA Pass", "Available", "Delivery", "Closing"
+            });
+
             List<JSONObject> products = pm.products();
             if (products.isEmpty()) {
-                sheet.addView(Ui.muted(this, "No products in Master"));
+                sheetHost.addView(Ui.muted(this, "No products — add in Master"));
                 return;
             }
+
             for (JSONObject pr : products) {
                 int code = pr.optInt("code");
-                String pname = pr.optString("name");
-                LinearLayout card = Ui.card(this, Ui.CARD);
-                card.addView(Ui.text(this, code + " — " + pname, 15, Ui.NAVY_TEXT, true));
+                String pname = code + " " + pr.optString("name");
                 double open = pm.openingProduct(code, date);
-                card.addView(Ui.muted(this, "Opening CTN (day): " + PmDb.fmt(open)));
-
-                double tProd = 0, tHold = 0, tPrev = 0, tPass = 0, tDel = 0, tAvail = 0, tClose = 0;
+                double sumProd = 0, sumHold = 0, sumPrev = 0, sumPass = 0, sumDel = 0, sumAvail = 0, sumClose = 0;
+                boolean first = true;
                 for (String sh : SH) {
                     double prod = pm.todayProduction(code, date, sh);
                     double hold = pm.todayHold(code, date, sh);
@@ -567,27 +574,72 @@ public class PmActivity extends Activity {
                     double del = pm.todayDelivery(code, date, sh);
                     double avail = open + prod + pass - (hold + prev);
                     double close = open + prod - del;
-                    tProd += prod; tHold += hold; tPrev += prev; tPass += pass; tDel += del; tAvail += avail; tClose += close;
-                    String line = "Shift " + sh
-                            + "\n  Open " + PmDb.fmt(open)
-                            + " | PrevHold " + PmDb.fmt(prev)
-                            + " | TodayHold " + PmDb.fmt(hold)
-                            + "\n  Prod " + PmDb.fmt(prod)
-                            + " | QA Pass " + PmDb.fmt(pass)
-                            + " | Available " + PmDb.fmt(avail)
-                            + "\n  Delivery " + PmDb.fmt(del)
-                            + " | Closing " + PmDb.fmt(close);
-                    card.addView(Ui.text(this, line, 12, Ui.INK, false));
+                    sumProd += prod; sumHold += hold; sumPrev += prev; sumPass += pass;
+                    sumDel += del; sumAvail += avail; sumClose += close;
+                    rows.add(new String[]{
+                        first ? pname : "",
+                        sh,
+                        first ? PmDb.fmt(open) : "",
+                        PmDb.fmt(prev),
+                        PmDb.fmt(hold),
+                        PmDb.fmt(prod),
+                        PmDb.fmt(pass),
+                        PmDb.fmt(avail),
+                        PmDb.fmt(del),
+                        PmDb.fmt(close)
+                    });
+                    first = false;
                 }
-                card.addView(Ui.text(this, "TOTAL  Prod " + PmDb.fmt(tProd)
-                        + " | Hold " + PmDb.fmt(tHold) + " | PrevHold " + PmDb.fmt(tPrev)
-                        + " | Pass " + PmDb.fmt(tPass)
-                        + " | Avail " + PmDb.fmt(tAvail)
-                        + " | Del " + PmDb.fmt(tDel)
-                        + " | Close Σshifts " + PmDb.fmt(tClose), 13, Color.BLACK, true));
-                card.addView(Ui.muted(this, "Edit wrong qty: Entry tab → find row → long-press delete / re-save. QA Pass chip on Entry."));
-                sheet.addView(card);
+                rows.add(new String[]{
+                    "TOTAL", "", PmDb.fmt(open),
+                    PmDb.fmt(sumPrev), PmDb.fmt(sumHold), PmDb.fmt(sumProd),
+                    PmDb.fmt(sumPass), PmDb.fmt(sumAvail), PmDb.fmt(sumDel), PmDb.fmt(sumClose)
+                });
             }
+
+            // Build table into host with PDF/CSV (same as addReportTable but into host)
+            String title = "FG Daily Sheet — " + date;
+            LinearLayout card = Ui.card(this, Ui.CARD);
+            card.addView(Ui.text(this, title, 15, Ui.NAVY_TEXT, true));
+            card.addView(Ui.muted(this, db.setting("company", "")));
+            HorizontalScrollView hsv = new HorizontalScrollView(this);
+            hsv.setHorizontalScrollBarEnabled(true);
+            LinearLayout table = new LinearLayout(this);
+            table.setOrientation(LinearLayout.VERTICAL);
+            for (int r = 0; r < rows.size(); r++) {
+                String[] row = rows.get(r);
+                LinearLayout line = new LinearLayout(this);
+                line.setOrientation(LinearLayout.HORIZONTAL);
+                line.setPadding(Ui.dp(this, 2), Ui.dp(this, 6), Ui.dp(this, 2), Ui.dp(this, 6));
+                boolean isHead = r == 0;
+                boolean isTotal = row[0] != null && row[0].equals("TOTAL");
+                if (isHead) line.setBackgroundColor(Ui.SOFT_BLUE);
+                else if (isTotal) line.setBackgroundColor(Color.parseColor("#EEEEEE"));
+                for (int c = 0; c < row.length; c++) {
+                    TextView tv = Ui.text(this, row[c] == null ? "" : row[c],
+                            isHead ? 10 : 11,
+                            isHead || isTotal ? Ui.NAVY_TEXT : Ui.INK,
+                            isHead || isTotal);
+                    tv.setPadding(Ui.dp(this, 6), 0, Ui.dp(this, 6), 0);
+                    tv.setMinWidth(Ui.dp(this, c == 0 ? 120 : 72));
+                    line.addView(tv);
+                }
+                table.addView(line);
+            }
+            hsv.addView(table);
+            card.addView(hsv);
+            LinearLayout actions = new LinearLayout(this);
+            actions.setOrientation(LinearLayout.HORIZONTAL);
+            Button csvB = Ui.secondary(this, "CSV");
+            final List<String[]> rowsF = rows;
+            csvB.setOnClickListener(v -> exportCsv(title, rowsF, "fg_" + date));
+            actions.addView(csvB, Ui.lp(this, 0, Ui.dp(this, 44), 1, 0, 0, 6, 0));
+            Button pdfB = Ui.primary(this, "PDF / Print");
+            pdfB.setOnClickListener(v -> exportPdf(title, rowsF, "fg_" + date));
+            actions.addView(pdfB, Ui.lp(this, 0, Ui.dp(this, 44), 1, 6, 0, 0, 0));
+            card.addView(actions);
+            card.addView(Ui.muted(this, "Prepare By (Production) ________    AM (Production) ________"));
+            sheetHost.addView(card);
         };
         go.setOnClickListener(v -> fill.run());
         fill.run();
