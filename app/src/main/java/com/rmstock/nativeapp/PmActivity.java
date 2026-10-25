@@ -7,6 +7,7 @@ import android.content.Intent;
 import android.content.res.Configuration;
 import android.graphics.Color;
 import android.graphics.Typeface;
+import android.graphics.Paint;
 import android.graphics.pdf.PdfDocument;
 import android.net.Uri;
 import android.print.PrintManager;
@@ -1296,7 +1297,7 @@ public class PmActivity extends Activity {
      * Fit a PDF table cell within the available width.
      * Long text is shortened with an ellipsis.
      */
-    private String fitPdfCell(String text, float maxWidth, Paint paint) {
+    private String fitPdfCell(String text, float maxWidth, android.graphics.Paint paint) {
         if (text == null || text.isEmpty()) {
             return "";
         }
