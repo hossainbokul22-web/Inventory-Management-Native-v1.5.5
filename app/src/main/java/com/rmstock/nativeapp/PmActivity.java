@@ -802,7 +802,7 @@ public class PmActivity extends Activity {
         final String[] SH = {"A", "B", "C", "General"};
         LinearLayout head = Ui.card(this, Ui.CARD);
         head.addView(Ui.text(this, "FG Daily Sheet", 17, Color.BLACK, true));
-        head.addView(Ui.muted(this, "Form layout for boss submit. PDF / CSV from table. Available = Open+Prod+Pass−(TodayHold+PrevHold). Closing = Open+Prod−Delivery."));
+        head.addView(Ui.muted(this, "Form layout for boss submit. PDF / CSV from table. Available = Opening+Prod+QA Pass−(Today Hold+Previous Hold). Closing = Open+Prod−Delivery."));
         final EditText dateEt = field("Date", stockDate);
         dateEt.setFocusable(false);
         dateEt.setOnClickListener(v -> pickDate(dateEt));
@@ -829,8 +829,8 @@ public class PmActivity extends Activity {
 
             List<String[]> rows = new ArrayList<>();
             rows.add(new String[]{
-                "Item", "Shift", "Open", "PrevHold", "TodayHold",
-                "Prod", "QAPass", "Available", "Delivery", "Closing"
+                "Item", "Shift", "Opening", "Previous Hold", "Today Hold",
+                "Today Prod", "Today QA Pass", "Available", "Delivery", "Closing"
             });
 
             List<JSONObject> products = pm.products();
@@ -858,7 +858,7 @@ public class PmActivity extends Activity {
                     rows.add(new String[]{
                         first ? pname : "",
                         sh,
-                        first ? PmDb.fmt(open) : "",
+                        PmDb.fmt(open),
                         PmDb.fmt(prev),
                         PmDb.fmt(hold),
                         PmDb.fmt(prod),
@@ -900,7 +900,7 @@ public class PmActivity extends Activity {
                             isHead || isTotal ? Ui.NAVY_TEXT : Ui.INK,
                             isHead || isTotal);
                     tv.setPadding(Ui.dp(this, 6), 0, Ui.dp(this, 6), 0);
-                    tv.setMinWidth(Ui.dp(this, c == 0 ? 120 : 72));
+                    tv.setMinWidth(Ui.dp(this, c == 0 ? 140 : (c == 1 ? 56 : (c == 3 || c == 4 || c == 6 ? 96 : 78))));
                     line.addView(tv);
                 }
                 table.addView(line);
