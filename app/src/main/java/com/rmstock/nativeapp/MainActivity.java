@@ -355,7 +355,7 @@ private void clear(String head){currentScreen=head;for(Runnable task:dashboardRu
     pmIcon.setGravity(Gravity.CENTER);
     pmIcon.setPadding(dp(12),dp(12),dp(12),dp(12));
     pmIcon.setBackground(Ui.shape(this,Color.rgb(20,55,95),Color.rgb(20,55,95),14));
-    TextView pmEmoji=Ui.text(this,"PM",15,Color.WHITE,true);
+    TextView pmEmoji=Ui.text(this,"📦",18,Color.WHITE,true);
     pmIcon.addView(pmEmoji);
     pmHero.addView(pmIcon);
     LinearLayout pmTxt=new LinearLayout(this);
@@ -374,21 +374,21 @@ private void clear(String head){currentScreen=head;for(Runnable task:dashboardRu
 
     // —— Other modules 2-column light grid ——
     String[][] items={
-        {"Wastage","Spoilage and loss","waste",String.valueOf(Color.rgb(255,149,0))},
-        {"Stock Count","Physical vs book","count",String.valueOf(Color.rgb(52,199,89))},
-        {"Daily Summary","PDF for owner","summary",String.valueOf(Color.rgb(175,82,222))},
-        {"Batch Planner","What do I need?","planner",String.valueOf(Color.rgb(90,200,250))},
-        {"Master — RM","Raw materials","rm",String.valueOf(Color.rgb(0,122,255))},
-        {"Master — Products","Add / edit products","prod",String.valueOf(Color.rgb(88,86,214))},
-        {"Recipe","RM per batch","recipe",String.valueOf(Color.rgb(255,45,85))},
-        {"Custom sheets","Your formulas","custom",String.valueOf(Color.rgb(100,210,180))},
-        {"Yield %","Formulas + history","yield",String.valueOf(Color.rgb(255,179,64))},
-        {"Process Loss %","Loss vs standard","ploss",String.valueOf(Color.rgb(255,59,48))},
-        {"Owner pack","Stock + yield page","owner",String.valueOf(Color.rgb(50,173,230))},
-        {"Audit log","Who changed what","audit",String.valueOf(Color.rgb(142,142,147))},
-        {"Assistant","Commands / boss","fix",String.valueOf(Color.rgb(64,156,255))},
-        {"Scan voucher","AI OCR draft","ai",String.valueOf(Color.rgb(191,90,242))},
-        {"Settings","Roles, lock, backup","settings",String.valueOf(Color.rgb(84,110,122))}
+        {"Wastage","Spoilage and loss","waste",String.valueOf(Color.rgb(255,149,0)),"🗑️"},
+        {"Stock Count","Physical vs book","count",String.valueOf(Color.rgb(52,199,89)),"📋"},
+        {"Daily Summary","PDF for owner","summary",String.valueOf(Color.rgb(175,82,222)),"📄"},
+        {"Batch Planner","What do I need?","planner",String.valueOf(Color.rgb(90,200,250)),"🧮"},
+        {"Master — RM","Raw materials","rm",String.valueOf(Color.rgb(0,122,255)),"🌾"},
+        {"Master — Products","Add / edit products","prod",String.valueOf(Color.rgb(88,86,214)),"🍞"},
+        {"Recipe","RM per batch","recipe",String.valueOf(Color.rgb(255,45,85)),"👨‍🍳"},
+        {"Custom sheets","Your formulas","custom",String.valueOf(Color.rgb(100,210,180)),"📑"},
+        {"Yield %","Formulas + history","yield",String.valueOf(Color.rgb(255,179,64)),"📈"},
+        {"Process Loss %","Loss vs standard","ploss",String.valueOf(Color.rgb(255,59,48)),"📉"},
+        {"Owner pack","Stock + yield page","owner",String.valueOf(Color.rgb(50,173,230)),"📊"},
+        {"Audit log","Who changed what","audit",String.valueOf(Color.rgb(142,142,147)),"🧾"},
+        {"Assistant","Commands / boss","fix",String.valueOf(Color.rgb(64,156,255)),"🤖"},
+        {"Scan voucher","AI OCR draft","ai",String.valueOf(Color.rgb(191,90,242)),"📷"},
+        {"Settings","Roles, lock, backup","settings",String.valueOf(Color.rgb(84,110,122)),"⚙️"}
     };
 
     LinearLayout grid=null;
@@ -414,8 +414,10 @@ private void clear(String head){currentScreen=head;for(Runnable task:dashboardRu
         ic.setGravity(Gravity.CENTER);
         ic.setPadding(dp(10),dp(10),dp(10),dp(10));
         ic.setBackground(Ui.shape(this,accent,accent,12));
-        String letter=it[0].substring(0,1);
-        ic.addView(Ui.text(this,letter,14,Color.WHITE,true));
+        String icon=it.length>4?it[4]:it[0].substring(0,1);
+        TextView iconTv=Ui.text(this,icon,18,Color.WHITE,true);
+        iconTv.setGravity(Gravity.CENTER);
+        ic.addView(iconTv);
         top.addView(ic);
         TextView arrow=Ui.text(this,"›",18,Ui.MUTED,true);
         LinearLayout.LayoutParams aLp=new LinearLayout.LayoutParams(-2,-2);
