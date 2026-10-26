@@ -660,6 +660,95 @@ public class PmActivity extends Activity {
         addReportTable("Daily Stock — " + date, rows, date);
     }
 
+
+    private void showReturnDayWise() {
+        pmNested = true;
+        content.removeAllViews();
+        LinearLayout head = Ui.card(this, Ui.CARD);
+        head.addView(Ui.text(this, "Return — day-wise", 17, Ui.NAVY_TEXT, true));
+        head.addView(Ui.muted(this, "Packaging material returns from Entry → Return. Closing uses − Return."));
+        final EditText ymEt = field("Month YYYY-MM", monthYm);
+        head.addView(Ui.muted(this, "Month"));
+        head.addView(ymEt);
+        Button load = Ui.primary(this, "Show day-wise");
+        head.addView(load);
+        Button back = Ui.secondary(this, "Back to Monthly");
+        back.setOnClickListener(v -> { pmNested = false; tab = 3; render(); });
+        head.addView(back);
+        add(head);
+        final LinearLayout host = new LinearLayout(this);
+        host.setOrientation(LinearLayout.VERTICAL);
+        add(host);
+        load.setOnClickListener(v -> {
+            host.removeAllViews();
+            String ym = ymEt.getText().toString().trim();
+            if (ym.length() < 7) { toast("YYYY-MM"); return; }
+            monthYm = ym;
+            List<String[]> rows = new ArrayList<>();
+            rows.add(new String[]{"Date", "Code", "Item", "Qty", "Shift", "Note"});
+            double total = 0;
+            try {
+                for (JSONObject e : pm.recentEntries(5000)) {
+                    if (!"ret".equals(e.optString("kind"))) continue;
+                    String day = e.optString("date");
+                    if (!day.startsWith(ym)) continue;
+                    int code = e.optInt("code");
+                    String name = "";
+                    for (JSONObject it : pm.items()) {
+                        if (it.optInt("code") == code) { name = it.optString("name"); break; }
+                    }
+                    double q = e.optDouble("qty", 0);
+                    total += q;
+                    rows.add(new String[]{
+                        day, String.valueOf(code), name,
+                        PmDb.fmt(q), e.optString("shift"), e.optString("note")
+                    });
+                }
+            } catch (Exception ex) { toast(ex.getMessage()); return; }
+            if (rows.size() == 1) {
+                host.addView(Ui.muted(this, "No return entries this month"));
+                return;
+            }
+            rows.add(new String[]{"TOTAL", "", "", PmDb.fmt(total), "", ""});
+            String title = "Packaging Material Return — " + ym;
+            LinearLayout card = Ui.card(this, Ui.CARD);
+            card.addView(Ui.text(this, title, 15, Ui.NAVY_TEXT, true));
+            card.addView(Ui.muted(this, db.setting("company", "")));
+            HorizontalScrollView hsv = new HorizontalScrollView(this);
+            LinearLayout table = new LinearLayout(this);
+            table.setOrientation(LinearLayout.VERTICAL);
+            for (int r = 0; r < rows.size(); r++) {
+                String[] row = rows.get(r);
+                LinearLayout line = new LinearLayout(this);
+                line.setOrientation(LinearLayout.HORIZONTAL);
+                line.setPadding(Ui.dp(this, 4), Ui.dp(this, 8), Ui.dp(this, 4), Ui.dp(this, 8));
+                if (r == 0) line.setBackgroundColor(Ui.SOFT_BLUE);
+                if ("TOTAL".equals(row[0])) line.setBackgroundColor(Color.parseColor("#EEEEEE"));
+                for (int c = 0; c < row.length; c++) {
+                    TextView tv = Ui.text(this, row[c] == null ? "" : row[c], r == 0 ? 11 : 12,
+                            r == 0 || "TOTAL".equals(row[0]) ? Ui.NAVY_TEXT : Ui.INK, r == 0);
+                    tv.setPadding(Ui.dp(this, 6), 0, Ui.dp(this, 6), 0);
+                    tv.setMinWidth(Ui.dp(this, c == 2 ? 120 : 64));
+                    line.addView(tv);
+                }
+                table.addView(line);
+            }
+            hsv.addView(table);
+            card.addView(hsv);
+            final List<String[]> rowsF = rows;
+            LinearLayout actions = new LinearLayout(this);
+            actions.setOrientation(LinearLayout.HORIZONTAL);
+            Button csvB = Ui.secondary(this, "CSV");
+            csvB.setOnClickListener(vv -> exportCsv(title, rowsF, "return_" + ym));
+            actions.addView(csvB, Ui.lp(this, 0, Ui.dp(this, 44), 1, 0, 0, 6, 0));
+            Button pdfB = Ui.primary(this, "PDF / Print");
+            pdfB.setOnClickListener(vv -> exportPdf(title, rowsF, "return_" + ym));
+            actions.addView(pdfB, Ui.lp(this, 0, Ui.dp(this, 44), 1, 6, 0, 0, 0));
+            card.addView(actions);
+            host.addView(card);
+        });
+    }
+
     private void showMonthly() {
         LinearLayout top = Ui.card(this, Ui.CARD);
         top.addView(Ui.text(this, "Monthly reports", 16, Ui.NAVY_TEXT, true));
@@ -667,6 +756,9 @@ public class PmActivity extends Activity {
         top.addView(Ui.muted(this, "Month"));
         top.addView(ymEt);
         Button wastageSheet = Ui.secondary(this, "🗑️ Packaging Material Wastage (day-wise)");
+        Button returnSheet = Ui.secondary(this, "↩️ Return (day-wise)");
+        returnSheet.setOnClickListener(v -> showReturnDayWise());
+        top.addView(returnSheet);
         wastageSheet.setOnClickListener(v -> showPackagingWastageDayWise());
         top.addView(wastageSheet);
         final Spinner repSp = new Spinner(this);
