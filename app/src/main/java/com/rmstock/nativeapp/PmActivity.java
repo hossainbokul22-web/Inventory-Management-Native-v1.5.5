@@ -962,6 +962,9 @@ public class PmActivity extends Activity {
         LinearLayout top = Ui.card(this, Ui.CARD);
         top.addView(Ui.text(this, "Monthly reports", 16, Ui.NAVY_TEXT, true));
         Button monthStock = Ui.secondary(this, "📦 Monthly Stock Report");
+        Button fgMonth = Ui.secondary(this, "📋 FG Monthly Sheet");
+        fgMonth.setOnClickListener(v -> showFgMonthlySheet());
+        top.addView(fgMonth);
         monthStock.setOnClickListener(v -> showMonthlyStockReport());
         top.addView(monthStock);
         final EditText ymEt = field("Month (YYYY-MM)", monthYm);
@@ -1223,6 +1226,123 @@ public class PmActivity extends Activity {
         });
     }
 
+
+    /** FG Monthly Sheet — same logic as FG Daily, full month totals (no shift rows). Print / boss. */
+    private void showFgMonthlySheet() {
+        pmNested = true;
+        content.removeAllViews();
+        LinearLayout head = Ui.card(this, Ui.CARD);
+        head.addView(Ui.text(this, "FG Monthly Sheet", 17, Color.BLACK, true));
+        head.addView(Ui.muted(this, "Month stock. Available = Opening+Prod+QA Pass−Hold. Closing = Opening+Prod−Delivery. Unit CTN/PCS."));
+        final EditText ymEt = field("Month YYYY-MM", monthYm);
+        head.addView(Ui.muted(this, "Month"));
+        head.addView(ymEt);
+        Button load = Ui.primary(this, "Show form");
+        head.addView(load);
+        Button back = Ui.secondary(this, "Back to Monthly");
+        back.setOnClickListener(v -> { pmNested = false; tab = 3; render(); });
+        head.addView(back);
+        add(head);
+        final LinearLayout host = new LinearLayout(this);
+        host.setOrientation(LinearLayout.VERTICAL);
+        add(host);
+        load.setOnClickListener(v -> {
+            host.removeAllViews();
+            String ym = ymEt.getText().toString().trim();
+            if (ym.length() < 7) { toast("YYYY-MM"); return; }
+            monthYm = ym;
+            List<String[]> rows = new ArrayList<>();
+            rows.add(new String[]{"Item", "Opening", "Production", "QA Hold", "QA Pass", "Available", "Delivery", "Closing"});
+            double tO=0,tP=0,tH=0,tQ=0,tA=0,tD=0,tC=0;
+            for (JSONObject pr : pm.products()) {
+                int code = pr.optInt("code");
+                String item = code + " " + pr.optString("name");
+                double open = pm.getProductOpening(code, ym);
+                double prod = pm.sumKindMonth("output", code, ym);
+                double hold = pm.sumKindMonth("hold", code, ym);
+                double pass = pm.sumKindMonth("qa_pass", code, ym);
+                double del = pm.sumKindMonth("delivery", code, ym);
+                double avail = open + prod + pass - hold;
+                double close = open + prod - del;
+                if (Math.abs(open) + prod + hold + pass + del < 1e-9) continue;
+                rows.add(new String[]{
+                    item, PmDb.fmt(open), PmDb.fmt(prod), PmDb.fmt(hold), PmDb.fmt(pass),
+                    PmDb.fmt(avail), PmDb.fmt(del), PmDb.fmt(close)
+                });
+                tO+=open; tP+=prod; tH+=hold; tQ+=pass; tA+=avail; tD+=del; tC+=close;
+            }
+            if (rows.size() == 1) {
+                host.addView(Ui.muted(this, "No FG movement this month"));
+                return;
+            }
+            rows.add(new String[]{"TOTAL", PmDb.fmt(tO), PmDb.fmt(tP), PmDb.fmt(tH), PmDb.fmt(tQ),
+                    PmDb.fmt(tA), PmDb.fmt(tD), PmDb.fmt(tC)});
+            String title = "FG Monthly Sheet — " + ym;
+            LinearLayout card = Ui.card(this, Ui.CARD);
+            card.addView(Ui.text(this, title, 15, Ui.NAVY_TEXT, true));
+            card.addView(Ui.muted(this, db.setting("company", "")));
+            final int[] colW = {
+                Ui.dp(this, 150), Ui.dp(this, 72), Ui.dp(this, 78), Ui.dp(this, 72),
+                Ui.dp(this, 72), Ui.dp(this, 78), Ui.dp(this, 72), Ui.dp(this, 72)
+            };
+            HorizontalScrollView hsv = new HorizontalScrollView(this);
+            hsv.setPadding(Ui.dp(this, 4), 0, Ui.dp(this, 4), 0);
+            hsv.setClipToPadding(false);
+            LinearLayout table = new LinearLayout(this);
+            table.setOrientation(LinearLayout.VERTICAL);
+            table.setPadding(Ui.dp(this, 8), Ui.dp(this, 4), Ui.dp(this, 8), Ui.dp(this, 4));
+            for (int r = 0; r < rows.size(); r++) {
+                String[] row = rows.get(r);
+                LinearLayout line = new LinearLayout(this);
+                line.setOrientation(LinearLayout.HORIZONTAL);
+                line.setGravity(android.view.Gravity.CENTER_VERTICAL);
+                line.setPadding(0, Ui.dp(this, 8), 0, Ui.dp(this, 8));
+                boolean headRow = r == 0;
+                boolean tot = "TOTAL".equals(row[0]);
+                if (headRow) line.setBackgroundColor(Ui.SOFT_BLUE);
+                else if (tot) line.setBackgroundColor(Color.parseColor("#EEEEEE"));
+                for (int c = 0; c < row.length; c++) {
+                    TextView tv = Ui.text(this, row[c] == null ? "" : row[c], headRow ? 11 : 12,
+                            headRow || tot ? Ui.NAVY_TEXT : Ui.INK, headRow || tot);
+                    tv.setSingleLine(true);
+                    tv.setPadding(Ui.dp(this, 4), 0, Ui.dp(this, 4), 0);
+                    if (c >= 1) tv.setGravity(android.view.Gravity.END | android.view.Gravity.CENTER_VERTICAL);
+                    int w = c < colW.length ? colW[c] : Ui.dp(this, 72);
+                    line.addView(tv, new LinearLayout.LayoutParams(w, -2));
+                }
+                table.addView(line);
+            }
+            hsv.addView(table);
+            card.addView(hsv);
+            final List<String[]> rowsF = rows;
+            LinearLayout actions = new LinearLayout(this);
+            actions.setOrientation(LinearLayout.HORIZONTAL);
+            Button csvB = Ui.secondary(this, "CSV");
+            csvB.setOnClickListener(vv -> exportCsv(title, rowsF, "fgm_" + ym));
+            actions.addView(csvB, Ui.lp(this, 0, Ui.dp(this, 44), 1, 0, 0, 6, 0));
+            Button pdfB = Ui.secondary(this, "PDF / Print");
+            pdfB.setOnClickListener(vv -> exportPdf(title, rowsF, "fgm_" + ym));
+            actions.addView(pdfB, Ui.lp(this, 0, Ui.dp(this, 44), 1, 6, 0, 6, 0));
+            Button boss = Ui.primary(this, "Send to boss");
+            boss.setOnClickListener(vv -> {
+                StringBuilder sb = new StringBuilder();
+                sb.append(title).append("\n").append(db.setting("company","")).append("\n\n");
+                for (String[] row : rowsF) sb.append(android.text.TextUtils.join(" | ", row)).append("\n");
+                Intent i = new Intent(Intent.ACTION_SEND);
+                i.setType("text/plain");
+                String email = db.setting("boss_email", "");
+                if (email != null && email.contains("@"))
+                    i.putExtra(Intent.EXTRA_EMAIL, new String[]{email});
+                i.putExtra(Intent.EXTRA_SUBJECT, title);
+                i.putExtra(Intent.EXTRA_TEXT, sb.toString());
+                startActivity(Intent.createChooser(i, "Send FG monthly to boss"));
+            });
+            actions.addView(boss, Ui.lp(this, 0, Ui.dp(this, 44), 1, 6, 0, 0, 0));
+            card.addView(actions);
+            host.addView(card);
+        });
+    }
+
     private void showFgDaily() {
         final String[] SH = {"A", "B", "C", "General"};
         LinearLayout head = Ui.card(this, Ui.CARD);
@@ -1235,9 +1355,6 @@ public class PmActivity extends Activity {
         head.addView(dateEt);
         Button go = Ui.primary(this, "Show form");
         head.addView(go);
-        Button monthBtn = Ui.secondary(this, "Month day-wise records");
-        monthBtn.setOnClickListener(v -> showFgMonthly());
-        head.addView(monthBtn);
         add(head);
 
         final LinearLayout sheetHost = new LinearLayout(this);
