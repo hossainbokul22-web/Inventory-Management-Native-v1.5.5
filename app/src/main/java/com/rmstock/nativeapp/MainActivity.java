@@ -144,7 +144,9 @@ private void clear(String head){currentScreen=head;for(Runnable task:dashboardRu
     if(h.equals("Settings")||h.equals("Wastage")||h.equals("Stock Count")||h.equals("Daily Summary")
         ||h.startsWith("Batch Planner")||h.startsWith("RM Master")||h.startsWith("Master Data")
         ||h.startsWith("Product Master")||h.startsWith("Mixing-2 Recipe")||h.startsWith("Mixing-2 RM Recipe")
-        ||h.startsWith("Custom Sheets")||h.startsWith("Yield")||h.startsWith("Owner pack")||h.startsWith("Audit")||h.startsWith("Offline AI")||h.startsWith("AI Draft")||h.startsWith("Voice")||h.startsWith("Fix entry")||h.startsWith("Assistant")){
+        ||h.startsWith("Custom Sheets")||h.startsWith("Yield")||h.startsWith("Process Loss")
+        ||h.startsWith("Owner pack")||h.startsWith("Audit")||h.startsWith("Offline AI")||h.startsWith("AI Draft")
+        ||h.startsWith("Voice")||h.startsWith("Fix entry")||h.startsWith("Assistant")){
         showMore();return;
     }
     // Report detail screens → Reports list
