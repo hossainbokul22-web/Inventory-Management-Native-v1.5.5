@@ -390,7 +390,21 @@ public class PmActivity extends Activity {
 
     private void showEntry() {
         LinearLayout card = Ui.card(this, Ui.CARD);
-        card.addView(Ui.text(this, "New entry", 17, Color.BLACK, true));
+        LinearLayout entryHead = new LinearLayout(this);
+        entryHead.setOrientation(LinearLayout.HORIZONTAL);
+        entryHead.setGravity(Gravity.CENTER_VERTICAL);
+        entryHead.setPadding(0, 0, 0, Ui.dp(this, 8));
+        TextView eIcon = Ui.text(this, "✏️", 18, Ui.NAVY_TEXT, true);
+        eIcon.setPadding(Ui.dp(this, 8), Ui.dp(this, 6), Ui.dp(this, 8), Ui.dp(this, 6));
+        eIcon.setBackground(Ui.shape(this, Color.rgb(232, 242, 252), Ui.LINE, 12));
+        entryHead.addView(eIcon);
+        LinearLayout eTxt = new LinearLayout(this);
+        eTxt.setOrientation(LinearLayout.VERTICAL);
+        eTxt.setPadding(Ui.dp(this, 10), 0, 0, 0);
+        eTxt.addView(Ui.text(this, "New entry", 18, Ui.NAVY_TEXT, true));
+        eTxt.addView(Ui.text(this, "Packaging · Production · Wastage · QA", 12, Ui.MUTED, false));
+        entryHead.addView(eTxt);
+        card.addView(entryHead);
 
         final int[] kindIdx = {Math.min(savedKindPosition, PmDb.KIND_LABELS.length - 1)};
         HorizontalScrollView kindScroll = new HorizontalScrollView(this);
@@ -398,11 +412,17 @@ public class PmActivity extends Activity {
         final LinearLayout kindRow = new LinearLayout(this);
         kindRow.setOrientation(LinearLayout.HORIZONTAL);
         final TextView[] kindChips = new TextView[PmDb.KIND_LABELS.length];
+        final int[] kindAccent = {
+            Color.rgb(21, 101, 192), Color.rgb(84, 110, 122), Color.rgb(46, 125, 50),
+            Color.rgb(2, 136, 209), Color.rgb(230, 126, 34), Color.rgb(198, 40, 40),
+            Color.rgb(123, 31, 162), Color.rgb(255, 149, 0)
+        };
         Runnable paintKinds = () -> {
             for (int i = 0; i < kindChips.length; i++) {
                 boolean on = i == kindIdx[0];
-                kindChips[i].setTextColor(on ? Color.BLACK : Ui.MUTED);
-                kindChips[i].setBackground(Ui.shape(this, Ui.CARD, on ? Color.BLACK : Ui.LINE, 20));
+                int acc = i < kindAccent.length ? kindAccent[i] : Color.BLACK;
+                kindChips[i].setTextColor(on ? Color.WHITE : Ui.MUTED);
+                kindChips[i].setBackground(Ui.shape(this, on ? acc : Ui.CARD, on ? acc : Ui.LINE, 20));
                 kindChips[i].setTypeface(null, on ? Typeface.BOLD : Typeface.NORMAL);
             }
         };
@@ -435,7 +455,9 @@ public class PmActivity extends Activity {
         final Runnable[] refreshHolder = new Runnable[1];
         refreshHolder[0] = () -> {
             selectedRecords.clear();
-            List<JSONObject> records = kindIdx[0] <= 1 ? pm.items() : pm.products();
+            String kk = PmDb.KINDS[kindIdx[0]];
+            List<JSONObject> records = (kk.equals("receive") || kk.equals("ret") || kk.equals("wastage"))
+                    ? pm.items() : pm.products();
             List<String> labels = new ArrayList<>();
             for (JSONObject o : records) {
                 selectedRecords.add(o);
@@ -644,6 +666,9 @@ public class PmActivity extends Activity {
         final EditText ymEt = field("Month (YYYY-MM)", monthYm);
         top.addView(Ui.muted(this, "Month"));
         top.addView(ymEt);
+        Button wastageSheet = Ui.secondary(this, "🗑️ Packaging Material Wastage (day-wise)");
+        wastageSheet.setOnClickListener(v -> showPackagingWastageDayWise());
+        top.addView(wastageSheet);
         final Spinner repSp = new Spinner(this);
         String[] reps = {"Receive", "Material Use", "Output (Ctn)", "Delivery (Ctn)", "QA Hold", "Reject"};
         repSp.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, reps));

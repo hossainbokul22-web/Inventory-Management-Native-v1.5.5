@@ -113,8 +113,8 @@ final class PmDb extends SQLiteOpenHelper {
         getWritableDatabase().insertWithOnConflict("meta", null, cv, SQLiteDatabase.CONFLICT_REPLACE);
     }
 
-    static final String[] KINDS = {"receive", "ret", "output", "delivery", "hold", "reject", "qa_pass"};
-    static final String[] KIND_LABELS = {"Receive", "Return", "Output", "Delivery", "QA Hold", "Reject", "QA Pass"};
+    static final String[] KINDS = {"receive", "ret", "output", "delivery", "hold", "reject", "qa_pass", "wastage"};
+    static final String[] KIND_LABELS = {"Receive", "Return", "Output", "Delivery", "QA Hold", "Reject", "QA Pass", "Wastage"};
 
     List<JSONObject> items() {
         List<JSONObject> out = new ArrayList<>();
@@ -284,6 +284,7 @@ final class PmDb extends SQLiteOpenHelper {
         }
         open += sumKind("receive", itemCode, date, true);
         open -= sumKind("ret", itemCode, date, true);
+        open -= sumKind("wastage", itemCode, date, true);
         open -= itemUseBefore(itemCode, date, true);
         return open;
     }
