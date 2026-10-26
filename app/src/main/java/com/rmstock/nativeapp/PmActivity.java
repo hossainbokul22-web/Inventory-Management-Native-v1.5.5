@@ -204,20 +204,43 @@ public class PmActivity extends Activity {
         String date = stockDate == null || stockDate.isEmpty() ? PmDb.today() : stockDate;
         stockDate = date;
 
-        LinearLayout head = Ui.card(this, Ui.CARD);
-        head.addView(Ui.text(this, "PM Dashboard", 18, Color.BLACK, true));
-        head.addView(Ui.muted(this, db.setting("company", "Inventory Management") + "  ·  " + date));
+        // —— Header strip ——
+        LinearLayout head = new LinearLayout(this);
+        head.setOrientation(LinearLayout.VERTICAL);
+        head.setPadding(Ui.dp(this, 16), Ui.dp(this, 14), Ui.dp(this, 16), Ui.dp(this, 14));
+        head.setBackground(Ui.shape(this, Color.rgb(232, 242, 252), Color.rgb(20, 55, 95), 16));
+        LinearLayout headRow = new LinearLayout(this);
+        headRow.setOrientation(LinearLayout.HORIZONTAL);
+        headRow.setGravity(Gravity.CENTER_VERTICAL);
+        TextView pmChip = Ui.text(this, "📦", 20, Ui.NAVY_TEXT, true);
+        pmChip.setPadding(Ui.dp(this, 8), Ui.dp(this, 6), Ui.dp(this, 8), Ui.dp(this, 6));
+        pmChip.setBackground(Ui.shape(this, Color.WHITE, Ui.LINE, 12));
+        headRow.addView(pmChip);
+        LinearLayout headTxt = new LinearLayout(this);
+        headTxt.setOrientation(LinearLayout.VERTICAL);
+        headTxt.setPadding(Ui.dp(this, 12), 0, 0, 0);
+        headTxt.addView(Ui.text(this, "PM Dashboard", 18, Ui.NAVY_TEXT, true));
+        headTxt.addView(Ui.text(this, db.setting("company", "Inventory Management"), 12, Color.rgb(60, 90, 120), false));
+        headRow.addView(headTxt, new LinearLayout.LayoutParams(0, -2, 1));
+        head.addView(headRow);
+
         final EditText dateEt = field("Date", date);
         dateEt.setFocusable(false);
         dateEt.setOnClickListener(v -> pickDate(dateEt));
-        head.addView(Ui.muted(this, "Report date"));
-        head.addView(dateEt);
+        LinearLayout dateRow = new LinearLayout(this);
+        dateRow.setOrientation(LinearLayout.HORIZONTAL);
+        dateRow.setGravity(Gravity.CENTER_VERTICAL);
+        dateRow.setPadding(0, Ui.dp(this, 10), 0, 0);
+        dateRow.addView(Ui.text(this, "📅", 16, Ui.INK, false));
+        dateRow.addView(dateEt, new LinearLayout.LayoutParams(0, -2, 1));
         Button refresh = Ui.primary(this, "Refresh");
-        head.addView(refresh);
+        dateRow.addView(refresh, new LinearLayout.LayoutParams(-2, Ui.dp(this, 44)));
+        head.addView(dateRow);
         add(head);
 
         final LinearLayout body = new LinearLayout(this);
         body.setOrientation(LinearLayout.VERTICAL);
+        body.setPadding(0, Ui.dp(this, 8), 0, 0);
         add(body);
 
         Runnable fill = () -> {
@@ -237,37 +260,66 @@ public class PmActivity extends Activity {
                 }
             } catch (Exception ignored) {}
 
-            LinearLayout kpi = Ui.card(this, Ui.CARD);
-            kpi.addView(Ui.text(this, "Today totals", 15, Ui.NAVY_TEXT, true));
-            kpi.addView(Ui.text(this,
-                    "Production  " + PmDb.fmt(totProd)
-                    + "\nDelivery    " + PmDb.fmt(totDel)
-                    + "\nQA Hold     " + PmDb.fmt(totHold)
-                    + "\nQA Pass     " + PmDb.fmt(totPass), 14, Ui.INK, false));
-            body.addView(kpi);
-
-            LinearLayout quick = Ui.card(this, Ui.CARD);
-            quick.addView(Ui.text(this, "Quick open", 15, Ui.NAVY_TEXT, true));
-            String[][] qs = {
-                {"Entry", "1"}, {"FG Daily", "5"}, {"Production", "4"}, {"Monthly", "3"}
+            // —— KPI 2×2 grid ——
+            body.addView(Ui.text(this, "Today at a glance", 13, Ui.MUTED, true));
+            int[][] kpiColors = {
+                {Color.rgb(232, 245, 233), Color.rgb(46, 125, 50)},   // prod green
+                {Color.rgb(227, 242, 253), Color.rgb(21, 101, 192)},  // del blue
+                {Color.rgb(255, 243, 224), Color.rgb(230, 126, 34)},  // hold orange
+                {Color.rgb(243, 229, 245), Color.rgb(123, 31, 162)}   // pass purple
             };
-            LinearLayout row = new LinearLayout(this);
-            row.setOrientation(LinearLayout.HORIZONTAL);
+            String[] kpiIcons = {"🏭", "🚚", "⏸", "✅"};
+            String[] kpiLabels = {"Production", "Delivery", "QA Hold", "QA Pass"};
+            double[] kpiVals = {totProd, totDel, totHold, totPass};
+            LinearLayout kpiGrid = null;
+            for (int i = 0; i < 4; i++) {
+                if (i % 2 == 0) {
+                    kpiGrid = new LinearLayout(this);
+                    kpiGrid.setOrientation(LinearLayout.HORIZONTAL);
+                    LinearLayout.LayoutParams gl = new LinearLayout.LayoutParams(-1, -2);
+                    gl.setMargins(0, 0, 0, Ui.dp(this, 8));
+                    body.addView(kpiGrid, gl);
+                }
+                LinearLayout cell = new LinearLayout(this);
+                cell.setOrientation(LinearLayout.VERTICAL);
+                cell.setPadding(Ui.dp(this, 14), Ui.dp(this, 14), Ui.dp(this, 14), Ui.dp(this, 14));
+                cell.setBackground(Ui.shape(this, kpiColors[i][0], kpiColors[i][0], 14));
+                cell.addView(Ui.text(this, kpiIcons[i] + "  " + kpiLabels[i], 12, kpiColors[i][1], true));
+                TextView val = Ui.text(this, PmDb.fmt(kpiVals[i]), 22, Ui.NAVY_TEXT, true);
+                val.setPadding(0, Ui.dp(this, 6), 0, 0);
+                cell.addView(val);
+                cell.addView(Ui.text(this, "CTN / PCS", 11, Ui.MUTED, false));
+                LinearLayout.LayoutParams cl = new LinearLayout.LayoutParams(0, -2, 1);
+                if (i % 2 == 0) cl.setMargins(0, 0, Ui.dp(this, 6), 0);
+                else cl.setMargins(Ui.dp(this, 6), 0, 0, 0);
+                kpiGrid.addView(cell, cl);
+            }
+
+            // —— Quick open pills ——
+            body.addView(Ui.text(this, "Quick open", 13, Ui.MUTED, true));
+            LinearLayout quick = new LinearLayout(this);
+            quick.setOrientation(LinearLayout.HORIZONTAL);
+            String[][] qs = {
+                {"✏️ Entry", "1"}, {"📋 FG Daily", "5"}, {"🏭 Production", "4"}, {"📅 Monthly", "3"}
+            };
             for (String[] q : qs) {
                 final int ti = Integer.parseInt(q[1]);
                 Button b = Ui.secondary(this, q[0]);
                 b.setOnClickListener(v -> { pmNested = false; tab = ti; render(); });
-                row.addView(b, new LinearLayout.LayoutParams(0, Ui.dp(this, 48), 1));
+                quick.addView(b, new LinearLayout.LayoutParams(0, Ui.dp(this, 48), 1));
             }
-            quick.addView(row);
-            body.addView(quick);
+            LinearLayout.LayoutParams ql = new LinearLayout.LayoutParams(-1, -2);
+            ql.setMargins(0, Ui.dp(this, 4), 0, Ui.dp(this, 12));
+            body.addView(quick, ql);
 
-            LinearLayout prodCard = Ui.card(this, Ui.CARD);
-            prodCard.addView(Ui.text(this, "Products — Available / Closing", 15, Ui.NAVY_TEXT, true));
+            // —— Product cards ——
+            body.addView(Ui.text(this, "Products · Available / Closing", 13, Ui.MUTED, true));
             try {
                 List<JSONObject> products = pm.products();
                 if (products.isEmpty()) {
-                    prodCard.addView(Ui.muted(this, "No products in Master"));
+                    LinearLayout empty = Ui.card(this, Ui.CARD);
+                    empty.addView(Ui.muted(this, "No products — add in Master"));
+                    body.addView(empty);
                 } else {
                     for (JSONObject pr : products) {
                         int code = pr.optInt("code");
@@ -276,39 +328,65 @@ public class PmActivity extends Activity {
                         double prod = pm.sumKindOn("output", code, d);
                         double pass = pm.sumKindOn("qa_pass", code, d);
                         double holdT = pm.sumKindOn("hold", code, d);
-                        double prev = pm.previousHold(code, d, "General")
-                                + pm.previousHold(code, d, "A")
-                                + pm.previousHold(code, d, "B")
-                                + pm.previousHold(code, d, "C");
-                        // product-level available using day totals (all shifts)
-                        double avail = open + prod + pass - (holdT + Math.max(0,
-                                pm.sumKind("hold", code, d, true) - pm.sumKind("qa_pass", code, d, true)));
-                        // simpler product-level:
                         double prevH = Math.max(0, pm.sumKind("hold", code, d, true) - pm.sumKind("qa_pass", code, d, true));
-                        avail = open + prod + pass - (holdT + prevH);
-                        double close = open + prod - pm.sumKindOn("delivery", code, d);
-                        TextView line = Ui.text(this,
-                                code + " · " + name
-                                + "\n  Open " + PmDb.fmt(open)
-                                + "  Avail " + PmDb.fmt(avail)
-                                + "  Close " + PmDb.fmt(close)
-                                + "  | P " + PmDb.fmt(prod) + " D " + PmDb.fmt(pm.sumKindOn("delivery", code, d)),
-                                12, Ui.INK, false);
-                        prodCard.addView(line);
-                        View div = new View(this);
-                        div.setBackgroundColor(Ui.LINE);
-                        prodCard.addView(div, new LinearLayout.LayoutParams(-1, 1));
+                        double del = pm.sumKindOn("delivery", code, d);
+                        double avail = open + prod + pass - (holdT + prevH);
+                        double close = open + prod - del;
+                        if (Math.abs(open) + prod + del + holdT + pass < 1e-9) continue;
+
+                        LinearLayout card = new LinearLayout(this);
+                        card.setOrientation(LinearLayout.VERTICAL);
+                        card.setPadding(Ui.dp(this, 14), Ui.dp(this, 12), Ui.dp(this, 14), Ui.dp(this, 12));
+                        card.setBackground(Ui.shape(this, Color.WHITE, Ui.LINE, 14));
+                        LinearLayout.LayoutParams cardLp = new LinearLayout.LayoutParams(-1, -2);
+                        cardLp.setMargins(0, 0, 0, Ui.dp(this, 8));
+
+                        LinearLayout titleRow = new LinearLayout(this);
+                        titleRow.setOrientation(LinearLayout.HORIZONTAL);
+                        titleRow.setGravity(Gravity.CENTER_VERTICAL);
+                        titleRow.addView(Ui.text(this, code + "  " + name, 14, Ui.NAVY_TEXT, true),
+                                new LinearLayout.LayoutParams(0, -2, 1));
+                        String badge = avail < 0 ? "⚠ Low" : (holdT > 0 ? "Hold" : "OK");
+                        int badgeBg = avail < 0 ? Color.rgb(255, 235, 238) : (holdT > 0 ? Color.rgb(255, 243, 224) : Color.rgb(232, 245, 233));
+                        int badgeFg = avail < 0 ? Color.rgb(198, 40, 40) : (holdT > 0 ? Color.rgb(230, 126, 34) : Color.rgb(46, 125, 50));
+                        TextView badgeTv = Ui.text(this, badge, 11, badgeFg, true);
+                        badgeTv.setPadding(Ui.dp(this, 10), Ui.dp(this, 4), Ui.dp(this, 10), Ui.dp(this, 4));
+                        badgeTv.setBackground(Ui.shape(this, badgeBg, badgeBg, 20));
+                        titleRow.addView(badgeTv);
+                        card.addView(titleRow);
+
+                        // metric chips row
+                        LinearLayout metrics = new LinearLayout(this);
+                        metrics.setOrientation(LinearLayout.HORIZONTAL);
+                        metrics.setPadding(0, Ui.dp(this, 10), 0, 0);
+                        String[][] m = {
+                            {"Open", PmDb.fmt(open)},
+                            {"Avail", PmDb.fmt(avail)},
+                            {"Close", PmDb.fmt(close)},
+                            {"P/D", PmDb.fmt(prod) + "/" + PmDb.fmt(del)}
+                        };
+                        for (String[] mm : m) {
+                            LinearLayout chip = new LinearLayout(this);
+                            chip.setOrientation(LinearLayout.VERTICAL);
+                            chip.setPadding(Ui.dp(this, 8), Ui.dp(this, 6), Ui.dp(this, 8), Ui.dp(this, 6));
+                            chip.setBackground(Ui.shape(this, Color.rgb(248, 250, 252), Ui.LINE, 10));
+                            chip.addView(Ui.text(this, mm[0], 10, Ui.MUTED, false));
+                            chip.addView(Ui.text(this, mm[1], 13, Ui.NAVY_TEXT, true));
+                            metrics.addView(chip, new LinearLayout.LayoutParams(0, -2, 1));
+                        }
+                        card.addView(metrics);
+                        body.addView(card, cardLp);
                     }
                 }
             } catch (Exception e) {
-                prodCard.addView(Ui.muted(this, "Error: " + e.getMessage()));
+                body.addView(Ui.muted(this, "Error: " + e.getMessage()));
             }
-            body.addView(prodCard);
-            body.addView(Ui.muted(this, "Detail by shift → FG Daily. Entry for Output / Hold / QA Pass / Delivery."));
+            body.addView(Ui.muted(this, "Shift detail → FG Daily · Enter data → Entry"));
         };
         refresh.setOnClickListener(v -> fill.run());
         fill.run();
     }
+
 
     private void showEntry() {
         LinearLayout card = Ui.card(this, Ui.CARD);
