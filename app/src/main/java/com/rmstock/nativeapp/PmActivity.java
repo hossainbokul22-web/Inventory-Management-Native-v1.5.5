@@ -644,20 +644,22 @@ public class PmActivity extends Activity {
 
         String date = stockDate;
         List<String[]> rows = new ArrayList<>();
-        rows.add(new String[]{"Code", "Name", "UoM", "Opening", "Receive", "Return", "Use", "Wastage", "Closing", "Status"});
+        // (Opening + Receive) = Total; Closing = Total − Return − Use − Wastage
+        rows.add(new String[]{"Code", "Name", "UoM", "Opening", "Receive", "Total", "Return", "Use", "Wastage", "Closing", "Status"});
         for (JSONObject it : pm.items()) {
             int code = it.optInt("code");
             double open = pm.openingItem(code, date);
             double receive = pm.sumKindOn("receive", code, date);
+            double totalIn = open + receive;
             double ret = pm.sumKindOn("ret", code, date);
             double use = pm.itemUseOn(code, date);
             double waste = pm.sumKindOn("wastage", code, date);
-            double close = open + receive - ret - use - waste;
+            double close = totalIn - ret - use - waste;
             String status = close < 0 ? "SHORT" : (close < 1 ? "LOW" : "OK");
             rows.add(new String[]{
                     String.valueOf(code), it.optString("name"), it.optString("uom"),
-                    PmDb.fmt(open), PmDb.fmt(receive), PmDb.fmt(ret),
-                    PmDb.fmt(use), PmDb.fmt(waste), PmDb.fmt(close), status
+                    PmDb.fmt(open), PmDb.fmt(receive), PmDb.fmt(totalIn),
+                    PmDb.fmt(ret), PmDb.fmt(use), PmDb.fmt(waste), PmDb.fmt(close), status
             });
         }
         addReportTable("Daily Stock — " + date, rows, date);
@@ -838,9 +840,130 @@ public class PmActivity extends Activity {
         });
     }
 
+
+    /** Month packaging stock (same columns as Daily). Print / send to boss. */
+    private void showMonthlyStockReport() {
+        pmNested = true;
+        content.removeAllViews();
+        LinearLayout head = Ui.card(this, Ui.CARD);
+        head.addView(Ui.text(this, "Monthly Stock Report", 17, Ui.NAVY_TEXT, true));
+        head.addView(Ui.muted(this, "Total = Opening + Receive · Closing = Total − Return − Use − Wastage. Unit as in Master."));
+        final EditText ymEt = field("Month YYYY-MM", monthYm);
+        head.addView(Ui.muted(this, "Month"));
+        head.addView(ymEt);
+        Button load = Ui.primary(this, "Show report");
+        head.addView(load);
+        Button back = Ui.secondary(this, "Back to Monthly");
+        back.setOnClickListener(v -> { pmNested = false; tab = 3; render(); });
+        head.addView(back);
+        add(head);
+        final LinearLayout host = new LinearLayout(this);
+        host.setOrientation(LinearLayout.VERTICAL);
+        add(host);
+        load.setOnClickListener(v -> {
+            host.removeAllViews();
+            String ym = ymEt.getText().toString().trim();
+            if (ym.length() < 7) { toast("YYYY-MM"); return; }
+            monthYm = ym;
+            String monthStart = ym + "-01";
+            List<String[]> rows = new ArrayList<>();
+            rows.add(new String[]{"Code", "Name", "UoM", "Opening", "Receive", "Total", "Return", "Use", "Wastage", "Closing", "Status"});
+            double tOpen=0,tRecv=0,tTot=0,tRet=0,tUse=0,tWaste=0,tClose=0;
+            for (JSONObject it : pm.items()) {
+                int code = it.optInt("code");
+                double open = pm.openingItem(code, monthStart);
+                double receive = pm.sumKindMonth("receive", code, ym);
+                double totalIn = open + receive;
+                double ret = pm.sumKindMonth("ret", code, ym);
+                double use = pm.itemUseMonth(code, ym);
+                double waste = pm.sumKindMonth("wastage", code, ym);
+                double close = totalIn - ret - use - waste;
+                if (Math.abs(open)+receive+ret+use+waste < 1e-9) continue;
+                String status = close < 0 ? "SHORT" : (close < 1 ? "LOW" : "OK");
+                rows.add(new String[]{
+                    String.valueOf(code), it.optString("name"), it.optString("uom"),
+                    PmDb.fmt(open), PmDb.fmt(receive), PmDb.fmt(totalIn),
+                    PmDb.fmt(ret), PmDb.fmt(use), PmDb.fmt(waste), PmDb.fmt(close), status
+                });
+                tOpen+=open; tRecv+=receive; tTot+=totalIn; tRet+=ret; tUse+=use; tWaste+=waste; tClose+=close;
+            }
+            if (rows.size() == 1) {
+                host.addView(Ui.muted(this, "No stock movement this month"));
+                return;
+            }
+            rows.add(new String[]{"TOTAL", "", "", PmDb.fmt(tOpen), PmDb.fmt(tRecv), PmDb.fmt(tTot),
+                    PmDb.fmt(tRet), PmDb.fmt(tUse), PmDb.fmt(tWaste), PmDb.fmt(tClose), ""});
+            String title = "Monthly Stock Report — " + ym;
+            LinearLayout card = Ui.card(this, Ui.CARD);
+            card.addView(Ui.text(this, title, 15, Ui.NAVY_TEXT, true));
+            card.addView(Ui.muted(this, db.setting("company", "")));
+            final int[] colW = {Ui.dp(this,56), Ui.dp(this,120), Ui.dp(this,48), Ui.dp(this,70), Ui.dp(this,70), Ui.dp(this,70), Ui.dp(this,64), Ui.dp(this,64), Ui.dp(this,70), Ui.dp(this,70), Ui.dp(this,56)};
+            HorizontalScrollView hsv = new HorizontalScrollView(this);
+            hsv.setPadding(Ui.dp(this,4),0,Ui.dp(this,4),0);
+            hsv.setClipToPadding(false);
+            LinearLayout table = new LinearLayout(this);
+            table.setOrientation(LinearLayout.VERTICAL);
+            table.setPadding(Ui.dp(this,8), Ui.dp(this,4), Ui.dp(this,8), Ui.dp(this,4));
+            for (int r = 0; r < rows.size(); r++) {
+                String[] row = rows.get(r);
+                LinearLayout line = new LinearLayout(this);
+                line.setOrientation(LinearLayout.HORIZONTAL);
+                line.setGravity(android.view.Gravity.CENTER_VERTICAL);
+                line.setPadding(0, Ui.dp(this,8), 0, Ui.dp(this,8));
+                boolean headRow = r == 0;
+                boolean tot = "TOTAL".equals(row[0]);
+                if (headRow) line.setBackgroundColor(Ui.SOFT_BLUE);
+                else if (tot) line.setBackgroundColor(Color.parseColor("#EEEEEE"));
+                for (int c = 0; c < row.length; c++) {
+                    TextView tv = Ui.text(this, row[c] == null ? "" : row[c], headRow ? 10 : 12,
+                            headRow || tot ? Ui.NAVY_TEXT : Ui.INK, headRow || tot);
+                    tv.setSingleLine(true);
+                    tv.setPadding(Ui.dp(this,3),0,Ui.dp(this,3),0);
+                    if (c >= 3) tv.setGravity(android.view.Gravity.END | android.view.Gravity.CENTER_VERTICAL);
+                    int w = c < colW.length ? colW[c] : Ui.dp(this, 64);
+                    line.addView(tv, new LinearLayout.LayoutParams(w, -2));
+                }
+                table.addView(line);
+            }
+            hsv.addView(table);
+            card.addView(hsv);
+            final List<String[]> rowsF = rows;
+            LinearLayout actions = new LinearLayout(this);
+            actions.setOrientation(LinearLayout.HORIZONTAL);
+            Button csvB = Ui.secondary(this, "CSV");
+            csvB.setOnClickListener(vv -> exportCsv(title, rowsF, "mstock_" + ym));
+            actions.addView(csvB, Ui.lp(this, 0, Ui.dp(this, 44), 1, 0, 0, 6, 0));
+            Button pdfB = Ui.secondary(this, "PDF / Print");
+            pdfB.setOnClickListener(vv -> exportPdf(title, rowsF, "mstock_" + ym));
+            actions.addView(pdfB, Ui.lp(this, 0, Ui.dp(this, 44), 1, 6, 0, 6, 0));
+            Button boss = Ui.primary(this, "Send to boss");
+            boss.setOnClickListener(vv -> {
+                StringBuilder sb = new StringBuilder();
+                sb.append(title).append("\n").append(db.setting("company","")).append("\n\n");
+                for (String[] row : rowsF) {
+                    sb.append(TextUtils.join(" | ", row)).append("\n");
+                }
+                Intent i = new Intent(Intent.ACTION_SEND);
+                i.setType("text/plain");
+                String email = db.setting("boss_email", "");
+                if (email != null && email.contains("@"))
+                    i.putExtra(Intent.EXTRA_EMAIL, new String[]{email});
+                i.putExtra(Intent.EXTRA_SUBJECT, title);
+                i.putExtra(Intent.EXTRA_TEXT, sb.toString());
+                startActivity(Intent.createChooser(i, "Send monthly stock to boss"));
+            });
+            actions.addView(boss, Ui.lp(this, 0, Ui.dp(this, 44), 1, 6, 0, 0, 0));
+            card.addView(actions);
+            host.addView(card);
+        });
+    }
+
     private void showMonthly() {
         LinearLayout top = Ui.card(this, Ui.CARD);
         top.addView(Ui.text(this, "Monthly reports", 16, Ui.NAVY_TEXT, true));
+        Button monthStock = Ui.secondary(this, "📦 Monthly Stock Report");
+        monthStock.setOnClickListener(v -> showMonthlyStockReport());
+        top.addView(monthStock);
         final EditText ymEt = field("Month (YYYY-MM)", monthYm);
         top.addView(Ui.muted(this, "Month"));
         top.addView(ymEt);
