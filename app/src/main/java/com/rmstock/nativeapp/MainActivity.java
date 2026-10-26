@@ -342,22 +342,115 @@ private void clear(String head){currentScreen=head;for(Runnable task:dashboardRu
 
  private void showMore(){
     clear("More");
-    String[][] items={{"Daily PM Report","Packaging stock, production, FG Daily","pm"},{"Wastage","Spoilage and loss, taken out of stock","waste"},{"Stock Count","Physical count against the book stock","count"},{"Daily Summary","One-page PDF to share with the owner","summary"},{"Batch Planner","What do I need for the batches I plan?","planner"},{"Master — Raw materials","Add, edit or delete raw materials","rm"},{"Master — Products","Add, edit or delete products","prod"},{"Recipe","Raw material per batch for each product","recipe"},{"Custom sheets","Your own sheets and formulas","custom"},{"Yield % sheet","Per-product formulas + history + stages","yield"},{"Process Loss %","Per-product process loss formula + dashboard card","ploss"},{"Owner pack","One-page stock + yield + shorts for the owner","owner"},{"Audit log","Who changed what (offline trail)","audit"},{"Assistant","Command box: fix entry, report to boss, open screens","fix"},{"Scan voucher (AI)","Offline OCR draft, voucher photo is kept","ai"},{"Settings","Roles, month lock, backup share, names","settings"}};
-    for(String[] it:items){
+    add(Ui.muted(this,"Modules"));
+
+    // —— Daily PM featured (full width, special colors) ——
+    LinearLayout pmHero=new LinearLayout(this);
+    pmHero.setOrientation(LinearLayout.HORIZONTAL);
+    pmHero.setGravity(Gravity.CENTER_VERTICAL);
+    pmHero.setPadding(dp(16),dp(16),dp(16),dp(16));
+    // teal / navy authentic highlight (light, not dark)
+    pmHero.setBackground(Ui.shape(this,Color.rgb(232,245,253),Color.rgb(20,55,95),16));
+    LinearLayout pmIcon=new LinearLayout(this);
+    pmIcon.setGravity(Gravity.CENTER);
+    pmIcon.setPadding(dp(12),dp(12),dp(12),dp(12));
+    pmIcon.setBackground(Ui.shape(this,Color.rgb(20,55,95),Color.rgb(20,55,95),14));
+    TextView pmEmoji=Ui.text(this,"PM",15,Color.WHITE,true);
+    pmIcon.addView(pmEmoji);
+    pmHero.addView(pmIcon);
+    LinearLayout pmTxt=new LinearLayout(this);
+    pmTxt.setOrientation(LinearLayout.VERTICAL);
+    pmTxt.setPadding(dp(12),0,dp(8),0);
+    TextView pmTitle=Ui.text(this,"Daily PM Report",17,Color.rgb(20,55,95),true);
+    TextView pmSub=Ui.text(this,"Packaging · Production · FG Daily · Special module",13,Color.rgb(60,90,120),false);
+    pmTxt.addView(pmTitle);pmTxt.addView(pmSub);
+    pmHero.addView(pmTxt,new LinearLayout.LayoutParams(0,-2,1));
+    TextView pmArrow=Ui.text(this,"›",22,Color.rgb(20,55,95),true);
+    pmHero.addView(pmArrow);
+    pmHero.setOnClickListener(v->openDailyPm());
+    LinearLayout.LayoutParams heroLp=new LinearLayout.LayoutParams(-1,-2);
+    heroLp.setMargins(0,dp(4),0,dp(12));
+    content.addView(pmHero,heroLp);
+
+    // —— Other modules 2-column light grid ——
+    String[][] items={
+        {"Wastage","Spoilage and loss","waste",String.valueOf(Color.rgb(255,149,0))},
+        {"Stock Count","Physical vs book","count",String.valueOf(Color.rgb(52,199,89))},
+        {"Daily Summary","PDF for owner","summary",String.valueOf(Color.rgb(175,82,222))},
+        {"Batch Planner","What do I need?","planner",String.valueOf(Color.rgb(90,200,250))},
+        {"Master — RM","Raw materials","rm",String.valueOf(Color.rgb(0,122,255))},
+        {"Master — Products","Add / edit products","prod",String.valueOf(Color.rgb(88,86,214))},
+        {"Recipe","RM per batch","recipe",String.valueOf(Color.rgb(255,45,85))},
+        {"Custom sheets","Your formulas","custom",String.valueOf(Color.rgb(100,210,180))},
+        {"Yield %","Formulas + history","yield",String.valueOf(Color.rgb(255,179,64))},
+        {"Process Loss %","Loss vs standard","ploss",String.valueOf(Color.rgb(255,59,48))},
+        {"Owner pack","Stock + yield page","owner",String.valueOf(Color.rgb(50,173,230))},
+        {"Audit log","Who changed what","audit",String.valueOf(Color.rgb(142,142,147))},
+        {"Assistant","Commands / boss","fix",String.valueOf(Color.rgb(64,156,255))},
+        {"Scan voucher","AI OCR draft","ai",String.valueOf(Color.rgb(191,90,242))},
+        {"Settings","Roles, lock, backup","settings",String.valueOf(Color.rgb(84,110,122))}
+    };
+
+    LinearLayout grid=null;
+    for(int i=0;i<items.length;i++){
+        if(i%2==0){
+            grid=new LinearLayout(this);
+            grid.setOrientation(LinearLayout.HORIZONTAL);
+            LinearLayout.LayoutParams glp=new LinearLayout.LayoutParams(-1,-2);
+            glp.setMargins(0,0,0,dp(10));
+            content.addView(grid,glp);
+        }
+        final String[] it=items[i];
         final String k=it[2];
-        LinearLayout c=Ui.card(this,Ui.CARD);
-        c.addView(Ui.text(this,it[0],16,Ui.NAVY_TEXT,true));
-        c.addView(Ui.muted(this,it[1]));
-        c.setOnClickListener(v->{
+        int accent=Integer.parseInt(it[3]);
+        LinearLayout card=new LinearLayout(this);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setPadding(dp(14),dp(14),dp(14),dp(14));
+        card.setBackground(Ui.shape(this,Ui.CARD,Ui.LINE,16));
+        LinearLayout top=new LinearLayout(this);
+        top.setOrientation(LinearLayout.HORIZONTAL);
+        top.setGravity(Gravity.CENTER_VERTICAL);
+        LinearLayout ic=new LinearLayout(this);
+        ic.setGravity(Gravity.CENTER);
+        ic.setPadding(dp(10),dp(10),dp(10),dp(10));
+        ic.setBackground(Ui.shape(this,accent,accent,12));
+        String letter=it[0].substring(0,1);
+        ic.addView(Ui.text(this,letter,14,Color.WHITE,true));
+        top.addView(ic);
+        TextView arrow=Ui.text(this,"›",18,Ui.MUTED,true);
+        LinearLayout.LayoutParams aLp=new LinearLayout.LayoutParams(-2,-2);
+        aLp.weight=1;
+        top.addView(new View(this),new LinearLayout.LayoutParams(0,1,1));
+        top.addView(arrow);
+        card.addView(top);
+        card.addView(Ui.text(this,it[0],15,Ui.NAVY_TEXT,true));
+        TextView sub=Ui.text(this,it[1],12,Ui.MUTED,false);
+        sub.setPadding(0,dp(4),0,0);
+        card.addView(sub);
+        card.setOnClickListener(v->{
             if(k.equals("rm"))gateOpen("Raw material master",()->showRmMaster());
             else if(k.equals("prod"))gateOpen("Product master",()->showProductMaster());
             else if(k.equals("recipe"))gateOpen("Recipe",()->showRecipe());
             else if(k.equals("settings"))gateOpen("Settings",()->showSettings());
-            else if(k.equals("waste"))showWastage();else if(k.equals("count"))showCount();else if(k.equals("summary"))showSummary();
-            else if(k.equals("planner"))showRmPlanner();else if(k.equals("custom"))showCustom();else if(k.equals("yield"))showYieldSheet();else if(k.equals("ploss"))showProcessLossSheet();else if(k.equals("owner"))showOwnerPack();else if(k.equals("audit"))showAuditLog();else if(k.equals("ai"))showAI();else if(k.equals("fix"))showAssistant();else openDailyPm();});
-        addCard(c);
+            else if(k.equals("waste"))showWastage();
+            else if(k.equals("count"))showCount();
+            else if(k.equals("summary"))showSummary();
+            else if(k.equals("planner"))showRmPlanner();
+            else if(k.equals("custom"))showCustom();
+            else if(k.equals("yield"))showYieldSheet();
+            else if(k.equals("ploss"))showProcessLossSheet();
+            else if(k.equals("owner"))showOwnerPack();
+            else if(k.equals("audit"))showAuditLog();
+            else if(k.equals("ai"))showAI();
+            else if(k.equals("fix"))showAssistant();
+        });
+        LinearLayout.LayoutParams cLp=new LinearLayout.LayoutParams(0,-2,1);
+        if(i%2==0) cLp.setMargins(0,0,dp(5),0);
+        else cLp.setMargins(dp(5),0,0,0);
+        grid.addView(card,cLp);
     }
  }
+
 
  private void showWastage(){
     clear("Wastage");
