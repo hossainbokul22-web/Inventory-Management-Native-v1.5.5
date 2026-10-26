@@ -80,15 +80,17 @@ public class PmActivity extends Activity {
         root.setOrientation(LinearLayout.VERTICAL);
         root.setBackgroundColor(Ui.BG);
 
+        // Match main app header: navy + same padding
         LinearLayout bar = new LinearLayout(this);
+        bar.setOrientation(LinearLayout.HORIZONTAL);
         bar.setGravity(Gravity.CENTER_VERTICAL);
-        bar.setBackgroundColor(Color.BLACK);
-        bar.setPadding(Ui.dp(this, 6), Ui.dp(this, 8), Ui.dp(this, 14), Ui.dp(this, 8));
-        TextView back = Ui.text(this, "‹  Back", 16, Color.WHITE, true);
-        back.setPadding(Ui.dp(this, 10), Ui.dp(this, 6), Ui.dp(this, 14), Ui.dp(this, 6));
+        bar.setBackgroundColor(Ui.NAVY);
+        bar.setPadding(Ui.dp(this, 16), Ui.dp(this, 10), Ui.dp(this, 12), Ui.dp(this, 10));
+        TextView back = Ui.text(this, "‹  Back", 16, 0xFFFFFFFF, true);
+        back.setPadding(Ui.dp(this, 0), Ui.dp(this, 4), Ui.dp(this, 12), Ui.dp(this, 4));
         back.setOnClickListener(v -> handlePmBack());
         bar.addView(back);
-        titleTv = Ui.text(this, pm.meta("appTitle", "Daily PM Report"), 16, Color.WHITE, true);
+        titleTv = Ui.text(this, pm.meta("appTitle", "Daily PM Report"), 17, 0xFFFFFFFF, true);
         bar.addView(titleTv, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
         statusTv = Ui.text(this, "", 11, Color.WHITE, true);
         statusTv.setBackground(Ui.shape(this, Color.parseColor("#333333"), Color.parseColor("#333333"), 14));
