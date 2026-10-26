@@ -1369,16 +1369,40 @@ public class PmActivity extends Activity {
             int cols = rows.isEmpty() ? 1 : rows.get(0).length;
             float[] widths = new float[cols];
             float total = pageW - 36f;
-            if (cols >= 9) {
-                // FG Daily weights: Item wide, Shift narrow, numbers share rest
-                float[] w = {0.18f, 0.07f, 0.08f, 0.09f, 0.09f, 0.08f, 0.08f, 0.10f, 0.09f, 0.09f};
-                for (int c = 0; c < cols; c++) widths[c] = total * (c < w.length ? w[c] : (1f / cols));
-            } else if (cols > 1) {
-                widths[0] = total * 0.22f;
-                float rest = (total - widths[0]) / (cols - 1);
-                for (int c = 1; c < cols; c++) widths[c] = rest;
-            } else {
-                widths[0] = total;
+            // Content-based widths for EVERY sheet:
+            // measure longest cell per column, then scale to page (min/max so numbers stay readable)
+            {
+                float[] need = new float[cols];
+                android.graphics.Paint measure = new android.graphics.Paint(head);
+                for (int c = 0; c < cols; c++) {
+                    float m = 0;
+                    for (String[] row : rows) {
+                        if (c >= row.length) continue;
+                        String cell = row[c] == null ? "" : row[c];
+                        m = Math.max(m, measure.measureText(cell));
+                    }
+                    // padding inside cell
+                    need[c] = m + 10f;
+                }
+                float sumNeed = 0;
+                for (float n : need) sumNeed += n;
+                if (sumNeed < 1f) sumNeed = 1f;
+                // min width so tiny cols don't vanish; max so one long name can't steal everything
+                float minW = total * 0.05f;
+                float maxW = total * 0.40f;
+                float assigned = 0;
+                for (int c = 0; c < cols; c++) {
+                    float w = total * (need[c] / sumNeed);
+                    if (w < minW) w = minW;
+                    if (w > maxW) w = maxW;
+                    widths[c] = w;
+                    assigned += w;
+                }
+                // normalize to exact page width
+                if (assigned > 0) {
+                    float scale = total / assigned;
+                    for (int c = 0; c < cols; c++) widths[c] *= scale;
+                }
             }
 
             for (int r = 0; r < rows.size(); r++) {
