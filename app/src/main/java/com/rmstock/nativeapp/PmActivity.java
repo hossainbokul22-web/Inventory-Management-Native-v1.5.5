@@ -1002,14 +1002,27 @@ public class PmActivity extends Activity {
             LinearLayout card = Ui.card(this, Ui.CARD);
             card.addView(Ui.text(this, title, 15, Ui.NAVY_TEXT, true));
             card.addView(Ui.muted(this, db.setting("company", "")));
+            final int[] colW = {
+                Ui.dp(this, 170), // Item
+                Ui.dp(this, 78),  // Opening
+                Ui.dp(this, 78),  // Production
+                Ui.dp(this, 72),  // Reject
+                Ui.dp(this, 78),  // Delivery
+                Ui.dp(this, 78)   // Closing
+            };
             HorizontalScrollView hsv = new HorizontalScrollView(this);
+            hsv.setHorizontalScrollBarEnabled(true);
+            hsv.setPadding(Ui.dp(this, 4), 0, Ui.dp(this, 4), 0);
+            hsv.setClipToPadding(false);
             LinearLayout table = new LinearLayout(this);
             table.setOrientation(LinearLayout.VERTICAL);
+            table.setPadding(Ui.dp(this, 8), Ui.dp(this, 4), Ui.dp(this, 8), Ui.dp(this, 4));
             for (int r = 0; r < rows.size(); r++) {
                 String[] row = rows.get(r);
                 LinearLayout line = new LinearLayout(this);
                 line.setOrientation(LinearLayout.HORIZONTAL);
-                line.setPadding(Ui.dp(this, 2), Ui.dp(this, 6), Ui.dp(this, 2), Ui.dp(this, 6));
+                line.setGravity(android.view.Gravity.CENTER_VERTICAL);
+                line.setPadding(0, Ui.dp(this, 8), 0, Ui.dp(this, 8));
                 boolean headRow = r == 0;
                 boolean tot = "TOTAL".equals(row[0]);
                 if (headRow) line.setBackgroundColor(Ui.SOFT_BLUE);
@@ -1017,9 +1030,12 @@ public class PmActivity extends Activity {
                 for (int c = 0; c < row.length; c++) {
                     TextView tv = Ui.text(this, row[c] == null ? "" : row[c], headRow ? 11 : 12,
                             headRow || tot ? Ui.NAVY_TEXT : Ui.INK, headRow || tot);
-                    tv.setPadding(Ui.dp(this, 6), 0, Ui.dp(this, 6), 0);
-                    tv.setMinWidth(Ui.dp(this, c == 0 ? 160 : 72));
-                    line.addView(tv);
+                    tv.setSingleLine(true);
+                    tv.setPadding(Ui.dp(this, 4), 0, Ui.dp(this, 4), 0);
+                    if (c >= 1) tv.setGravity(android.view.Gravity.END | android.view.Gravity.CENTER_VERTICAL);
+                    else tv.setGravity(android.view.Gravity.START | android.view.Gravity.CENTER_VERTICAL);
+                    int w = c < colW.length ? colW[c] : Ui.dp(this, 72);
+                    line.addView(tv, new LinearLayout.LayoutParams(w, -2));
                 }
                 table.addView(line);
             }
