@@ -188,7 +188,7 @@ private void clear(String head){currentScreen=head;for(Runnable task:dashboardRu
         // Quick access: Boss report + AI voucher (dashboard)
         try{
             LinearLayout quick=Ui.card(this,Ui.CARD);
-            quick.addView(Ui.text(this,"Quick actions",15,Ui.NAVY_TEXT,true));
+            quick.addView(dashIconTitle("⚡", "Quick actions", Color.rgb(20, 55, 95)));
             quick.addView(Ui.muted(this,"Boss report needs internet when you share. Voucher scan works offline."));
             LinearLayout rowQ=new LinearLayout(this);
             rowQ.setOrientation(LinearLayout.HORIZONTAL);
@@ -973,7 +973,28 @@ c2.addView(Ui.text(this,"Tab names",15,Ui.NAVY_TEXT,true));
     dashboardRunnables.add(task[0]);
     main.postDelayed(task[0],gap);
  }
- private void addSectionTitle(String text,int bg){TextView h=title(lbl(text));h.setTextSize(16);h.setPadding(dp(8),dp(10),dp(8),dp(10));h.setBackgroundColor(bg);add(h);}
+ private void addSectionTitle(String text,int bg){
+    String icon="•";
+    String t=text==null?"":text;
+    if(t.contains("Batch")) icon="🔢";
+    else if(t.contains("Receive")) icon="📥";
+    else if(t.contains("Mixing")) icon="🧪";
+    else if(t.contains("Expiry")) icon="⏰";
+    else if(t.contains("Stock Watch")) icon="👁️";
+    else if(t.contains("Stock Overview")) icon="📦";
+    else if(t.contains("Shift")) icon="🔄";
+    LinearLayout row=new LinearLayout(this);
+    row.setOrientation(LinearLayout.HORIZONTAL);
+    row.setGravity(Gravity.CENTER_VERTICAL);
+    row.setPadding(dp(8),dp(10),dp(8),dp(10));
+    row.setBackgroundColor(bg);
+    TextView ic=Ui.text(this,icon,15,Ui.NAVY_TEXT,true);
+    ic.setPadding(0,0,dp(8),0);
+    row.addView(ic);
+    TextView h=Ui.text(this,lbl(t),16,Ui.NAVY_TEXT,true);
+    row.addView(h);
+    add(row);
+}
  private void addSimpleTable(String[] headers,List<String> rows){LinearLayout card=new LinearLayout(this);card.setOrientation(LinearLayout.VERTICAL);card.setPadding(dp(8),dp(6),dp(8),dp(6));card.setBackgroundColor(Ui.CARD);if(rows.isEmpty()){TextView e=new TextView(this);e.setText("No entries today");e.setTextSize(13);e.setPadding(dp(6),dp(8),dp(6),dp(8));card.addView(e);}else{for(String value:rows){TextView t=new TextView(this);t.setText(value);t.setTextSize(13);t.setTextColor(Ui.INK);t.setPadding(dp(6),dp(7),dp(6),dp(7));card.addView(t);View divider=new View(this);divider.setBackgroundColor(Ui.LINE);card.addView(divider,new LinearLayout.LayoutParams(-1,dp(1)));}}add(card);Space sp=new Space(this);add(sp);}
 
 private void addDashCard(LinearLayout parent,String label,String value){
@@ -2559,7 +2580,7 @@ private void applyVoiceFixCommand(String raw){
         card.setOrientation(LinearLayout.VERTICAL);
         card.setPadding(dp(14),dp(12),dp(14),dp(12));
         card.setBackground(Ui.shape(this,Color.parseColor("#FFF3E0"),Ui.LINE,16));
-        card.addView(Ui.text(this,"Process Loss %",13,Ui.MUTED,true));
+        card.addView(dashIconTitle("📉", "Process Loss %", Color.rgb(230, 126, 34)));
         TextView circle=new TextView(this);
         circle.setGravity(Gravity.CENTER);
         circle.setTextSize(22);
@@ -2681,6 +2702,24 @@ private void applyVoiceFixCommand(String raw){
     }catch(Exception e){error(e);}
  }
 
+
+ /** Small colored icon chip + title for dashboard cards (keeps current layout). */
+ private LinearLayout dashIconTitle(String icon, String title, int accent){
+    LinearLayout row=new LinearLayout(this);
+    row.setOrientation(LinearLayout.HORIZONTAL);
+    row.setGravity(Gravity.CENTER_VERTICAL);
+    row.setPadding(0,0,0,dp(6));
+    TextView chip=Ui.text(this,icon,14,Color.WHITE,true);
+    chip.setGravity(Gravity.CENTER);
+    chip.setPadding(dp(8),dp(6),dp(8),dp(6));
+    chip.setBackground(Ui.shape(this,accent,accent,10));
+    row.addView(chip);
+    TextView t=Ui.text(this,title,14,Ui.NAVY_TEXT,true);
+    t.setPadding(dp(10),0,0,0);
+    row.addView(t,new LinearLayout.LayoutParams(0,-2,1));
+    return row;
+ }
+
  private void addYieldLiveCard(){
     try{
         List<JSONObject> products=db.rows("SELECT code,name FROM products ORDER BY code",null);
@@ -2701,8 +2740,7 @@ private void applyVoiceFixCommand(String raw){
         card.setOrientation(LinearLayout.VERTICAL);
         card.setPadding(dp(14),dp(12),dp(14),dp(12));
         card.setBackground(Ui.shape(this,Ui.SOFT_PURPLE,Ui.LINE,16));
-        TextView head=Ui.text(this,lbl("Yield %"),13,Ui.MUTED,true);
-        card.addView(head);
+        card.addView(dashIconTitle("📈", lbl("Yield %"), Color.rgb(123, 63, 196)));
         // circle-style big value
         TextView circle=new TextView(this);
         circle.setGravity(Gravity.CENTER);
