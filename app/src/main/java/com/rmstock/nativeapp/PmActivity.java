@@ -644,17 +644,20 @@ public class PmActivity extends Activity {
 
         String date = stockDate;
         List<String[]> rows = new ArrayList<>();
-        rows.add(new String[]{"Code", "Name", "UoM", "Opening", "Receive", "Use", "Closing", "Status"});
+        rows.add(new String[]{"Code", "Name", "UoM", "Opening", "Receive", "Return", "Use", "Wastage", "Closing", "Status"});
         for (JSONObject it : pm.items()) {
             int code = it.optInt("code");
             double open = pm.openingItem(code, date);
-            double recv = pm.sumKindOn("receive", code, date) - pm.sumKindOn("ret", code, date);
+            double receive = pm.sumKindOn("receive", code, date);
+            double ret = pm.sumKindOn("ret", code, date);
             double use = pm.itemUseOn(code, date);
-            double close = open + recv - use;
+            double waste = pm.sumKindOn("wastage", code, date);
+            double close = open + receive - ret - use - waste;
             String status = close < 0 ? "SHORT" : (close < 1 ? "LOW" : "OK");
             rows.add(new String[]{
                     String.valueOf(code), it.optString("name"), it.optString("uom"),
-                    PmDb.fmt(open), PmDb.fmt(recv), PmDb.fmt(use), PmDb.fmt(close), status
+                    PmDb.fmt(open), PmDb.fmt(receive), PmDb.fmt(ret),
+                    PmDb.fmt(use), PmDb.fmt(waste), PmDb.fmt(close), status
             });
         }
         addReportTable("Daily Stock — " + date, rows, date);
