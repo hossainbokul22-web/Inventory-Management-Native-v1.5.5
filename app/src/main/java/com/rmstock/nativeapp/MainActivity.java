@@ -1821,25 +1821,76 @@ java.util.regex.Matcher m=java.util.regex.Pattern.compile("(?i)^SUM\\(([^)]+)\\)
  private double cellValue(String ref,JSONObject row,List<JSONObject> cols){try{ref=ref.trim();if(ref.matches("[A-Za-z]+\\d+")){int ci=0;for(char ch:ref.toUpperCase().toCharArray()){if(Character.isLetter(ch))ci=ci*26+(ch-'A'+1);}ci--;if(ci>=0&&ci<cols.size())return num(row.optString(cols.get(ci).getString("name"),"0"));}return Double.parseDouble(ref);}catch(Exception e){return 0;}}
  private List<String> expandRange(String range,List<JSONObject> cols){List<String> out=new ArrayList<>();String[] z=range.trim().split(":");if(z.length!=2){out.add(range.trim());return out;}java.util.regex.Matcher a=java.util.regex.Pattern.compile("([A-Za-z]+)\\d+").matcher(z[0]);java.util.regex.Matcher b=java.util.regex.Pattern.compile("([A-Za-z]+)\\d+").matcher(z[1]);if(!a.find()||!b.find()){out.add(range.trim());return out;}int s=letters(a.group(1)),e=letters(b.group(1));for(int i=Math.min(s,e);i<=Math.max(s,e);i++)out.add(columnName(i)+"1");return out;} private String columnName(int n){StringBuilder x=new StringBuilder();n++;while(n>0){int r=(n-1)%26;x.insert(0,(char)('A'+r));n=(n-1)/26;}return x.toString();}
  private int letters(String s){int n=0;for(char c:s.toUpperCase().toCharArray())n=n*26+(c-'A'+1);return n-1;}
- private void showReports(){clear("Reports — Sheets");EditText month=edit("Month YYYY-MM");month.setText(today().substring(0,7));add(month);
-    add(Ui.muted(this,"Monthly → boss: report is built offline; internet only needed when you send."));
-    Button toBoss=Ui.primary(this,"Send monthly report to boss");
-    toBoss.setOnClickListener(v->sendMonthlyToBoss(month.getText().toString().trim()));
-    add(toBoss);
-    Button dayBoss=Ui.secondary(this,"Send TODAY report to boss");
-    dayBoss.setOnClickListener(v->sendDailyToBoss(today()));
-    add(dayBoss);
-    Button recv=btn("RM Receive Monthly — Day-wise");recv.setOnClickListener(v->showReceiveMonthly(month.getText().toString().trim()));add(recv);Button mixMonth=btn("RM Mixing-2 Monthly — Day-wise");mixMonth.setOnClickListener(v->showMixingMonthlySheet(month.getText().toString().trim()));add(mixMonth);Button mix=btn("Mixing-2 — Batch × Recipe Usage");mix.setOnClickListener(v->showMixing2(month.getText().toString().trim()));add(mix);Button batchLog=btn("RM Mixing-2 Batch Log");batchLog.setOnClickListener(v->showBatchLogSheet(month.getText().toString().trim()));add(batchLog);Button daily=btn("Daily Date Report");daily.setOnClickListener(v->showDailyDateSheet(month.getText().toString().trim()));add(daily);Button fin=btn("Final Monthly Usage");fin.setOnClickListener(v->showFinalMonthlySheet(month.getText().toString().trim()));add(fin);Button csv=btn("Export CSV");csv.setOnClickListener(v->exportCsv());add(csv);Button backup=btn("Backup JSON");backup.setOnClickListener(v->backupJson());add(backup);Button restore=btn("Restore JSON");restore.setOnClickListener(v->restoreJson());add(restore);/* Company name: More → Settings only */
+ private void showReports(){
+    clear("Reports — Sheets");
+    add(Ui.muted(this,"Pick a report · monthly/day sheets · share with boss"));
 
-for(int i=0;i<content.getChildCount();i++){
-    View vv=content.getChildAt(i);
-    if(vv instanceof Button){
-        Button bb=(Button)vv;
-        bb.setAllCaps(false);
-        bb.setTextSize(14);
-        bb.setPadding(dp(12),dp(10),dp(12),dp(10));
+    EditText month=edit("Month YYYY-MM");
+    month.setText(today().substring(0,7));
+    add(Ui.muted(this,"Month"));
+    add(month);
+    add(Ui.muted(this,"Monthly → boss: built offline; internet only when you send."));
+
+    // icon + title + subtitle rows
+    String[][] reps={
+        {"📨","Send monthly report to boss","Full month summary to owner email / share","boss_m"},
+        {"📅","Send TODAY report to boss","Today only — quick share","boss_d"},
+        {"📥","RM Receive Monthly — Day-wise","Receive by RM × each day of month","recv"},
+        {"🧪","RM Mixing-2 Monthly — Day-wise","Mixing use by day","mixm"},
+        {"🔢","Mixing-2 — Batch × Recipe Usage","Batch log × recipe consumption","mix"},
+        {"📋","RM Mixing-2 Batch Log","All mixing batches this month","blog"},
+        {"📆","Daily Date Report","One-day RM stock style sheet","daily"},
+        {"📊","Final Monthly Usage","Month total usage per RM","fin"},
+        {"📄","Export CSV","Raw export for Excel","csv"},
+        {"💾","Backup JSON","Save all data file","backup"},
+        {"♻️","Restore JSON","Load from backup file","restore"}
+    };
+    int[] accents={
+        Color.rgb(20,55,95), Color.rgb(46,125,50), Color.rgb(21,101,192),
+        Color.rgb(123,31,162), Color.rgb(0,150,136), Color.rgb(84,110,122),
+        Color.rgb(230,126,34), Color.rgb(25,118,210), Color.rgb(96,125,139),
+        Color.rgb(55,71,79), Color.rgb(198,40,40)
+    };
+    for(int i=0;i<reps.length;i++){
+        final String[] it=reps[i];
+        final String k=it[3];
+        LinearLayout row=new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setPadding(dp(14),dp(12),dp(14),dp(12));
+        row.setBackground(Ui.shape(this,Ui.CARD,Ui.LINE,14));
+        LinearLayout.LayoutParams rlp=new LinearLayout.LayoutParams(-1,-2);
+        rlp.setMargins(0,0,0,dp(8));
+        TextView chip=Ui.text(this,it[0],18,Color.WHITE,true);
+        chip.setGravity(Gravity.CENTER);
+        chip.setPadding(dp(10),dp(8),dp(10),dp(8));
+        chip.setBackground(Ui.shape(this,accents[i%accents.length],accents[i%accents.length],12));
+        row.addView(chip);
+        LinearLayout txt=new LinearLayout(this);
+        txt.setOrientation(LinearLayout.VERTICAL);
+        txt.setPadding(dp(12),0,dp(8),0);
+        txt.addView(Ui.text(this,it[1],15,Ui.NAVY_TEXT,true));
+        txt.addView(Ui.text(this,it[2],12,Ui.MUTED,false));
+        row.addView(txt,new LinearLayout.LayoutParams(0,-2,1));
+        row.addView(Ui.text(this,"›",20,Ui.MUTED,true));
+        row.setOnClickListener(v->{
+            String m=month.getText().toString().trim();
+            if(k.equals("boss_m"))sendMonthlyToBoss(m);
+            else if(k.equals("boss_d"))sendDailyToBoss(today());
+            else if(k.equals("recv"))showReceiveMonthly(m);
+            else if(k.equals("mixm"))showMixingMonthlySheet(m);
+            else if(k.equals("mix"))showMixing2(m);
+            else if(k.equals("blog"))showBatchLogSheet(m);
+            else if(k.equals("daily"))showDailyDateSheet(m);
+            else if(k.equals("fin"))showFinalMonthlySheet(m);
+            else if(k.equals("csv"))exportCsv();
+            else if(k.equals("backup"))backupJson();
+            else if(k.equals("restore"))restoreJson();
+        });
+        content.addView(row,rlp);
     }
-} }
+ }
+
 
  private void showReceiveMonthly(String m){if(!validMonth(m)){error(new Exception("Month must be YYYY-MM"));return;}clear("RM Receive Monthly — Day-wise");try{int days=daysInMonth(m);HorizontalScrollView hs=new HorizontalScrollView(this);TableLayout t=new TableLayout(this);TableRow h=new TableRow(this);h.addView(tv("RM",1));for(int d=1;d<=days;d++)h.addView(tv(String.valueOf(d),1));h.addView(tv("Total",1));t.addView(h);for(JSONObject rm:db.rows("SELECT * FROM rms ORDER BY CAST(code AS INTEGER)",null)){TableRow tr=new TableRow(this);tr.addView(tv(rm.optString("code")+" "+rm.optString("name"),1));double total=0;for(int d=1;d<=days;d++){String date=m+"-"+String.format(Locale.US,"%02d",d);double q=receive(date,rm.getString("code"));total+=q;tr.addView(tv(fmt(q),1));}tr.addView(tv(fmt(total),1));t.addView(tr);}hs.addView(t);add(hs);Button pdf=btn("Print / PDF");pdf.setOnClickListener(v->reportReceive(m));add(pdf);}catch(Exception e){error(e);}}
  private void showMixingMonthlySheet(String m){if(!validMonth(m)){error(new Exception("Month must be YYYY-MM"));return;}clear("RM Mixing-2 Monthly — Day-wise");try{int days=daysInMonth(m);HorizontalScrollView hs=new HorizontalScrollView(this);TableLayout t=new TableLayout(this);TableRow h=new TableRow(this);h.addView(tv("RM",1));for(int d=1;d<=days;d++)h.addView(tv(String.valueOf(d),1));h.addView(tv("Total",1));t.addView(h);for(JSONObject rm:db.rows("SELECT * FROM rms ORDER BY CAST(code AS INTEGER)",null)){TableRow tr=new TableRow(this);tr.addView(tv(rm.optString("code")+" "+rm.optString("name"),1));double total=0;for(int d=1;d<=days;d++){String date=m+"-"+String.format(Locale.US,"%02d",d);double q=use(date,rm.getString("code"));total+=q;tr.addView(tv(fmt(q),1));}tr.addView(tv(fmt(total),1));t.addView(tr);}hs.addView(t);add(hs);Button pdf=btn("Print / PDF");pdf.setOnClickListener(v->reportMixingMonthly(m));add(pdf);}catch(Exception e){error(e);}}
