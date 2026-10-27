@@ -2121,19 +2121,15 @@ java.util.regex.Matcher m=java.util.regex.Pattern.compile("(?i)^SUM\\(([^)]+)\\)
  private void showAssistant(){
     clear("Assistant");
     LinearLayout intro=Ui.card(this,Ui.CARD);
-    intro.addView(Ui.text(this,"Command assistant (not full AI agent)",16,Ui.NAVY_TEXT,true));
-    intro.addView(Ui.muted(this,"Type or speak. Data changes always ask Confirm. Sending report opens Email/WhatsApp for you to finish."));
+    intro.addView(Ui.text(this,"🤖 Inventory Assistant",17,Ui.NAVY_TEXT,true));
+    intro.addView(Ui.muted(this,"Offline · BN/EN · voice. Changes need Confirm. Reports open share sheet."));
     intro.addView(Ui.text(this,
-        "Examples:\n"+
-        "• flour 10 kg   /   moyda 10 not 12\n"+
-        "• send daily to boss\n"+
-        "• send monthly to boss\n"+
-        "• send monthly 2026-09 to boss\n"+
-        "• open entry  /  open batch  /  open reports  /  open pm\n"+
-        "• stock tips  /  scan voucher  /  help",
+        "Fix: moyda 10 not 12 · ময়দা ১২ নয় ১০\n"+
+        "Ask: stock atta · low stock · today receive · today batch · expiry\n"+
+        "Boss: send daily/monthly to boss · বসকে আজকের রিপোর্ট\n"+
+        "Open: entry batch reports pm yield process loss wastage recipe settings more",
         13,Ui.INK,false));
     add(intro);
-
     final EditText cmd=edit("Type a command…");
     add(cmd);
     LinearLayout row=new LinearLayout(this);row.setOrientation(LinearLayout.HORIZONTAL);
@@ -2159,97 +2155,197 @@ java.util.regex.Matcher m=java.util.regex.Pattern.compile("(?i)^SUM\\(([^)]+)\\)
     row.addView(mic,Ui.lp(this,0,dp(48),1,0,0,6,0));
     row.addView(run,Ui.lp(this,0,dp(48),1,6,0,0,0));
     add(row);
-
-    // quick actions
-    LinearLayout q=Ui.card(this,Ui.CARD);
-    q.addView(Ui.text(this,"Quick actions",14,Ui.NAVY_TEXT,true));
-    String[][] qs={
-        {"Today → boss","send daily to boss"},
-        {"This month → boss","send monthly to boss"},
-        {"Stock tips","stock tips"},
-        {"Scan voucher","scan voucher"},
-        {"Entry","open entry"},
-        {"Batch","open batch"}
+    add(Ui.muted(this,"Quick"));
+    String[][] chips={
+        {"Today→Boss","send daily to boss"},{"Month→Boss","send monthly to boss"},
+        {"Low stock","low stock"},{"Today receive","today receive"},
+        {"Today batch","today batch"},{"Expiry","expiry"},
+        {"Entry","open entry"},{"Batch","open batch"},
+        {"PM","open pm"},{"Reports","open reports"},
+        {"Yield","open yield"},{"Process loss","open process loss"},
+        {"Wastage","open wastage"},{"Recipe","open recipe"},
+        {"Scan","scan voucher"},{"Help","help"}
     };
-    for(String[] pair:qs){
-        final String c=pair[1];
-        Button b=Ui.secondary(this,pair[0]);
-        b.setAllCaps(false);
-        b.setOnClickListener(v->runAssistantCommand(c));
-        q.addView(b,Ui.lp(this,-1,dp(44),0,0,0,0,4));
-    }
-    add(q);
-
-    add(Ui.muted(this,"Recent receives (for fix commands):"));
-    try{
-        for(JSONObject r:db.rows("SELECT r.id,r.date,r.rm_code,r.qty,m.name FROM receives r LEFT JOIN rms m ON m.code=r.rm_code ORDER BY r.id DESC LIMIT 10",null)){
-            add(Ui.text(this,"#"+r.optString("id")+"  "+r.optString("date")+"  "+r.optString("rm_code")+" "+r.optString("name")+"  "+fmt(r.optDouble("qty")),12,Ui.MUTED,false));
+    LinearLayout grid=null;
+    for(int i=0;i<chips.length;i++){
+        if(i%2==0){
+            grid=new LinearLayout(this);
+            grid.setOrientation(LinearLayout.HORIZONTAL);
+            LinearLayout.LayoutParams gl=new LinearLayout.LayoutParams(-1,-2);
+            gl.setMargins(0,0,0,dp(8));
+            content.addView(grid,gl);
         }
-    }catch(Exception ignored){}
+        final String q=chips[i][1];
+        Button b=Ui.secondary(this,chips[i][0]);
+        b.setOnClickListener(v->runAssistantCommand(q));
+        LinearLayout.LayoutParams bl=new LinearLayout.LayoutParams(0,dp(48),1);
+        if(i%2==0) bl.setMargins(0,0,dp(6),0); else bl.setMargins(dp(6),0,0,0);
+        grid.addView(b,bl);
+    }
  }
+
+
  private void runAssistantCommand(String raw){
     if(raw==null||raw.trim().isEmpty()){toast("Empty command");return;}
     String c=raw.trim().toLowerCase(Locale.US);
     String orig=raw.trim();
     try{
-        // help
-        if(c.equals("help")||c.contains("সাহায্য")||c.equals("?")){
-            toast("See examples on this screen");
-            showAssistant();
+        if(c.equals("help")||c.contains("সাহায্য")||c.equals("?")||c.contains("কী কী")||c.contains("what can")){
+            showAssistant();toast("Quick buttons + examples above");return;
+        }
+
+        // LOW STOCK
+        if(c.contains("low stock")||c.contains("reorder")||c.contains("কম স্টক")||c.contains("শর্ট লিস্ট")||c.contains("short list")||(c.contains("short")&&!c.contains("report"))){
+            StringBuilder sb=new StringBuilder();
+            int n=0;
+            try{
+                for(JSONObject rm:db.rows("SELECT * FROM rms ORDER BY CAST(code AS INTEGER)",null)){
+                    String code=rm.optString("code");
+                    double cl=liveRmClosing(code);
+                    double ro=rm.optDouble("reorder",0);
+                    if(cl<0||(ro>0&&cl<=ro)){
+                        sb.append(code).append(" ").append(rm.optString("name"))
+                          .append(" = ").append(fmt(cl)).append(" ").append(rm.optString("uom"));
+                        if(ro>0) sb.append(" · reorder ").append(fmt(ro));
+                        sb.append("\n");
+                        n++;
+                        if(n>=15) break;
+                    }
+                }
+            }catch(Exception ignored){}
+            if(n==0) toast("সব ঠিক আছে — low/short নেই");
+            else new AlertDialog.Builder(this).setTitle("Low / short ("+n+")")
+                .setMessage(sb.toString()).setPositiveButton("OK",null).show();
             return;
         }
-        // open screens
-        if(c.contains("open entry")||c.equals("entry")||c.contains("দৈনিক এন্ট্রি")){showDaily();return;}
-        if(c.contains("open batch")||c.equals("batch")||c.contains("ব্যাচ")){showBatch();return;}
-        if(c.contains("open report")||c.contains("reports")){showReports();return;}
-        if(c.contains("open pm")||c.contains("daily pm")||c.contains("packaging")){openDailyPm();return;}
-        if(c.contains("open dashboard")||c.contains("home")||c.equals("dashboard")){showDashboard();return;}
-        if(c.contains("open settings")||c.equals("settings")){gateOpen("Settings",()->showSettings());return;}
-        if(c.contains("stock count")||c.contains("কাউন্ট")){showCount();return;}
-        if(c.contains("owner pack")){showOwnerPack();return;}
-        if(c.contains("yield")){showYieldSheet();return;}
-        if(c.contains("scan voucher")||c.contains("ocr")||c.contains("scan")){showAI();return;}
-        if(c.contains("stock tip")||c.contains("smart tip")||c.contains("alert")){showDashboard();toast("See Smart tips on Dashboard");return;}
 
-        // boss reports
-        if(c.contains("boss")||c.contains("বস")){
-            // monthly with optional YYYY-MM
+        // TODAY RECEIVE
+        if(c.contains("today receive")||c.contains("আজকের রিসিভ")||c.contains("receive today")||c.contains("আজ রিসিভ")){
+            StringBuilder sb=new StringBuilder();
+            double tot=0;int n=0;
+            try{
+                for(JSONObject r:db.rows("SELECT * FROM receives WHERE date=? ORDER BY id DESC",new String[]{today()})){
+                    sb.append(r.optString("rm_code")).append("  ").append(fmt(r.optDouble("qty",0))).append("\n");
+                    tot+=r.optDouble("qty",0);n++;
+                }
+            }catch(Exception ignored){}
+            if(n==0) toast("আজকে কোনো receive নেই");
+            else new AlertDialog.Builder(this).setTitle("Today receive · "+n+" lines · Σ "+fmt(tot))
+                .setMessage(sb.toString()).setPositiveButton("OK",null)
+                .setNeutralButton("Open Entry",(d,w)->showDaily()).show();
+            return;
+        }
+
+        // TODAY BATCH / MIXING
+        if(c.contains("today batch")||c.contains("today mix")||c.contains("আজকের ব্যাচ")||c.contains("আজ মিক্স")){
+            StringBuilder sb=new StringBuilder();
+            int n=0;
+            try{
+                for(JSONObject r:db.rows("SELECT * FROM mixing2_batch_log WHERE date=? ORDER BY id DESC LIMIT 30",new String[]{today()})){
+                    sb.append(r.optString("product_name", r.optString("product_code","")))
+                      .append(" × ").append(fmt(r.optDouble("batches", r.optDouble("batch_qty",0))))
+                      .append("\n");
+                    n++;
+                }
+            }catch(Exception ignored){}
+            if(n==0) toast("আজকে batch log খালি");
+            else new AlertDialog.Builder(this).setTitle("Today batch ("+n+")")
+                .setMessage(sb.toString()).setPositiveButton("OK",null)
+                .setNeutralButton("Open Batch",(d,w)->showBatch()).show();
+            return;
+        }
+
+        // EXPIRY
+        if(c.contains("expir")||c.contains("মেয়াদ")||c.contains("মেয়াদ")){
+            showDashboard();toast("Dashboard → Expiry Watch");return;
+        }
+
+        // STOCK OF ONE RM: "stock atta" / "কত ময়দা" / "closing flour"
+        if(c.contains("stock ")||c.contains("closing ")||c.contains("কত ")||c.contains("স্টক ")||c.startsWith("balance ")){
+            List<String[]> matches=matchRmCandidates(orig);
+            if(!matches.isEmpty()){
+                String code=matches.get(0)[0], name=matches.get(0)[1];
+                double cl=liveRmClosing(code);
+                toast(name+" ("+code+") = "+fmt(cl));
+                new AlertDialog.Builder(this).setTitle(name)
+                    .setMessage("Code: "+code+"\nLive closing: "+fmt(cl))
+                    .setPositiveButton("OK",null).show();
+                return;
+            }
+        }
+        // bare RM name + no digits → try stock lookup
+        if(!java.util.regex.Pattern.compile("[0-9০-৯]").matcher(c).find()
+                && !c.contains("open")&&!c.contains("send")&&!c.contains("boss")&&!c.contains("বস")){
+            List<String[]> matches=matchRmCandidates(orig);
+            if(matches.size()==1 && orig.length()>=3){
+                String code=matches.get(0)[0], name=matches.get(0)[1];
+                double cl=liveRmClosing(code);
+                new AlertDialog.Builder(this).setTitle(name)
+                    .setMessage("Live closing: "+fmt(cl)+"\n(Code "+code+")")
+                    .setPositiveButton("OK",null)
+                    .setNeutralButton("Fix qty…",(d,w)->{
+                        final EditText q=new EditText(this);
+                        q.setInputType(InputType.TYPE_CLASS_NUMBER|InputType.TYPE_NUMBER_FLAG_DECIMAL);
+                        q.setHint("New receive qty");
+                        new AlertDialog.Builder(this).setTitle("Set last receive → "+name)
+                            .setView(q)
+                            .setPositiveButton("Apply",(d2,w2)->runAssistantCommand(name+" "+q.getText().toString()+" kg"))
+                            .setNegativeButton("Cancel",null).show();
+                    }).show();
+                return;
+            }
+        }
+
+        // OPEN SCREENS
+        if(c.contains("open entry")||c.equals("entry")||c.contains("দৈনিক এন্ট্রি")||c.contains("daily entry")){showDaily();return;}
+        if(c.contains("open batch")||c.equals("batch")||c.contains("ব্যাচ")||c.contains("input batch")){showBatch();return;}
+        if(c.contains("open report")||c.contains("reports")||c.contains("রিপোর্ট খুল")){showReports();return;}
+        if(c.contains("open pm")||c.contains("daily pm")||c.contains("packaging")||c.contains("পিএম")){openDailyPm();return;}
+        if(c.contains("open dashboard")||c.contains("home")||c.equals("dashboard")||c.contains("ড্যাশ")){showDashboard();return;}
+        if(c.contains("open more")||c.equals("more")||c.contains("মোর")){showMore();return;}
+        if(c.contains("open settings")||c.equals("settings")||c.contains("সেটিং")){gateOpen("Settings",()->showSettings());return;}
+        if(c.contains("stock count")||c.contains("কাউন্ট")||c.contains("physical count")){showCount();return;}
+        if(c.contains("owner pack")||c.contains("ওনার")){showOwnerPack();return;}
+        if(c.contains("process loss")||c.contains("প্রসেস লস")){showProcessLossSheet();return;}
+        if(c.contains("open yield")||c.equals("yield")||c.contains("ইইল্ড")||c.contains("yield %")){showYieldSheet();return;}
+        if(c.contains("open wastage")||c.contains("wastage")||c.contains("ওয়েস্ট")||c.contains("ওয়েস্ট")){showWastage();return;}
+        if(c.contains("open recipe")||c.contains("recipe")||c.contains("রেসিপি")){gateOpen("Recipe",()->showRecipe());return;}
+        if(c.contains("custom sheet")||c.contains("কাস্টম")){showCustom();return;}
+        if(c.contains("audit")||c.contains("অডিট")){showAuditLog();return;}
+        if(c.contains("planner")||c.contains("batch plan")){showRmPlanner();return;}
+        if(c.contains("master rm")||c.contains("raw material master")){gateOpen("Raw material master",()->showRmMaster());return;}
+        if(c.contains("master product")||c.contains("product master")){gateOpen("Product master",()->showProductMaster());return;}
+        if(c.contains("scan voucher")||c.contains("ocr")||c.contains("scan")||c.contains("ভাউচার")){showAI();return;}
+        if(c.contains("backup")||c.contains("ব্যাকআপ")){backupJson();return;}
+        if(c.contains("stock tip")||c.contains("smart tip")||c.contains("alert")||c.contains("টিপস")){showDashboard();toast("Smart tips on Dashboard");return;}
+
+        // BOSS
+        if(c.contains("boss")||c.contains("বস")||((c.contains("send")||c.contains("পাঠা"))&&(c.contains("report")||c.contains("রিপোর্ট")))){
             java.util.regex.Matcher ym=java.util.regex.Pattern.compile("(20\\d{2}-\\d{2})").matcher(c);
-            if(c.contains("month")||c.contains("মাসিক")||c.contains("monthly")){
-                String month=ym.find()?ym.group(1):today().substring(0,7);
-                sendMonthlyToBoss(month);
-                return;
+            if(c.contains("month")||c.contains("মাসিক")||c.contains("monthly")||c.contains("মাসের")){
+                sendMonthlyToBoss(ym.find()?ym.group(1):today().substring(0,7));return;
             }
-            if(c.contains("daily")||c.contains("today")||c.contains("আজ")||c.contains("দৈনিক")){
-                sendDailyToBoss(today());
-                return;
-            }
-            // default daily if just "send to boss"
-            if(c.contains("send")||c.contains("পাঠা")||c.contains("report")||c.contains("রিপোর্ট")){
-                sendDailyToBoss(today());
-                return;
-            }
+            sendDailyToBoss(today());return;
         }
         if((c.contains("send")||c.contains("পাঠা"))&&(c.contains("month")||c.contains("মাসিক"))){
             java.util.regex.Matcher ym=java.util.regex.Pattern.compile("(20\\d{2}-\\d{2})").matcher(c);
-            sendMonthlyToBoss(ym.find()?ym.group(1):today().substring(0,7));
-            return;
+            sendMonthlyToBoss(ym.find()?ym.group(1):today().substring(0,7));return;
         }
         if((c.contains("send")||c.contains("পাঠা"))&&(c.contains("daily")||c.contains("today")||c.contains("আজ"))){
-            sendDailyToBoss(today());
-            return;
+            sendDailyToBoss(today());return;
         }
 
-        // qty fix — has a number and looks like correction / RM qty
-        if(java.util.regex.Pattern.compile("[0-9]").matcher(c).find()){
-            applyVoiceFixCommand(orig);
-            return;
+        // QTY FIX
+        if(java.util.regex.Pattern.compile("[0-9০-৯]").matcher(orig).find()){
+            applyVoiceFixCommand(orig);return;
         }
 
-        toast("Unknown command — try help");
+        toast("বুঝিনি — Help বা Quick বাটন ব্যবহার করুন");
         db.audit(user(),role(),"assistant_unknown",orig);
     }catch(Exception e){error(e);}
  }
+
+
  private void showVoiceFix(){ showAssistant(); }
 private void applyVoiceFixCommand(String raw){
     try{
