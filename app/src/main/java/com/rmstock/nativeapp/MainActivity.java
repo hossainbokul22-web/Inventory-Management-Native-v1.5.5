@@ -5,7 +5,7 @@ import com.googlecode.tesseract.android.TessBaseAPI;
 import android.Manifest;import android.app.*;import android.content.*;import android.content.pm.PackageManager;import android.graphics.*;import android.graphics.pdf.PdfDocument;import android.net.Uri;import android.os.*;import android.print.*;import android.provider.MediaStore;import android.speech.RecognizerIntent;import android.view.*;import android.widget.*;import androidx.annotation.Nullable;import android.app.Activity;import androidx.core.app.ActivityCompat;import androidx.core.content.ContextCompat;import androidx.core.content.FileProvider;import com.googlecode.tesseract.android.TessBaseAPI;import org.json.*;import java.io.*;import java.text.*;import java.util.*;import java.util.concurrent.*;
 
 public class MainActivity extends Activity {
- private StockDb db; private File photoFile;private LinearLayout root,content,navRow;private TextView brandView;private final List<ImageView> navIcons=new ArrayList<>();private final List<TextView> navViews=new ArrayList<>();private final List<String> navKeys=new ArrayList<>(); private Uri photoUri; private static final int CAM=77,PHOTO=78; private final Handler main=new Handler(Looper.getMainLooper()); private String role(){return db.currentRole();} private String user(){return db.currentUser();}
+ private StockDb db; private File photoFile;private LinearLayout root,content,navRow; private ScrollView mainScroll; private LinearLayout chatOverlay;private TextView brandView;private final List<ImageView> navIcons=new ArrayList<>();private final List<TextView> navViews=new ArrayList<>();private final List<String> navKeys=new ArrayList<>(); private Uri photoUri; private static final int CAM=77,PHOTO=78,CHAT_IMG=94,CHAT_FILE=95; private final Handler main=new Handler(Looper.getMainLooper()); private String role(){return db.currentRole();} private String user(){return db.currentUser();}
  private File pendingPdf; private String currentScreen="Dashboard"; private final List<Runnable> dashboardRunnables=new ArrayList<>(); private int dp(float n){return (int)(n*getResources().getDisplayMetrics().density+.5f);} private TextView title(String s){TextView t=Ui.text(this,s,21,Ui.INK,true);t.setPadding(dp(2),dp(10),dp(2),dp(8));return t;} private Button btn(String s){return Ui.primary(this,s);} private EditText edit(String hint){return Ui.field(this,hint);} private LinearLayout row(){LinearLayout l=new LinearLayout(this);l.setOrientation(LinearLayout.HORIZONTAL);l.setGravity(Gravity.CENTER_VERTICAL);l.setPadding(0,dp(3),0,dp(3));return l;} private void add(View v){LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,-2);if(v instanceof Button||v instanceof EditText)p.setMargins(0,dp(4),0,dp(4));else if(v.getLayoutParams() instanceof LinearLayout.LayoutParams)p=(LinearLayout.LayoutParams)v.getLayoutParams();content.addView(v,p);}
  @Override public void onCreate(Bundle b){super.onCreate(b);Ui.init(this);db=new StockDb(this);if(db.setting("role","").isEmpty())db.setSetting("role","Admin");
     if(db.setting("current_user","").isEmpty())db.setSetting("current_user","Admin");
@@ -39,7 +39,7 @@ public class MainActivity extends Activity {
     header.addView(gear);
     root.addView(header,new LinearLayout.LayoutParams(-1,-2));
 
-    ScrollView sv=new ScrollView(this);
+    ScrollView sv=new ScrollView(this); mainScroll=sv;
     content=new LinearLayout(this);
     content.setOrientation(LinearLayout.VERTICAL);
     content.setPadding(dp(14),dp(12),dp(14),dp(24));
@@ -193,7 +193,17 @@ private void requestNotifPermission(){
     }catch(Exception ignored){}
  }
 
-private void clear(String head){currentScreen=head;for(Runnable task:dashboardRunnables)main.removeCallbacks(task);dashboardRunnables.clear();content.removeAllViews();add(title(lbl(head)));highlightNav();}
+private void clear(String head){
+    currentScreen=head;
+    for(Runnable task:dashboardRunnables)main.removeCallbacks(task);
+    dashboardRunnables.clear();
+    dismissChatOverlay();
+    if(mainScroll!=null) mainScroll.setVisibility(View.VISIBLE);
+    if(navRow!=null) navRow.setVisibility(View.VISIBLE);
+    content.removeAllViews();
+    if(!"Team Messenger".equals(head)) add(title(lbl(head)));
+    highlightNav();
+}
 
  @Override public void onBackPressed(){
     String h=currentScreen==null?"":currentScreen;
@@ -699,8 +709,19 @@ private void showSummary(){
  }
 
  
- private void showMessenger(){
+ 
+ private void dismissChatOverlay(){
+    if(chatOverlay!=null && root!=null){
+        try{ root.removeView(chatOverlay); }catch(Exception ignored){}
+        chatOverlay=null;
+    }
+ }
+
+private  private void showMessenger(){
     clear("Team Messenger");
+    if(mainScroll!=null) mainScroll.setVisibility(View.GONE);
+    if(navRow!=null) navRow.setVisibility(View.GONE);
+
     final String me;
     {
         String who=db.setting("duty_name","");
@@ -708,42 +729,60 @@ private void showSummary(){
         if(who==null||who.isEmpty()) who="User";
         me=who;
     }
-    // WhatsApp-like header strip
+
+    chatOverlay=new LinearLayout(this);
+    chatOverlay.setOrientation(LinearLayout.VERTICAL);
+    chatOverlay.setBackgroundColor(Color.rgb(236,229,221));
+    chatOverlay.setLayoutParams(new LinearLayout.LayoutParams(-1,0,1));
+
+    // Header
     LinearLayout top=new LinearLayout(this);
     top.setOrientation(LinearLayout.HORIZONTAL);
     top.setGravity(Gravity.CENTER_VERTICAL);
-    top.setPadding(dp(12),dp(10),dp(12),dp(10));
-    top.setBackgroundColor(Color.rgb(7,94,84)); // WA teal
+    top.setPadding(dp(10),dp(12),dp(10),dp(12));
+    top.setBackgroundColor(Color.rgb(7,94,84));
+    TextView back=Ui.text(this,"←",22,Color.WHITE,true);
+    back.setPadding(dp(6),0,dp(12),0);
+    back.setOnClickListener(v->showDashboard());
+    top.addView(back);
     TextView av=Ui.text(this,"👥",18,Color.WHITE,true);
-    av.setPadding(dp(4),0,dp(10),0);
     top.addView(av);
     LinearLayout titles=new LinearLayout(this);
     titles.setOrientation(LinearLayout.VERTICAL);
-    titles.addView(Ui.text(this,"Team Chat",16,Color.WHITE,true));
+    titles.setPadding(dp(10),0,0,0);
+    titles.addView(Ui.text(this,"Team Chat",17,Color.WHITE,true));
     titles.addView(Ui.text(this,"Live · "+me,12,Color.rgb(209,237,232),false));
     top.addView(titles,new LinearLayout.LayoutParams(0,-2,1));
-    TextView live=Ui.text(this,"● live",12,Color.rgb(180,255,200),false);
-    live.setPadding(dp(8),dp(4),dp(4),dp(4));
+    // Call buttons
+    TextView voice=Ui.text(this,"📞",20,Color.WHITE,true);
+    voice.setPadding(dp(10),dp(4),dp(8),dp(4));
+    voice.setOnClickListener(v->startTeamCall(false));
+    top.addView(voice);
+    TextView video=Ui.text(this,"📹",20,Color.WHITE,true);
+    video.setPadding(dp(8),dp(4),dp(10),dp(4));
+    video.setOnClickListener(v->startTeamCall(true));
+    top.addView(video);
+    TextView live=Ui.text(this,"●",14,Color.rgb(180,255,200),true);
+    live.setPadding(dp(4),0,dp(6),0);
     top.addView(live);
-    add(top);
+    chatOverlay.addView(top,new LinearLayout.LayoutParams(-1,-2));
 
-    // Chat background
+    final ScrollView chatScroll=new ScrollView(this);
+    chatScroll.setFillViewport(true);
     final LinearLayout list=new LinearLayout(this);
     list.setOrientation(LinearLayout.VERTICAL);
-    list.setPadding(dp(8),dp(10),dp(8),dp(10));
-    list.setBackgroundColor(Color.rgb(236,229,221)); // WA chat bg
-    LinearLayout.LayoutParams listLp=new LinearLayout.LayoutParams(-1,-2);
-    listLp.setMargins(0,0,0,dp(8));
-    content.addView(list,listLp);
+    list.setPadding(dp(10),dp(12),dp(10),dp(12));
+    chatScroll.addView(list);
+    chatOverlay.addView(chatScroll,new LinearLayout.LayoutParams(-1,0,1));
 
     final Runnable paint=()->{
         list.removeAllViews();
         try{
-            org.json.JSONArray arr=SyncHub.get(this).loadChatJson(120);
+            org.json.JSONArray arr=SyncHub.get(this).loadChatJson(200);
             if(arr.length()==0){
                 TextView empty=Ui.text(this,"No messages yet — say hello 👋",14,Color.rgb(90,90,90),false);
                 empty.setGravity(Gravity.CENTER);
-                empty.setPadding(dp(16),dp(24),dp(16),dp(24));
+                empty.setPadding(0,dp(40),0,dp(40));
                 list.addView(empty);
             }
             for(int i=0;i<arr.length();i++){
@@ -751,42 +790,77 @@ private void showSummary(){
                 String sender=m.optString("sender","?");
                 String body=m.optString("body","");
                 String ts=m.optString("ts","");
-                if(ts.length()>16) ts=ts.substring(11,16); // HH:mm if full datetime
+                if(ts.length()>=16) ts=ts.substring(11,16);
                 boolean mine=sender.equalsIgnoreCase(me);
 
                 LinearLayout row=new LinearLayout(this);
                 row.setOrientation(LinearLayout.HORIZONTAL);
-                row.setPadding(dp(4),dp(3),dp(4),dp(3));
-                if(mine) row.setGravity(Gravity.END);
-                else row.setGravity(Gravity.START);
+                row.setPadding(dp(2),dp(4),dp(2),dp(4));
+                row.setGravity(mine?Gravity.END:Gravity.START);
 
                 LinearLayout bubble=new LinearLayout(this);
                 bubble.setOrientation(LinearLayout.VERTICAL);
                 bubble.setPadding(dp(12),dp(8),dp(12),dp(6));
-                int fill=mine?Color.rgb(217,253,211):Color.WHITE; // WA green / white
+                int fill=mine?Color.rgb(217,253,211):Color.WHITE;
                 bubble.setBackground(Ui.shape(this,fill,Color.rgb(220,220,220),16));
                 LinearLayout.LayoutParams blp=new LinearLayout.LayoutParams(-2,-2);
-                blp.setMargins(mine?dp(48):0,0,mine?0:dp(48),0);
-                if(!mine){
-                    TextView nameTv=Ui.text(this,sender,12,Color.rgb(6,128,105),true);
-                    bubble.addView(nameTv);
+                blp.setMargins(mine?dp(56):0,0,mine?0:dp(56),0);
+                if(!mine) bubble.addView(Ui.text(this,sender,12,Color.rgb(6,128,105),true));
+
+                if(body.startsWith("[IMG]")){
+                    String path=body.substring(5);
+                    try{
+                        android.graphics.Bitmap bm=android.graphics.BitmapFactory.decodeFile(path);
+                        if(bm!=null){
+                            ImageView iv=new ImageView(this);
+                            iv.setAdjustViewBounds(true);
+                            iv.setMaxWidth(dp(220));
+                            iv.setMaxHeight(dp(280));
+                            iv.setImageBitmap(bm);
+                            iv.setOnClickListener(vv->{
+                                try{
+                                    Intent it=new Intent(Intent.ACTION_VIEW);
+                                    it.setDataAndType(FileProvider.getUriForFile(this,"com.rmstock.nativeapp.fileprovider",new File(path)),"image/*");
+                                    it.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                                    startActivity(it);
+                                }catch(Exception ex){toast("Cannot open image");}
+                            });
+                            bubble.addView(iv);
+                        }else bubble.addView(Ui.text(this,"🖼 Image",14,Color.rgb(30,30,30),false));
+                    }catch(Exception ex){ bubble.addView(Ui.text(this,"🖼 Image",14,Color.rgb(30,30,30),false)); }
+                }else if(body.startsWith("[FILE]")){
+                    String path=body.substring(6);
+                    String name=new File(path).getName();
+                    TextView ft=Ui.text(this,"📎 "+name,14,Color.rgb(20,100,180),true);
+                    ft.setOnClickListener(vv->{
+                        try{
+                            Intent it=new Intent(Intent.ACTION_VIEW);
+                            Uri u=FileProvider.getUriForFile(this,"com.rmstock.nativeapp.fileprovider",new File(path));
+                            it.setDataAndType(u,"*/*");
+                            it.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                            startActivity(Intent.createChooser(it,"Open file"));
+                        }catch(Exception ex){toast("Cannot open file");}
+                    });
+                    bubble.addView(ft);
+                }else if(body.startsWith("[CALL]")){
+                    bubble.addView(Ui.text(this,body.substring(6),14,Color.rgb(30,30,30),true));
+                }else{
+                    TextView bodyTv=Ui.text(this,body,15,Color.rgb(30,30,30),false);
+                    bodyTv.setMaxWidth(dp(260));
+                    bubble.addView(bodyTv);
                 }
-                TextView bodyTv=Ui.text(this,body,15,Color.rgb(30,30,30),false);
-                bodyTv.setMaxWidth(dp(260));
-                bubble.addView(bodyTv);
                 TextView timeTv=Ui.text(this,ts+(mine?" ✓":""),11,Color.rgb(120,120,120),false);
                 timeTv.setGravity(Gravity.END);
                 bubble.addView(timeTv);
                 row.addView(bubble,blp);
                 list.addView(row);
             }
-        }catch(Exception e){
-            list.addView(Ui.muted(this,String.valueOf(e.getMessage())));
-        }
+            chatScroll.post(()->chatScroll.fullScroll(View.FOCUS_DOWN));
+        }catch(Exception e){ list.addView(Ui.muted(this,String.valueOf(e.getMessage()))); }
     };
     paint.run();
     SyncHub.get(this).pullChat(paint);
-    // Auto-sync while this screen is open (no manual refresh)
+
     final Runnable chatPoll=new Runnable(){
         @Override public void run(){
             if(!"Team Messenger".equals(currentScreen)) return;
@@ -805,21 +879,42 @@ private void showSummary(){
     dashboardRunnables.add(chatPoll);
     main.postDelayed(chatPoll, 800);
 
-    // Bottom composer (WA-like)
+    // Composer
     LinearLayout composer=new LinearLayout(this);
     composer.setOrientation(LinearLayout.HORIZONTAL);
     composer.setGravity(Gravity.CENTER_VERTICAL);
-    composer.setPadding(dp(8),dp(8),dp(8),dp(8));
+    composer.setPadding(dp(8),dp(8),dp(8),dp(10));
     composer.setBackgroundColor(Color.rgb(240,242,245));
+    TextView attach=Ui.text(this,"➕",22,Color.rgb(7,94,84),true);
+    attach.setPadding(dp(6),dp(6),dp(8),dp(6));
+    attach.setOnClickListener(v->{
+        String[] opts={"Photo / Gallery","File","Camera"};
+        new AlertDialog.Builder(this).setTitle("Attach")
+            .setItems(opts,(d,w)->{
+                try{
+                    if(w==0){
+                        Intent i=new Intent(Intent.ACTION_GET_CONTENT);
+                        i.setType("image/*");
+                        startActivityForResult(Intent.createChooser(i,"Photo"),CHAT_IMG);
+                    }else if(w==1){
+                        Intent i=new Intent(Intent.ACTION_GET_CONTENT);
+                        i.setType("*/*");
+                        startActivityForResult(Intent.createChooser(i,"File"),CHAT_FILE);
+                    }else{
+                        startCameraForChat();
+                    }
+                }catch(Exception e){toast(e.getMessage());}
+            }).show();
+    });
+    composer.addView(attach);
     final EditText box=new EditText(this);
     box.setHint("Message");
-    box.setMinHeight(dp(44));
+    box.setMinHeight(dp(46));
     box.setPadding(dp(14),dp(10),dp(14),dp(10));
     box.setBackground(Ui.shape(this,Color.WHITE,Color.rgb(210,210,210),24));
     box.setTextSize(15);
     Button send=new Button(this);
     send.setText("➤");
-    send.setTextSize(18);
     send.setTextColor(Color.WHITE);
     send.setAllCaps(false);
     send.setBackground(Ui.shape(this,Color.rgb(7,94,84),0,24));
@@ -827,15 +922,82 @@ private void showSummary(){
     send.setMinHeight(dp(48));
     send.setOnClickListener(v->{
         String t=box.getText().toString().trim();
-        if(t.isEmpty()){toast("Empty");return;}
+        if(t.isEmpty()) return;
         SyncHub.get(this).sendChat(me, t, ()->{ box.setText(""); paint.run(); });
     });
     composer.addView(box,new LinearLayout.LayoutParams(0,dp(48),1));
     LinearLayout.LayoutParams sLp=new LinearLayout.LayoutParams(dp(52),dp(52));
     sLp.setMargins(dp(8),0,0,0);
     composer.addView(send,sLp);
-    add(composer);
+    chatOverlay.addView(composer,new LinearLayout.LayoutParams(-1,-2));
+
+    // Insert overlay after header (index 1) if possible
+    try{
+        if(root.getChildCount()>=1) root.addView(chatOverlay, 1);
+        else root.addView(chatOverlay);
+    }catch(Exception e){ root.addView(chatOverlay); }
  }
+
+ private void startTeamCall(boolean video){
+    String me=db.setting("duty_name","");
+    if(me.isEmpty()) me=db.setting("user_name", role());
+    if(me==null||me.isEmpty()) me="User";
+    String kind=video?"📹 Video call":"📞 Voice call";
+    SyncHub.get(this).sendChat(me, "[CALL]"+kind+" from "+me+" — join on Team Chat / same hotspot", null);
+    new AlertDialog.Builder(this)
+        .setTitle(kind)
+        .setMessage("Call invite sent to team chat.\\n\\nReal live audio/video (like WhatsApp) needs WebRTC media engine — next step.\\nFor now the team sees the invite on live chat while on hotspot.")
+        .setPositiveButton("OK",null)
+        .show();
+ }
+
+ private void startCameraForChat(){
+    try{
+        if(ContextCompat.checkSelfPermission(this,Manifest.permission.CAMERA)!=PackageManager.PERMISSION_GRANTED){
+            ActivityCompat.requestPermissions(this,new String[]{Manifest.permission.CAMERA},CAM);
+            toast("Allow camera then try again");
+            return;
+        }
+        File dir=new File(getCacheDir(),"chat"); dir.mkdirs();
+        File f=File.createTempFile("chat_",".jpg",dir);
+        photoFile=f;
+        photoUri=FileProvider.getUriForFile(this,"com.rmstock.nativeapp.fileprovider",f);
+        Intent i=new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
+        i.putExtra(MediaStore.EXTRA_OUTPUT,photoUri);
+        i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION|Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+        startActivityForResult(i,CHAT_IMG);
+    }catch(Exception e){error(e);}
+ }
+
+ private void sendChatAttachment(Uri uri, boolean image){
+    try{
+        String me=db.setting("duty_name","");
+        if(me.isEmpty()) me=db.setting("user_name", role());
+        if(me==null||me.isEmpty()) me="User";
+        File dir=new File(getFilesDir(),"chat_media"); dir.mkdirs();
+        String name=image?("img_"+System.currentTimeMillis()+".jpg"):("file_"+System.currentTimeMillis());
+        try{
+            String path=uri.getLastPathSegment();
+            if(path!=null && path.contains(".")) name=System.currentTimeMillis()+"_"+new File(path).getName();
+        }catch(Exception ignored){}
+        File out=new File(dir, name);
+        InputStream in=getContentResolver().openInputStream(uri);
+        if(in==null && photoFile!=null && photoFile.exists()){
+            // camera file
+            out=photoFile;
+        }else if(in!=null){
+            OutputStream os=new FileOutputStream(out);
+            byte[] buf=new byte[8192]; int n;
+            while((n=in.read(buf))>0) os.write(buf,0,n);
+            in.close(); os.close();
+        }else{ toast("Cannot read file"); return; }
+        String body=(image?"[IMG]":"[FILE]")+out.getAbsolutePath();
+        SyncHub.get(this).sendChat(me, body, ()->{ if("Team Messenger".equals(currentScreen)) showMessenger(); });
+        toast(image?"Photo sent":"File sent");
+    }catch(Exception e){error(e);}
+ }
+
+
 
 
 private void showSettings(){
@@ -3511,7 +3673,7 @@ private void applyVoiceFixCommand(String raw){
 
 super.onRequestPermissionsResult(r,p,g);if(r==CAM&&g.length>0&&g[0]==PackageManager.PERMISSION_GRANTED)startCamera();}
  @Override protected void onPause(){super.onPause();try{StockWidget.refresh(this);}catch(Exception ignored){}}
- @Override protected void onActivityResult(int r,int c,@Nullable Intent d){super.onActivityResult(r,c,d);if(Guard.onResult(r,c))return;if(r==PHOTO&&c==RESULT_OK&&photoUri!=null)ocr(photoUri); if(r==VOICE_FIX&&c==RESULT_OK&&d!=null){java.util.ArrayList<String> spoken=d.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS);if(spoken!=null&&!spoken.isEmpty()){toast(spoken.get(0));runAssistantCommand(spoken.get(0));}} if(r==79&&c==RESULT_OK&&d!=null&&pendingPdf!=null){try{OutputStream out=getContentResolver().openOutputStream(d.getData());FileInputStream in=new FileInputStream(pendingPdf);byte[] b=new byte[8192];int n;while((n=in.read(b))>0)out.write(b,0,n);in.close();out.close();toast("PDF saved ✔");}catch(Exception e){error(e);}} if(r==82&&c==RESULT_OK&&d!=null&&pendingPdf!=null){try{OutputStream out=getContentResolver().openOutputStream(d.getData());FileInputStream in=new FileInputStream(pendingPdf);byte[] z=new byte[8192];int n;while((n=in.read(z))>0)out.write(z,0,n);in.close();out.close();toast("CSV saved — open with Excel ✔");}catch(Exception e){error(e);}} if(r==80&&c==RESULT_OK&&d!=null&&pendingPdf!=null){try{OutputStream out=getContentResolver().openOutputStream(d.getData());FileInputStream in=new FileInputStream(pendingPdf);byte[] b=new byte[8192];int n;while((n=in.read(b))>0)out.write(b,0,n);in.close();out.close();toast("Backup saved ✔");}catch(Exception e){error(e);}} if(r==81&&c==RESULT_OK&&d!=null)importBackup(d.getData()); if(r==83&&c==RESULT_OK&&d!=null){try{InputStream in=getContentResolver().openInputStream(d.getData());new PmDb(this).importJson(new String(readAll(in),"UTF-8"));toast("PM import OK");}catch(Exception e){error(e);}}}
+ @Override protected void onActivityResult(int r,int c,@Nullable Intent d){super.onActivityResult(r,c,d);if(Guard.onResult(r,c))return;if(r==PHOTO&&c==RESULT_OK&&photoUri!=null)ocr(photoUri); if(r==CHAT_IMG&&c==RESULT_OK){ Uri u=(d!=null&&d.getData()!=null)?d.getData():photoUri; if(u!=null) sendChatAttachment(u,true);} if(r==CHAT_FILE&&c==RESULT_OK&&d!=null&&d.getData()!=null) sendChatAttachment(d.getData(),false); if(r==VOICE_FIX&&c==RESULT_OK&&d!=null){java.util.ArrayList<String> spoken=d.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS);if(spoken!=null&&!spoken.isEmpty()){toast(spoken.get(0));runAssistantCommand(spoken.get(0));}} if(r==79&&c==RESULT_OK&&d!=null&&pendingPdf!=null){try{OutputStream out=getContentResolver().openOutputStream(d.getData());FileInputStream in=new FileInputStream(pendingPdf);byte[] b=new byte[8192];int n;while((n=in.read(b))>0)out.write(b,0,n);in.close();out.close();toast("PDF saved ✔");}catch(Exception e){error(e);}} if(r==82&&c==RESULT_OK&&d!=null&&pendingPdf!=null){try{OutputStream out=getContentResolver().openOutputStream(d.getData());FileInputStream in=new FileInputStream(pendingPdf);byte[] z=new byte[8192];int n;while((n=in.read(z))>0)out.write(z,0,n);in.close();out.close();toast("CSV saved — open with Excel ✔");}catch(Exception e){error(e);}} if(r==80&&c==RESULT_OK&&d!=null&&pendingPdf!=null){try{OutputStream out=getContentResolver().openOutputStream(d.getData());FileInputStream in=new FileInputStream(pendingPdf);byte[] b=new byte[8192];int n;while((n=in.read(b))>0)out.write(b,0,n);in.close();out.close();toast("Backup saved ✔");}catch(Exception e){error(e);}} if(r==81&&c==RESULT_OK&&d!=null)importBackup(d.getData()); if(r==83&&c==RESULT_OK&&d!=null){try{InputStream in=getContentResolver().openInputStream(d.getData());new PmDb(this).importJson(new String(readAll(in),"UTF-8"));toast("PM import OK");}catch(Exception e){error(e);}}}
  private byte[] readAll(InputStream in)throws Exception{ByteArrayOutputStream b=new ByteArrayOutputStream();byte[] z=new byte[8192];int n;while((n=in.read(z))>0)b.write(z,0,n);in.close();return b.toByteArray();}
  private void ocr(Uri u){toast("OCR running offline…");new Thread(()->{String txt;try{InputStream in=getContentResolver().openInputStream(u);Bitmap bm=BitmapFactory.decodeStream(in);in.close();File base=new File(getFilesDir(),"tessdata");if(!new File(base,"eng.traineddata").exists()){base.mkdirs();for(String lang:new String[]{"eng","ben"}){InputStream a=getAssets().open("tessdata/"+lang+".traineddata");File out=new File(base,lang+".traineddata");FileOutputStream o=new FileOutputStream(out);byte[] buf=new byte[8192];int n;while((n=a.read(buf))>0)o.write(buf,0,n);a.close();o.close();}}TessBaseAPI api=new TessBaseAPI();if(!api.init(getFilesDir().getAbsolutePath(),"eng+ben"))throw new Exception("OCR init failed");api.setImage(bm);txt=api.getUTF8Text();api.recycle();bm.recycle();}catch(Exception e){txt="OCR_ERROR: "+e.getMessage();}final String z=txt;main.post(()->showAIDraft(z));}).start();}
  private void showAIDraft(String raw){
