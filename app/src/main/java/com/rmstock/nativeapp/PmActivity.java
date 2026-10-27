@@ -1793,41 +1793,79 @@ public class PmActivity extends Activity {
     private void addReportTable(String title, List<String[]> rows, String tag) {
         LinearLayout card = Ui.card(this, Ui.CARD);
         card.addView(Ui.text(this, title, 15, Ui.NAVY_TEXT, true));
-        card.addView(Ui.muted(this, db.setting("company","")));
+        card.addView(Ui.muted(this, db.setting("company", "")));
         if (rows.size() <= 1) {
             card.addView(Ui.muted(this, "No data for this period"));
             add(card);
             return;
         }
-        for (int r = 0; r < Math.min(rows.size(), 80); r++) {
+        int cols = rows.get(0).length;
+        // Fixed widths — no wrap / no clipped headers (Daily Stock has 11 cols)
+        int[] colW = new int[cols];
+        for (int c = 0; c < cols; c++) {
+            String h = rows.get(0)[c] == null ? "" : rows.get(0)[c];
+            if (c == 0 && (h.equals("Code") || h.startsWith("Cod"))) colW[c] = Ui.dp(this, 48);
+            else if (c == 1 && (h.equals("Name") || h.contains("Item"))) colW[c] = Ui.dp(this, 130);
+            else if (h.equals("UoM") || h.equals("Status") || h.equals("Shift")) colW[c] = Ui.dp(this, 52);
+            else colW[c] = Ui.dp(this, 68);
+        }
+        HorizontalScrollView hsv = new HorizontalScrollView(this);
+        hsv.setHorizontalScrollBarEnabled(true);
+        hsv.setPadding(Ui.dp(this, 4), 0, Ui.dp(this, 4), 0);
+        hsv.setClipToPadding(false);
+        LinearLayout table = new LinearLayout(this);
+        table.setOrientation(LinearLayout.VERTICAL);
+        table.setPadding(Ui.dp(this, 6), Ui.dp(this, 4), Ui.dp(this, 6), Ui.dp(this, 4));
+        int limit = Math.min(rows.size(), 120);
+        for (int r = 0; r < limit; r++) {
             String[] row = rows.get(r);
             LinearLayout line = new LinearLayout(this);
             line.setOrientation(LinearLayout.HORIZONTAL);
-            line.setPadding(0, Ui.dp(this, 3), 0, Ui.dp(this, 3));
-            if (r == 0) line.setBackgroundColor(Ui.SOFT_BLUE);
-            for (int c = 0; c < row.length; c++) {
-                TextView tv = Ui.text(this, row[c] == null ? "" : row[c], r == 0 ? 11 : 12,
-                        r == 0 ? Ui.NAVY_TEXT : Ui.INK, r == 0);
-                tv.setPadding(Ui.dp(this, 4), 0, Ui.dp(this, 4), 0);
-                line.addView(tv, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, c == 1 ? 2f : 1f));
+            line.setGravity(android.view.Gravity.CENTER_VERTICAL);
+            line.setPadding(0, Ui.dp(this, 7), 0, Ui.dp(this, 7));
+            boolean headRow = r == 0;
+            boolean tot = row[0] != null && row[0].equals("TOTAL");
+            if (headRow) line.setBackgroundColor(Ui.SOFT_BLUE);
+            else if (tot) line.setBackgroundColor(Color.parseColor("#EEEEEE"));
+            String status = row.length > 0 ? row[row.length - 1] : "";
+            if (!headRow && !tot) {
+                if ("SHORT".equals(status)) line.setBackgroundColor(Ui.SOFT_RED);
+                else if ("LOW".equals(status)) line.setBackgroundColor(Ui.SOFT_AMBER);
             }
-            if (r > 0 && row.length > 7 && "SHORT".equals(row[7])) line.setBackgroundColor(Ui.SOFT_RED);
-            else if (r > 0 && row.length > 7 && "LOW".equals(row[7])) line.setBackgroundColor(Ui.SOFT_AMBER);
-            card.addView(line);
+            for (int c = 0; c < row.length; c++) {
+                TextView tv = Ui.text(this, row[c] == null ? "" : row[c], headRow ? 11 : 12,
+                        headRow || tot ? Ui.NAVY_TEXT : Ui.INK, headRow || tot);
+                tv.setSingleLine(true);
+                tv.setEllipsize(android.text.TextUtils.TruncateAt.END);
+                tv.setPadding(Ui.dp(this, 4), 0, Ui.dp(this, 4), 0);
+                // numbers & status right; Code/Name/UoM left
+                boolean numeric = c >= 2 && !((rows.get(0)[c] != null) && (rows.get(0)[c].equals("UoM") || rows.get(0)[c].equals("Name")));
+                if (c == 0 || c == 1 || (rows.get(0)[c] != null && rows.get(0)[c].equals("UoM")))
+                    tv.setGravity(android.view.Gravity.START | android.view.Gravity.CENTER_VERTICAL);
+                else
+                    tv.setGravity(android.view.Gravity.END | android.view.Gravity.CENTER_VERTICAL);
+                int w = c < colW.length ? colW[c] : Ui.dp(this, 64);
+                line.addView(tv, new LinearLayout.LayoutParams(w, -2));
+            }
+            table.addView(line);
         }
-        if (rows.size() > 80) card.addView(Ui.muted(this, "… " + (rows.size() - 80) + " more rows (full data in CSV/PDF)"));
+        if (rows.size() > limit)
+            table.addView(Ui.muted(this, "… " + (rows.size() - limit) + " more (full in CSV/PDF)"));
+        hsv.addView(table);
+        card.addView(hsv);
 
         LinearLayout actions = new LinearLayout(this);
         actions.setOrientation(LinearLayout.HORIZONTAL);
         Button csvB = Ui.secondary(this, "CSV");
         csvB.setOnClickListener(v -> exportCsv(title, rows, tag));
         actions.addView(csvB, Ui.lp(this, 0, Ui.dp(this, 44), 1, 0, 0, 6, 0));
-        Button pdfB = Ui.secondary(this, "PDF");
+        Button pdfB = Ui.primary(this, "PDF / Print");
         pdfB.setOnClickListener(v -> exportPdf(title, rows, tag));
         actions.addView(pdfB, Ui.lp(this, 0, Ui.dp(this, 44), 1, 6, 0, 0, 0));
         card.addView(actions);
         add(card);
     }
+
 
     private void exportCsv(String title, List<String[]> rows, String tag) {
         try {
