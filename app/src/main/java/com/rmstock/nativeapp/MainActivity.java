@@ -717,7 +717,7 @@ private void showSummary(){
     }
  }
 
-private  private void showMessenger(){
+private void showMessenger(){
     clear("Team Messenger");
     if(mainScroll!=null) mainScroll.setVisibility(View.GONE);
     if(navRow!=null) navRow.setVisibility(View.GONE);
