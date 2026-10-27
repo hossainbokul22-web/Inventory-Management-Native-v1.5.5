@@ -720,11 +720,11 @@ private void showSummary(){
     LinearLayout titles=new LinearLayout(this);
     titles.setOrientation(LinearLayout.VERTICAL);
     titles.addView(Ui.text(this,"Team Chat",16,Color.WHITE,true));
-    titles.addView(Ui.text(this,"Hotspot · "+me,12,Color.rgb(209,237,232),false));
+    titles.addView(Ui.text(this,"Live · "+me,12,Color.rgb(209,237,232),false));
     top.addView(titles,new LinearLayout.LayoutParams(0,-2,1));
-    TextView refIcon=Ui.text(this,"⟳",20,Color.WHITE,true);
-    refIcon.setPadding(dp(12),dp(4),dp(4),dp(4));
-    top.addView(refIcon);
+    TextView live=Ui.text(this,"● live",12,Color.rgb(180,255,200),false);
+    live.setPadding(dp(8),dp(4),dp(4),dp(4));
+    top.addView(live);
     add(top);
 
     // Chat background
@@ -786,10 +786,24 @@ private void showSummary(){
     };
     paint.run();
     SyncHub.get(this).pullChat(paint);
-    refIcon.setOnClickListener(v->{
-        SyncHub.get(this).pullChat(paint);
-        toast("Refreshing…");
-    });
+    // Auto-sync while this screen is open (no manual refresh)
+    final Runnable chatPoll=new Runnable(){
+        @Override public void run(){
+            if(!"Team Messenger".equals(currentScreen)) return;
+            final Runnable self=this;
+            if("client".equals(db.setting("sync_mode","off"))){
+                SyncHub.get(MainActivity.this).pullChat(()->{
+                    paint.run();
+                    if("Team Messenger".equals(currentScreen)) main.postDelayed(self, 2500);
+                });
+            }else{
+                paint.run();
+                if("Team Messenger".equals(currentScreen)) main.postDelayed(self, 2500);
+            }
+        }
+    };
+    dashboardRunnables.add(chatPoll);
+    main.postDelayed(chatPoll, 2000);
 
     // Bottom composer (WA-like)
     LinearLayout composer=new LinearLayout(this);
