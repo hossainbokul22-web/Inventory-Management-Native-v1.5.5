@@ -134,6 +134,24 @@ public class StockDb extends SQLiteOpenHelper {
     boolean canAdmin(){String r=currentRole();return "Admin".equalsIgnoreCase(r)||"Owner/Admin".equalsIgnoreCase(r)||"Owner".equalsIgnoreCase(r);}
 
     /** SHA-256 hex of admin PIN (never store plain PIN). */
+    boolean hasAccessPin(){
+        String h=setting("access_pin_hash","");
+        return h!=null && h.length()>=32;
+    }
+    void setAccessPin(String plain) throws Exception {
+        if(plain==null) plain="";
+        plain=plain.trim();
+        if(plain.length()<4) throw new Exception("Access PIN at least 4 digits");
+        setSetting("access_pin_hash", sha256(plain));
+    }
+    boolean checkAccessPin(String plain){
+        if(!hasAccessPin()) return false;
+        try{ return sha256(plain==null?"":plain.trim()).equals(setting("access_pin_hash","")); }
+        catch(Exception e){ return false; }
+    }
+    boolean setupDone(){ return "1".equals(setting("setup_done","0")); }
+    void markSetupDone(){ setSetting("setup_done","1"); }
+
     boolean hasAdminPin(){
         String h=setting("admin_pin_hash","");
         return h!=null && h.length()>=32;

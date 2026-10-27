@@ -5,11 +5,33 @@ import com.googlecode.tesseract.android.TessBaseAPI;
 import android.Manifest;import android.app.*;import android.content.*;import android.content.pm.PackageManager;import android.graphics.*;import android.graphics.pdf.PdfDocument;import android.net.Uri;import android.os.*;import android.print.*;import android.provider.MediaStore;import android.speech.RecognizerIntent;import android.view.*;import android.widget.*;import androidx.annotation.Nullable;import android.app.Activity;import androidx.core.app.ActivityCompat;import androidx.core.content.ContextCompat;import androidx.core.content.FileProvider;import com.googlecode.tesseract.android.TessBaseAPI;import org.json.*;import java.io.*;import java.text.*;import java.util.*;import java.util.concurrent.*;
 
 public class MainActivity extends Activity {
- private StockDb db; private File photoFile;private LinearLayout root,content,navRow; private ScrollView mainScroll; private LinearLayout chatOverlay;private TextView brandView;private final List<ImageView> navIcons=new ArrayList<>();private final List<TextView> navViews=new ArrayList<>();private final List<String> navKeys=new ArrayList<>(); private Uri photoUri; private static final int CAM=77,PHOTO=78,CHAT_IMG=94,CHAT_FILE=95; private final Handler main=new Handler(Looper.getMainLooper()); private String role(){return db.currentRole();} private String user(){return db.currentUser();}
+ private StockDb db; private File photoFile;private LinearLayout root,content,navRow; private ScrollView mainScroll; private LinearLayout chatOverlay;private TextView brandView;private final List<ImageView> navIcons=new ArrayList<>();private final List<TextView> navViews=new ArrayList<>();private final List<String> navKeys=new ArrayList<>(); private Uri photoUri; private static final int CAM=77,PHOTO=78,CHAT_IMG=94,CHAT_FILE=95; private final Handler main=new Handler(Looper.getMainLooper()); private long accessUnlockedUntil=0; private String role(){return db.currentRole();} private String user(){return db.currentUser();}
  private File pendingPdf; private String currentScreen="Dashboard"; private final List<Runnable> dashboardRunnables=new ArrayList<>(); private int dp(float n){return (int)(n*getResources().getDisplayMetrics().density+.5f);} private TextView title(String s){TextView t=Ui.text(this,s,21,Ui.INK,true);t.setPadding(dp(2),dp(10),dp(2),dp(8));return t;} private Button btn(String s){return Ui.primary(this,s);} private EditText edit(String hint){return Ui.field(this,hint);} private LinearLayout row(){LinearLayout l=new LinearLayout(this);l.setOrientation(LinearLayout.HORIZONTAL);l.setGravity(Gravity.CENTER_VERTICAL);l.setPadding(0,dp(3),0,dp(3));return l;} private void add(View v){LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,-2);if(v instanceof Button||v instanceof EditText)p.setMargins(0,dp(4),0,dp(4));else if(v.getLayoutParams() instanceof LinearLayout.LayoutParams)p=(LinearLayout.LayoutParams)v.getLayoutParams();content.addView(v,p);}
- @Override public void onCreate(Bundle b){super.onCreate(b);Ui.init(this);db=new StockDb(this);if(db.setting("role","").isEmpty())db.setSetting("role","Admin");
-    if(db.setting("current_user","").isEmpty())db.setSetting("current_user","Admin");
-    build();AlertScheduler.schedule(this);requestNotifPermission();requestDutyLocation();showDashboard();}
+ @Override 
+ @Override protected void onResume(){
+    super.onResume();
+    try{
+        if(db!=null && db.setupDone() && System.currentTimeMillis()>accessUnlockedUntil){
+            if("Team Messenger".equals(currentScreen)|| (currentScreen!=null && currentScreen.startsWith("Call"))) return;
+            gateAppAccess(null);
+        }
+    }catch(Exception ignored){}
+ }
+public void onCreate(Bundle b){super.onCreate(b);Ui.init(this);db=new StockDb(this);
+    if(!db.setupDone()){
+        if(db.setting("role","").isEmpty()) db.setSetting("role","");
+        build();
+        showSetupWizard();
+        return;
+    }
+    if(db.setting("role","").isEmpty()) db.setSetting("role","Operator");
+    if(db.setting("current_user","").isEmpty()) db.setSetting("current_user","User");
+    build();
+    AlertScheduler.schedule(this);
+    requestNotifPermission();
+    requestDutyLocation();
+    gateAppAccess(()->showDashboard());
+}
 
  private void build(){
     root=new LinearLayout(this);
@@ -237,7 +259,137 @@ private void clear(String head){
 }
  
  /** Max safety: must be Admin role + device Guard (fresh) + Admin PIN. */
- private void requireAdminPower(String why, Runnable ok){
+ 
+ /** Unlock app with Team Access PIN (supervisors use this). Session \~10 minutes. */
+ private void gateAppAccess(Runnable after){
+    if(db==null) return;
+    if(!db.setupDone()){ showSetupWizard(); return; }
+    if(System.currentTimeMillis() < accessUnlockedUntil){ if(after!=null) after.run(); return; }
+    if(!db.hasAccessPin()){
+        // Admin must set access PIN — if Admin device without PIN yet
+        if(db.canAdmin()){
+            toast("Set Team Access PIN in Settings");
+            if(after!=null) after.run();
+            return;
+        }
+        toast("No Access PIN — ask Admin to set up this device");
+        return;
+    }
+    final android.widget.EditText pin=new android.widget.EditText(this);
+    pin.setInputType(android.text.InputType.TYPE_CLASS_NUMBER|android.text.InputType.TYPE_NUMBER_VARIATION_PASSWORD);
+    pin.setHint("Team Access PIN");
+    AlertDialog dlg=new AlertDialog.Builder(this)
+        .setTitle("Unlock Inventory App")
+        .setMessage("Enter the Access PIN given by Admin.\\nWrong PIN = no entry.")
+        .setView(pin)
+        .setCancelable(false)
+        .setPositiveButton("Unlock", null)
+        .create();
+    dlg.setOnShowListener(d->{
+        dlg.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v->{
+            if(db.checkAccessPin(pin.getText().toString())){
+                accessUnlockedUntil=System.currentTimeMillis()+10*60*1000L;
+                db.audit(user(),role(),"access_ok","entry");
+                dlg.dismiss();
+                if(after!=null) after.run();
+            }else{
+                db.audit(user(),role(),"access_fail","entry");
+                toast("Wrong Access PIN");
+            }
+        });
+    });
+    dlg.show();
+ }
+
+ /**
+  * First install:
+  * - Admin path: Admin PIN + Team Access PIN, role Admin
+  * - Supervisor path: must enter Team Access PIN from Admin → role forced Supervisor (cannot become Admin here)
+  */
+ private void showSetupWizard(){
+    clear("Device setup");
+    if(navRow!=null) navRow.setVisibility(View.GONE);
+    LinearLayout card=Ui.card(this,Ui.CARD);
+    card.addView(Ui.text(this,"🔐 Device setup",18,Ui.NAVY_TEXT,true));
+    card.addView(Ui.muted(this,"Supervisors: choose Supervisor and type the Access PIN from your Admin.\\nYou cannot make yourself Admin on this path."));
+    add(card);
+
+    Button asAdmin=Ui.primary(this,"I am ADMIN — full setup");
+    asAdmin.setOnClickListener(v->{
+        final EditText ap=new EditText(this);
+        ap.setInputType(android.text.InputType.TYPE_CLASS_NUMBER|android.text.InputType.TYPE_NUMBER_VARIATION_PASSWORD);
+        ap.setHint("Admin PIN (min 4) — only you)");
+        final EditText ap2=new EditText(this);
+        ap2.setInputType(android.text.InputType.TYPE_CLASS_NUMBER|android.text.InputType.TYPE_NUMBER_VARIATION_PASSWORD);
+        ap2.setHint("Confirm Admin PIN");
+        final EditText tp=new EditText(this);
+        tp.setInputType(android.text.InputType.TYPE_CLASS_NUMBER|android.text.InputType.TYPE_NUMBER_VARIATION_PASSWORD);
+        tp.setHint("Team Access PIN for supervisors");
+        final EditText tp2=new EditText(this);
+        tp2.setInputType(android.text.InputType.TYPE_CLASS_NUMBER|android.text.InputType.TYPE_NUMBER_VARIATION_PASSWORD);
+        tp2.setHint("Confirm Access PIN");
+        LinearLayout box=new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.setPadding(dp(16),dp(8),dp(16),dp(8));
+        box.addView(Ui.muted(this,"Admin PIN = role/security. Access PIN = app unlock (share with supervisors only)."));
+        box.addView(ap); box.addView(ap2); box.addView(tp); box.addView(tp2);
+        new AlertDialog.Builder(this).setTitle("Admin setup").setView(box)
+            .setPositiveButton("Save",(d,w)->{
+                try{
+                    String a=ap.getText().toString().trim(), a2=ap2.getText().toString().trim();
+                    String t=tp.getText().toString().trim(), t2=tp2.getText().toString().trim();
+                    if(!a.equals(a2)) throw new Exception("Admin PIN mismatch");
+                    if(!t.equals(t2)) throw new Exception("Access PIN mismatch");
+                    if(a.equals(t)) throw new Exception("Admin PIN and Access PIN must be different");
+                    db.setAdminPin(a);
+                    db.setAccessPin(t);
+                    db.setSetting("role","Admin");
+                    db.setSetting("current_user","Admin");
+                    db.setSetting("guard","1");
+                    db.markSetupDone();
+                    accessUnlockedUntil=System.currentTimeMillis()+10*60*1000L;
+                    db.audit("Admin","Admin","setup_admin","ok");
+                    toast("Admin device ready ✔");
+                    if(navRow!=null) navRow.setVisibility(View.VISIBLE);
+                    build(); showDashboard();
+                }catch(Exception e){ toast(e.getMessage()); }
+            }).setNegativeButton("Cancel",null).show();
+    });
+    add(asAdmin);
+
+    Button asSup=Ui.secondary(this,"I am SUPERVISOR — Access PIN only");
+    asSup.setOnClickListener(v->{
+        final EditText tp=new EditText(this);
+        tp.setInputType(android.text.InputType.TYPE_CLASS_NUMBER|android.text.InputType.TYPE_NUMBER_VARIATION_PASSWORD);
+        tp.setHint("Access PIN from Admin");
+        new AlertDialog.Builder(this).setTitle("Supervisor setup")
+            .setMessage("Enter the Team Access PIN your Admin gave you.\\nThis device will be Supervisor — not Admin.")
+            .setView(tp)
+            .setPositiveButton("Continue",(d,w)->{
+                try{
+                    String t=tp.getText().toString().trim();
+                    if(t.length()<4) throw new Exception("PIN too short");
+                    // Store hash of the PIN admin shared (supervisor cannot set Admin PIN on this path)
+                    db.setAccessPin(t);
+                    db.setSetting("role","Supervisor");
+                    db.setSetting("current_user","Supervisor");
+                    db.setSetting("guard","1");
+                    // Ensure no admin pin left empty / not set — cannot call admin powers
+                    db.setSetting("admin_pin_hash",""); // no admin pin on supervisor device
+                    db.markSetupDone();
+                    accessUnlockedUntil=System.currentTimeMillis()+10*60*1000L;
+                    db.audit("Supervisor","Supervisor","setup_supervisor","ok");
+                    toast("Supervisor device ready ✔");
+                    if(navRow!=null) navRow.setVisibility(View.VISIBLE);
+                    build(); showDashboard();
+                }catch(Exception e){ toast(e.getMessage()); }
+            }).setNegativeButton("Cancel",null).show();
+    });
+    add(asSup);
+    add(Ui.muted(this,"Note: Clearing app data resets setup. Admin should set supervisor phones when possible."));
+ }
+
+private void requireAdminPower(String why, Runnable ok){
     if(!db.canAdmin()){
         toast("Admin only — "+why);
         db.audit(user(),role(),"denied_admin",why);
