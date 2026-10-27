@@ -32,6 +32,10 @@ public class MainActivity extends Activity {
     TextView gear=Ui.text(this,"\u2699",22,0xFFFFFFFF,false);
     gear.setPadding(dp(12),dp(4),dp(4),dp(4));
     gear.setOnClickListener(v->gateOpen("Settings",()->showSettings()));
+    TextView msgIcon=Ui.text(this,"💬",20,0xFFFFFFFF,false);
+    msgIcon.setPadding(dp(10),dp(4),dp(8),dp(4));
+    msgIcon.setOnClickListener(v->showMessenger());
+    header.addView(msgIcon);
     header.addView(gear);
     root.addView(header,new LinearLayout.LayoutParams(-1,-2));
 
@@ -195,6 +199,7 @@ private void clear(String head){currentScreen=head;for(Runnable task:dashboardRu
     String h=currentScreen==null?"":currentScreen;
     // Settings sub-pages → Settings
     if(h.startsWith("Settings — ")||h.equals("Team live locations")){showSettings();return;}
+    if(h.equals("Team Messenger")){showDashboard();return;}
     // Anything opened from More → back to More (not Dashboard)
     if(h.equals("Settings")||h.equals("Wastage")||h.equals("Stock Count")||h.equals("Daily Summary")
         ||h.startsWith("Batch Planner")||h.startsWith("RM Master")||h.startsWith("Master Data")
@@ -693,7 +698,51 @@ private void showSummary(){
     }catch(Exception e){error(e);}
  }
 
- private void showSettings(){
+ 
+ private void showMessenger(){
+    clear("Team Messenger");
+    add(Ui.muted(this,"Hotspot chat · Admin server ON · Client same PIN/IP"));
+    final LinearLayout list=new LinearLayout(this);
+    list.setOrientation(LinearLayout.VERTICAL);
+    add(list);
+    final Runnable paint=()->{
+        list.removeAllViews();
+        try{
+            org.json.JSONArray arr=SyncHub.get(this).loadChatJson(100);
+            if(arr.length()==0) list.addView(Ui.muted(this,"No messages yet"));
+            for(int i=0;i<arr.length();i++){
+                org.json.JSONObject m=arr.getJSONObject(i);
+                LinearLayout c=Ui.card(this,Ui.CARD);
+                c.addView(Ui.text(this,m.optString("sender")+" · "+m.optString("ts"),12,Ui.MUTED,false));
+                c.addView(Ui.text(this,m.optString("body"),15,Ui.INK,false));
+                list.addView(c);
+            }
+        }catch(Exception e){ list.addView(Ui.muted(this,String.valueOf(e.getMessage()))); }
+    };
+    paint.run();
+    SyncHub.get(this).pullChat(paint);
+    final EditText box=edit("Type message…");
+    add(box);
+    LinearLayout row=new LinearLayout(this);
+    row.setOrientation(LinearLayout.HORIZONTAL);
+    Button refresh=Ui.secondary(this,"Refresh");
+    refresh.setOnClickListener(v->SyncHub.get(this).pullChat(paint));
+    Button send=Ui.primary(this,"Send");
+    send.setOnClickListener(v->{
+        String t=box.getText().toString().trim();
+        if(t.isEmpty()){toast("Empty");return;}
+        String who=db.setting("duty_name","");
+        if(who.isEmpty()) who=db.setting("user_name", role());
+        if(who==null||who.isEmpty()) who="User";
+        SyncHub.get(this).sendChat(who, t, ()->{ box.setText(""); paint.run(); });
+        toast("Sending…");
+    });
+    row.addView(refresh,Ui.lp(this,0,dp(48),1,0,0,6,0));
+    row.addView(send,Ui.lp(this,0,dp(48),1,6,0,0,0));
+    add(row);
+ }
+
+private void showSettings(){
     clear("Settings");
     try{
         LinearLayout c0=Ui.card(this,Ui.CARD);

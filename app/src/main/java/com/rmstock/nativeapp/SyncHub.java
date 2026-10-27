@@ -40,6 +40,16 @@ public final class SyncHub {
         this.app = app;
         this.db = new StockDb(app);
         ensureQueueTable();
+        ensureChatTable();
+    }
+
+    private void ensureChatTable() {
+        try {
+            db.getWritableDatabase().execSQL(
+                "CREATE TABLE IF NOT EXISTS chat_messages(" +
+                "id INTEGER PRIMARY KEY AUTOINCREMENT," +
+                "sender TEXT, body TEXT, ts TEXT, created_at TEXT)");
+        } catch (Exception ignored) {}
     }
 
     private void ensureQueueTable() {
@@ -137,6 +147,8 @@ public final class SyncHub {
             String type = req.optString("type");
             if ("ping".equals(type)) {
                 out.write(new JSONObject().put("ok", true).put("role", "server").put("pending", pendingCount()).toString());
+            } else if ("chat_pull".equals(type)) {
+                out.write(new JSONObject().put("ok", true).put("messages", loadChatJson(80)).toString());
             } else if ("push".equals(type)) {
                 boolean applied = applyIncoming(req.optString("kind"), req.optJSONObject("data"));
                 out.write(new JSONObject().put("ok", applied).toString());
@@ -153,6 +165,11 @@ public final class SyncHub {
     private boolean applyIncoming(String kind, JSONObject data) {
         if (data == null) return false;
         try {
+            if ("chat".equals(kind)) {
+                storeChat(data.optString("sender", "User"), data.optString("body", ""), data.optString("ts", ""));
+                lastStatus = "Chat from " + data.optString("sender");
+                return true;
+            }
             if ("location".equals(kind)) {
                 DutyLocationService.storeLocal(db, data);
                 lastStatus = "Location from " + data.optString("user");
@@ -294,6 +311,100 @@ public final class SyncHub {
             return false;
         }
     }
+
+    
+    public void storeChat(String sender, String body, String ts) {
+        ensureChatTable();
+        try {
+            android.content.ContentValues v = new android.content.ContentValues();
+            v.put("sender", sender == null ? "?" : sender);
+            v.put("body", body == null ? "" : body);
+            if (ts == null || ts.isEmpty()) {
+                ts = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.US).format(new java.util.Date());
+            }
+            v.put("ts", ts);
+            v.put("created_at", String.valueOf(System.currentTimeMillis()));
+            db.getWritableDatabase().insert("chat_messages", null, v);
+        } catch (Exception ignored) {}
+    }
+
+    public org.json.JSONArray loadChatJson(int limit) {
+        ensureChatTable();
+        org.json.JSONArray arr = new org.json.JSONArray();
+        try (android.database.Cursor c = db.getReadableDatabase().rawQuery(
+                "SELECT sender,body,ts FROM chat_messages ORDER BY id DESC LIMIT ?",
+                new String[]{String.valueOf(limit)})) {
+            java.util.ArrayList<org.json.JSONObject> tmp = new java.util.ArrayList<>();
+            while (c.moveToNext()) {
+                org.json.JSONObject o = new org.json.JSONObject();
+                o.put("sender", c.getString(0));
+                o.put("body", c.getString(1));
+                o.put("ts", c.getString(2));
+                tmp.add(o);
+            }
+            for (int i = tmp.size() - 1; i >= 0; i--) arr.put(tmp.get(i));
+        } catch (Exception ignored) {}
+        return arr;
+    }
+
+    public void sendChat(String sender, String body, Runnable onUi) {
+        pool.execute(() -> {
+            try {
+                String ts = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.US)
+                        .format(new java.util.Date());
+                org.json.JSONObject data = new org.json.JSONObject();
+                data.put("sender", sender);
+                data.put("body", body);
+                data.put("ts", ts);
+                storeChat(sender, body, ts);
+                if ("client".equals(db.setting("sync_mode", "off"))) {
+                    org.json.JSONObject req = new org.json.JSONObject();
+                    req.put("type", "push");
+                    req.put("pin", db.setting("sync_pin", "1234"));
+                    req.put("kind", "chat");
+                    req.put("data", data);
+                    try {
+                        org.json.JSONObject res = request(
+                                db.setting("sync_server_ip", "192.168.43.1"), port(), req);
+                        if (res == null || !res.optBoolean("ok")) enqueue("chat", data);
+                    } catch (Exception e) {
+                        enqueue("chat", data);
+                    }
+                }
+                lastStatus = "Chat sent/saved";
+            } catch (Exception e) {
+                lastStatus = "Chat error: " + e.getMessage();
+            }
+            notifyUi(onUi);
+        });
+    }
+
+    public void pullChat(Runnable onUi) {
+        pool.execute(() -> {
+            try {
+                if ("client".equals(db.setting("sync_mode", "off"))) {
+                    org.json.JSONObject req = new org.json.JSONObject();
+                    req.put("type", "chat_pull");
+                    req.put("pin", db.setting("sync_pin", "1234"));
+                    org.json.JSONObject res = request(
+                            db.setting("sync_server_ip", "192.168.43.1"), port(), req);
+                    if (res != null && res.optBoolean("ok")) {
+                        org.json.JSONArray msgs = res.optJSONArray("messages");
+                        if (msgs != null) {
+                            ensureChatTable();
+                            db.getWritableDatabase().delete("chat_messages", null, null);
+                            for (int i = 0; i < msgs.length(); i++) {
+                                org.json.JSONObject m = msgs.getJSONObject(i);
+                                storeChat(m.optString("sender"), m.optString("body"), m.optString("ts"));
+                            }
+                        }
+                    }
+                }
+            } catch (Exception ignored) {}
+            notifyUi(onUi);
+        });
+    }
+
 
     private JSONObject request(String host, int port, JSONObject req) throws Exception {
         try (Socket s = new Socket()) {
