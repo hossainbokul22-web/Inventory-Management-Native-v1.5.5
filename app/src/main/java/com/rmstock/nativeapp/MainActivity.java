@@ -2158,6 +2158,7 @@ java.util.regex.Matcher m=java.util.regex.Pattern.compile("(?i)^SUM\\(([^)]+)\\)
     add(Ui.muted(this,"Quick"));
     String[][] chips={
         {"Today→Boss","send daily to boss"},{"Month→Boss","send monthly to boss"},
+        {"Summary","today summary"},
         {"Low stock","low stock"},{"Today receive","today receive"},
         {"Today batch","today batch"},{"Expiry","expiry"},
         {"Entry","open entry"},{"Batch","open batch"},
@@ -2185,10 +2186,19 @@ java.util.regex.Matcher m=java.util.regex.Pattern.compile("(?i)^SUM\\(([^)]+)\\)
  }
 
 
- private void runAssistantCommand(String raw){
+ 
+ private String normalizeBnDigits(String t){
+    if(t==null) return "";
+    String[] bn={"০","১","২","৩","৪","৫","৬","৭","৮","৯"};
+    String out=t;
+    for(int i=0;i<10;i++) out=out.replace(bn[i], String.valueOf(i));
+    return out;
+ }
+
+private void runAssistantCommand(String raw){
     if(raw==null||raw.trim().isEmpty()){toast("Empty command");return;}
-    String c=raw.trim().toLowerCase(Locale.US);
-    String orig=raw.trim();
+    String orig=normalizeBnDigits(raw.trim());
+    String c=orig.toLowerCase(Locale.US);
     try{
         if(c.equals("help")||c.contains("সাহায্য")||c.equals("?")||c.contains("কী কী")||c.contains("what can")){
             showAssistant();toast("Quick buttons + examples above");return;
@@ -2335,12 +2345,62 @@ java.util.regex.Matcher m=java.util.regex.Pattern.compile("(?i)^SUM\\(([^)]+)\\)
             sendDailyToBoss(today());return;
         }
 
-        // QTY FIX
+        // BATCH QTY FIX — last batch today
+        if((c.contains("batch")||c.contains("ব্যাচ")||c.contains("mixing")||c.contains("মিক্স"))
+                && java.util.regex.Pattern.compile("[0-9]").matcher(c).find()){
+            Double bq=null;
+            java.util.regex.Matcher bm=java.util.regex.Pattern.compile("([0-9]+(?:[\\.,][0-9]+)?)").matcher(c);
+            java.util.ArrayList<Double> bnums=new java.util.ArrayList<>();
+            while(bm.find()) bnums.add(Double.parseDouble(bm.group(1).replace(',','.')));
+            if(bnums.size()>=2 && (c.contains("not")||c.contains("নয়")||c.contains("না"))) bq=bnums.get(bnums.size()-1);
+            else if(!bnums.isEmpty()) bq=bnums.get(bnums.size()-1);
+            if(bq!=null && bq>0){
+                JSONObject brow=db.one("SELECT * FROM mixing2_batch_log WHERE date=? ORDER BY id DESC LIMIT 1",new String[]{today()});
+                if(brow==null) brow=db.one("SELECT * FROM mixing2_batch_log ORDER BY id DESC LIMIT 1",null);
+                if(brow!=null){
+                    final JSONObject bt=brow;
+                    final double nb=bq;
+                    String label=brow.optString("product_name", brow.optString("product_code","batch"));
+                    new AlertDialog.Builder(this)
+                        .setTitle("Fix batch qty?")
+                        .setMessage(label+" · id "+brow.optInt("id")+"\nNew value: "+fmt(nb))
+                        .setPositiveButton("Confirm",(d,w)->{
+                            try{
+                                int id=bt.optInt("id");
+                                android.content.ContentValues cv=new android.content.ContentValues();
+                                cv.put("batches", nb);
+                                int u=db.getWritableDatabase().update("mixing2_batch_log", cv, "id=?", new String[]{String.valueOf(id)});
+                                if(u==0){
+                                    cv=new android.content.ContentValues();
+                                    cv.put("batch_qty", nb);
+                                    db.getWritableDatabase().update("mixing2_batch_log", cv, "id=?", new String[]{String.valueOf(id)});
+                                }
+                                db.audit(user(),role(),"assistant_batch_fix", label+"="+fmt(nb));
+                                toast("Batch updated ✔");
+                            }catch(Exception ex){toast("Batch update failed: "+ex.getMessage());}
+                        })
+                        .setNegativeButton("Cancel",null).show();
+                    return;
+                }
+            }
+        }
+
+        // QTY FIX (receive)
         if(java.util.regex.Pattern.compile("[0-9০-৯]").matcher(orig).find()){
             applyVoiceFixCommand(orig);return;
         }
 
-        toast("বুঝিনি — Help বা Quick বাটন ব্যবহার করুন");
+        StringBuilder sug=new StringBuilder("বুঝিনি। চেষ্টা করুন:\n");
+        if(c.contains("stock")||c.contains("স্টক")) sug.append("· low stock  ·  stock <RM name>\n");
+        if(c.contains("batch")||c.contains("ব্যাচ")||c.contains("mix")) sug.append("· today batch  ·  open batch\n");
+        if(c.contains("recv")||c.contains("রিসিভ")||c.contains("receive")) sug.append("· today receive  ·  open entry\n");
+        if(c.contains("report")||c.contains("রিপোর্ট")||c.contains("boss")||c.contains("বস")) sug.append("· send daily to boss  ·  send monthly to boss\n");
+        if(c.contains("open")||c.contains("খুল")) sug.append("· open entry / batch / pm / reports\n");
+        sug.append("· today summary  ·  help");
+        new AlertDialog.Builder(this).setTitle("Assistant")
+            .setMessage(sug.toString())
+            .setPositiveButton("Help",(d,w)->showAssistant())
+            .setNegativeButton("OK",null).show();
         db.audit(user(),role(),"assistant_unknown",orig);
     }catch(Exception e){error(e);}
  }
@@ -2350,7 +2410,7 @@ java.util.regex.Matcher m=java.util.regex.Pattern.compile("(?i)^SUM\\(([^)]+)\\)
 private void applyVoiceFixCommand(String raw){
     try{
         if(raw==null||raw.trim().isEmpty()){toast("Type or speak a command");return;}
-        String cmd=raw.trim();
+        String cmd=normalizeBnDigits(raw.trim());
         // extract numbers: prefer "not X ... Y" / "X নয় Y" → Y is new qty
         Double newQty=null;
         java.util.regex.Matcher m=java.util.regex.Pattern.compile("(?i)(?:not|noy|নয়|না)\\s*([0-9]+(?:[\\.,][0-9]+)?)\\s*(?:kg|kgs|কেজি)?\\s*(?:but|হবে|=)?\\s*([0-9]+(?:[\\.,][0-9]+)?)").matcher(cmd);
