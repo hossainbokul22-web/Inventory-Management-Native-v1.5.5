@@ -701,46 +701,128 @@ private void showSummary(){
  
  private void showMessenger(){
     clear("Team Messenger");
-    add(Ui.muted(this,"Hotspot chat · Admin server ON · Client same PIN/IP"));
-    final LinearLayout list=new LinearLayout(this);
-    list.setOrientation(LinearLayout.VERTICAL);
-    add(list);
-    final Runnable paint=()->{
-        list.removeAllViews();
-        try{
-            org.json.JSONArray arr=SyncHub.get(this).loadChatJson(100);
-            if(arr.length()==0) list.addView(Ui.muted(this,"No messages yet"));
-            for(int i=0;i<arr.length();i++){
-                org.json.JSONObject m=arr.getJSONObject(i);
-                LinearLayout c=Ui.card(this,Ui.CARD);
-                c.addView(Ui.text(this,m.optString("sender")+" · "+m.optString("ts"),12,Ui.MUTED,false));
-                c.addView(Ui.text(this,m.optString("body"),15,Ui.INK,false));
-                list.addView(c);
-            }
-        }catch(Exception e){ list.addView(Ui.muted(this,String.valueOf(e.getMessage()))); }
-    };
-    paint.run();
-    SyncHub.get(this).pullChat(paint);
-    final EditText box=edit("Type message…");
-    add(box);
-    LinearLayout row=new LinearLayout(this);
-    row.setOrientation(LinearLayout.HORIZONTAL);
-    Button refresh=Ui.secondary(this,"Refresh");
-    refresh.setOnClickListener(v->SyncHub.get(this).pullChat(paint));
-    Button send=Ui.primary(this,"Send");
-    send.setOnClickListener(v->{
-        String t=box.getText().toString().trim();
-        if(t.isEmpty()){toast("Empty");return;}
+    final String me;
+    {
         String who=db.setting("duty_name","");
         if(who.isEmpty()) who=db.setting("user_name", role());
         if(who==null||who.isEmpty()) who="User";
-        SyncHub.get(this).sendChat(who, t, ()->{ box.setText(""); paint.run(); });
-        toast("Sending…");
+        me=who;
+    }
+    // WhatsApp-like header strip
+    LinearLayout top=new LinearLayout(this);
+    top.setOrientation(LinearLayout.HORIZONTAL);
+    top.setGravity(Gravity.CENTER_VERTICAL);
+    top.setPadding(dp(12),dp(10),dp(12),dp(10));
+    top.setBackgroundColor(Color.rgb(7,94,84)); // WA teal
+    TextView av=Ui.text(this,"👥",18,Color.WHITE,true);
+    av.setPadding(dp(4),0,dp(10),0);
+    top.addView(av);
+    LinearLayout titles=new LinearLayout(this);
+    titles.setOrientation(LinearLayout.VERTICAL);
+    titles.addView(Ui.text(this,"Team Chat",16,Color.WHITE,true));
+    titles.addView(Ui.text(this,"Hotspot · "+me,12,Color.rgb(209,237,232),false));
+    top.addView(titles,new LinearLayout.LayoutParams(0,-2,1));
+    TextView refIcon=Ui.text(this,"⟳",20,Color.WHITE,true);
+    refIcon.setPadding(dp(12),dp(4),dp(4),dp(4));
+    top.addView(refIcon);
+    add(top);
+
+    // Chat background
+    final LinearLayout list=new LinearLayout(this);
+    list.setOrientation(LinearLayout.VERTICAL);
+    list.setPadding(dp(8),dp(10),dp(8),dp(10));
+    list.setBackgroundColor(Color.rgb(236,229,221)); // WA chat bg
+    LinearLayout.LayoutParams listLp=new LinearLayout.LayoutParams(-1,-2);
+    listLp.setMargins(0,0,0,dp(8));
+    content.addView(list,listLp);
+
+    final Runnable paint=()->{
+        list.removeAllViews();
+        try{
+            org.json.JSONArray arr=SyncHub.get(this).loadChatJson(120);
+            if(arr.length()==0){
+                TextView empty=Ui.text(this,"No messages yet — say hello 👋",14,Color.rgb(90,90,90),false);
+                empty.setGravity(Gravity.CENTER);
+                empty.setPadding(dp(16),dp(24),dp(16),dp(24));
+                list.addView(empty);
+            }
+            for(int i=0;i<arr.length();i++){
+                org.json.JSONObject m=arr.getJSONObject(i);
+                String sender=m.optString("sender","?");
+                String body=m.optString("body","");
+                String ts=m.optString("ts","");
+                if(ts.length()>16) ts=ts.substring(11,16); // HH:mm if full datetime
+                boolean mine=sender.equalsIgnoreCase(me);
+
+                LinearLayout row=new LinearLayout(this);
+                row.setOrientation(LinearLayout.HORIZONTAL);
+                row.setPadding(dp(4),dp(3),dp(4),dp(3));
+                if(mine) row.setGravity(Gravity.END);
+                else row.setGravity(Gravity.START);
+
+                LinearLayout bubble=new LinearLayout(this);
+                bubble.setOrientation(LinearLayout.VERTICAL);
+                bubble.setPadding(dp(12),dp(8),dp(12),dp(6));
+                int fill=mine?Color.rgb(217,253,211):Color.WHITE; // WA green / white
+                bubble.setBackground(Ui.shape(this,fill,Color.rgb(220,220,220),16));
+                LinearLayout.LayoutParams blp=new LinearLayout.LayoutParams(-2,-2);
+                blp.setMargins(mine?dp(48):0,0,mine?0:dp(48),0);
+                if(!mine){
+                    TextView nameTv=Ui.text(this,sender,12,Color.rgb(6,128,105),true);
+                    bubble.addView(nameTv);
+                }
+                TextView bodyTv=Ui.text(this,body,15,Color.rgb(30,30,30),false);
+                bodyTv.setMaxWidth(dp(260));
+                bubble.addView(bodyTv);
+                TextView timeTv=Ui.text(this,ts+(mine?" ✓":""),11,Color.rgb(120,120,120),false);
+                timeTv.setGravity(Gravity.END);
+                bubble.addView(timeTv);
+                row.addView(bubble,blp);
+                list.addView(row);
+            }
+        }catch(Exception e){
+            list.addView(Ui.muted(this,String.valueOf(e.getMessage())));
+        }
+    };
+    paint.run();
+    SyncHub.get(this).pullChat(paint);
+    refIcon.setOnClickListener(v->{
+        SyncHub.get(this).pullChat(paint);
+        toast("Refreshing…");
     });
-    row.addView(refresh,Ui.lp(this,0,dp(48),1,0,0,6,0));
-    row.addView(send,Ui.lp(this,0,dp(48),1,6,0,0,0));
-    add(row);
+
+    // Bottom composer (WA-like)
+    LinearLayout composer=new LinearLayout(this);
+    composer.setOrientation(LinearLayout.HORIZONTAL);
+    composer.setGravity(Gravity.CENTER_VERTICAL);
+    composer.setPadding(dp(8),dp(8),dp(8),dp(8));
+    composer.setBackgroundColor(Color.rgb(240,242,245));
+    final EditText box=new EditText(this);
+    box.setHint("Message");
+    box.setMinHeight(dp(44));
+    box.setPadding(dp(14),dp(10),dp(14),dp(10));
+    box.setBackground(Ui.shape(this,Color.WHITE,Color.rgb(210,210,210),24));
+    box.setTextSize(15);
+    Button send=new Button(this);
+    send.setText("➤");
+    send.setTextSize(18);
+    send.setTextColor(Color.WHITE);
+    send.setAllCaps(false);
+    send.setBackground(Ui.shape(this,Color.rgb(7,94,84),0,24));
+    send.setMinWidth(dp(48));
+    send.setMinHeight(dp(48));
+    send.setOnClickListener(v->{
+        String t=box.getText().toString().trim();
+        if(t.isEmpty()){toast("Empty");return;}
+        SyncHub.get(this).sendChat(me, t, ()->{ box.setText(""); paint.run(); });
+    });
+    composer.addView(box,new LinearLayout.LayoutParams(0,dp(48),1));
+    LinearLayout.LayoutParams sLp=new LinearLayout.LayoutParams(dp(52),dp(52));
+    sLp.setMargins(dp(8),0,0,0);
+    composer.addView(send,sLp);
+    add(composer);
  }
+
 
 private void showSettings(){
     clear("Settings");
