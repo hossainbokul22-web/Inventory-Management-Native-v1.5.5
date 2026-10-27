@@ -173,6 +173,22 @@ public final class SyncHub {
                 db.audit("sync", "client", "sync_receive", data.optString("rm_code"));
                 return true;
             }
+            if ("wastage".equals(kind)) {
+                ContentValues z = new ContentValues();
+                long nid = -System.currentTimeMillis();
+                z.put("batch_id", nid);
+                z.put("date", data.optString("date"));
+                z.put("product_code", 0);
+                z.put("shift", 0);
+                z.put("rm_code", data.optString("rm_code"));
+                z.put("recipe_qty", 0);
+                z.put("batch_count", 0);
+                z.put("consumption", data.optDouble("qty", 0));
+                z.put("created_at", "WASTE|" + data.optString("note"));
+                db.insert("mixing2_batch_log", z);
+                db.audit("sync", "client", "sync_wastage", data.optString("rm_code"));
+                return true;
+            }
             if ("batch".equals(kind)) {
                 ContentValues z = new ContentValues();
                 if (data.has("date")) z.put("date", data.optString("date"));
@@ -224,8 +240,12 @@ public final class SyncHub {
                     req.put("pin", pin);
                     req.put("kind", jobs.get(i)[0]);
                     req.put("data", new JSONObject(jobs.get(i)[1]));
-                    JSONObject res = request(host, port, req);
-                    if (res != null && res.optBoolean("ok")) {
+                    boolean sent = httpPush(req);
+                    if (!sent) {
+                        JSONObject res = request(host, port, req);
+                        sent = res != null && res.optBoolean("ok");
+                    }
+                    if (sent) {
                         ContentValues u = new ContentValues();
                         u.put("status", "sent");
                         db.getWritableDatabase().update("sync_queue", u, "id=?", new String[]{String.valueOf(ids.get(i)[0])});
@@ -251,6 +271,28 @@ public final class SyncHub {
             }
             notifyUi(onUi);
         });
+    }
+
+    private boolean httpPush(JSONObject req) {
+        String url = db.setting("sync_http_url", "");
+        if (url == null || !url.startsWith("http")) return false;
+        try {
+            java.net.HttpURLConnection c = (java.net.HttpURLConnection) new java.net.URL(url).openConnection();
+            c.setConnectTimeout(8000);
+            c.setReadTimeout(10000);
+            c.setRequestMethod("POST");
+            c.setDoOutput(true);
+            c.setRequestProperty("Content-Type", "application/json; charset=utf-8");
+            c.setRequestProperty("X-Sync-Pin", db.setting("sync_pin", "1234"));
+            byte[] body = req.toString().getBytes(StandardCharsets.UTF_8);
+            c.getOutputStream().write(body);
+            int code = c.getResponseCode();
+            c.disconnect();
+            return code >= 200 && code < 300;
+        } catch (Exception e) {
+            lastStatus = "HTTP: " + e.getMessage();
+            return false;
+        }
     }
 
     private JSONObject request(String host, int port, JSONObject req) throws Exception {

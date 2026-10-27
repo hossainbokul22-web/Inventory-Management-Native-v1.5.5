@@ -130,11 +130,19 @@ public class MainActivity extends Activity {
         if(rows.isEmpty()){
             add(Ui.muted(this,"No locations yet. Supervisors need Client mode + hotspot + location Allow."));
         }else{
-            for(org.json.JSONObject r:rows){
+            for(final org.json.JSONObject r:rows){
                 LinearLayout c=Ui.card(this,Ui.CARD);
                 c.addView(Ui.text(this,r.optString("user","?"),15,Ui.NAVY_TEXT,true));
                 c.addView(Ui.text(this,"Lat "+r.optDouble("lat")+"  Lng "+r.optDouble("lng"),13,Ui.INK,false));
                 c.addView(Ui.muted(this,r.optString("ts")+" · acc "+r.optDouble("acc")));
+                Button mapB=Ui.secondary(this,"Open in Maps");
+                mapB.setOnClickListener(vv->{
+                    try{
+                        android.net.Uri uri=android.net.Uri.parse("geo:"+r.optDouble("lat")+","+r.optDouble("lng")+"?q="+r.optDouble("lat")+","+r.optDouble("lng")+"("+android.net.Uri.encode(r.optString("user"))+")");
+                        startActivity(new Intent(Intent.ACTION_VIEW, uri));
+                    }catch(Exception ex){ toast("No maps app"); }
+                });
+                c.addView(mapB);
                 add(c);
             }
         }
@@ -521,7 +529,19 @@ private void clear(String head){currentScreen=head;for(Runnable task:dashboardRu
             String code=label.split(" — ",2)[0].trim();
             JSONObject m=db.one("SELECT COALESCE(MIN(batch_id),0) v FROM mixing2_batch_log WHERE batch_id<0",null);long nid=(m==null?0:m.optLong("v"))-1;
             ContentValues z=new ContentValues();z.put("batch_id",nid);z.put("date",ymd(d));z.put("product_code",0);z.put("shift",0);z.put("rm_code",code);z.put("recipe_qty",0);z.put("batch_count",0);z.put("consumption",qty);z.put("created_at","WASTE|"+note.getText().toString().trim());
-            db.insert("mixing2_batch_log",z);toast("Wastage saved ✔");showWastage();
+            db.insert("mixing2_batch_log",z);
+            try{
+                if("client".equals(db.setting("sync_mode","off"))){
+                    org.json.JSONObject payload=new org.json.JSONObject();
+                    payload.put("date",ymd(d));
+                    payload.put("rm_code",code);
+                    payload.put("qty",qty);
+                    payload.put("note",note.getText().toString().trim());
+                    payload.put("kind_waste",true);
+                    SyncHub.get(this).enqueue("wastage", payload);
+                }
+            }catch(Exception ignored){}
+            toast("Wastage saved ✔");showWastage();
         }catch(Exception e){error(e);}});
         add(save);
         String month=today().substring(0,7);
@@ -883,8 +903,12 @@ c2.addView(Ui.text(this,"Tab names",15,Ui.NAVY_TEXT,true));
         cSync.addView(pinEt);
         final EditText ipEt=edit("Server IP (client)");
         ipEt.setText(db.setting("sync_server_ip","192.168.43.1"));
-        cSync.addView(Ui.muted(this,"Server IP"));
+        cSync.addView(Ui.muted(this,"Server IP (hotspot LAN)"));
         cSync.addView(ipEt);
+        final EditText httpEt=edit("Internet webhook URL (optional)");
+        httpEt.setText(db.setting("sync_http_url",""));
+        cSync.addView(Ui.muted(this,"Optional HTTPS endpoint to receive JSON pushes when not on hotspot"));
+        cSync.addView(httpEt);
         Button saveSync=Ui.secondary(this,"Save sync settings");
         Runnable refreshSt=()->syncSt.setText("Status: "+SyncHub.get(this).status()+" · pending "+SyncHub.get(this).pendingCount());
         saveSync.setOnClickListener(v->{
@@ -893,6 +917,7 @@ c2.addView(Ui.text(this,"Tab names",15,Ui.NAVY_TEXT,true));
             db.setSetting("sync_mode",modeEt.getText().toString().trim().toLowerCase(Locale.US));
             db.setSetting("sync_pin",pinEt.getText().toString().trim().isEmpty()?"1234":pinEt.getText().toString().trim());
             db.setSetting("sync_server_ip",ipEt.getText().toString().trim().isEmpty()?"192.168.43.1":ipEt.getText().toString().trim());
+            db.setSetting("sync_http_url",httpEt.getText().toString().trim());
             toast("Sync settings saved");
             refreshSt.run();
         });
@@ -1541,7 +1566,24 @@ save.setPadding(dp(12),dp(10),dp(12),dp(10));save.setOnClickListener(v->{try{Str
     int bc=batchCount(q.getText().toString());if(bc<0)throw new Exception("Batch Count cannot be negative");
     String day=ymd(d);if(db.monthLocked(day))throw new Exception("Month locked");
     ContentValues z=new ContentValues();z.put("date",day);z.put("product_code",Integer.parseInt(code));z.put("shift",sh);z.put("qty",bc);z.put("saved_at",new Date().toString());
-    JSONObject existing=db.one("SELECT id FROM batches WHERE date=? AND product_code=? AND shift=?",new String[]{day,code,String.valueOf(sh)});long batchId;if(existing==null){batchId=db.insert("batches",z);}else{batchId=existing.getLong("id");db.update("batches",z,"id=?",new String[]{existing.getString("id")});}syncBatchLog(batchId,ymd(d),Integer.parseInt(code),sh,bc,new Date().toString());toast("Batch Count saved ✔");showBatch();
+    JSONObject existing=db.one("SELECT id FROM batches WHERE date=? AND product_code=? AND shift=?",new String[]{day,code,String.valueOf(sh)});long batchId;if(existing==null){batchId=db.insert("batches",z);}else{batchId=existing.getLong("id");db.update("batches",z,"id=?",new String[]{existing.getString("id")});}syncBatchLog(batchId,ymd(d),Integer.parseInt(code),sh,bc,new Date().toString());
+    try{
+        if("client".equals(db.setting("sync_mode","off"))){
+            org.json.JSONObject payload=new org.json.JSONObject();
+            payload.put("date",day);
+            payload.put("product_code",Integer.parseInt(code));
+            payload.put("shift",sh);
+            payload.put("batches",bc);
+            payload.put("batch_qty",bc);
+            payload.put("batch_id",batchId);
+            String pname="";
+            try{ org.json.JSONObject pr=db.one("SELECT name FROM products WHERE code=?",new String[]{code}); if(pr!=null) pname=pr.optString("name"); }catch(Exception ignored){}
+            payload.put("product_name",pname);
+            SyncHub.get(this).enqueue("batch", payload);
+            // also push recipe consumption lines as batch_lines optional: skip heavy
+        }
+    }catch(Exception ignored){}
+    toast("Batch Count saved ✔");showBatch();
   }catch(Exception e){error(e);}});add(save);
   String batchRange=db.setting("batch_list_range","7");
   if(!"today".equals(batchRange)) batchRange="7";
