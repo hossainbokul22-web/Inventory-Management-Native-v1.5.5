@@ -379,7 +379,7 @@ private void clear(String head){currentScreen=head;for(Runnable task:dashboardRu
         {"Wastage","Spoilage and loss","waste",String.valueOf(Color.rgb(255,149,0)),"🗑️"},
         {"Stock Count","Physical vs book","count",String.valueOf(Color.rgb(52,199,89)),"📋"},
         {"Daily Summary","PDF for owner","summary",String.valueOf(Color.rgb(175,82,222)),"📄"},
-        {"Batch Planner","What do I need?","planner",String.valueOf(Color.rgb(90,200,250)),"🧮"},
+        {"Batch Planner","What do I need?","planner",String.valueOf(Color.rgb(90,200,250)),"🥣"},
         {"Master — RM","Raw materials","rm",String.valueOf(Color.rgb(0,122,255)),"🌾"},
         {"Master — Products","Add / edit products","prod",String.valueOf(Color.rgb(88,86,214)),"🍞"},
         {"Recipe","RM per batch","recipe",String.valueOf(Color.rgb(255,45,85)),"👨‍🍳"},
@@ -980,9 +980,9 @@ c2.addView(Ui.text(this,"Tab names",15,Ui.NAVY_TEXT,true));
  private void addSectionTitle(String text,int bg){
     String icon="•";
     String t=text==null?"":text;
-    if(t.contains("Batch")) icon="🔢";
+    if(t.contains("Batch")) icon="📦";
     else if(t.contains("Receive")) icon="📥";
-    else if(t.contains("Mixing")) icon="🧪";
+    else if(t.contains("Mixing")) icon="🥣";
     else if(t.contains("Expiry")) icon="⏰";
     else if(t.contains("Stock Watch")) icon="👁️";
     else if(t.contains("Stock Overview")) icon="📦";
@@ -1836,16 +1836,16 @@ java.util.regex.Matcher m=java.util.regex.Pattern.compile("(?i)^SUM\\(([^)]+)\\)
     // icon + title + subtitle rows
     String[][] reps={
         {"📨","Send monthly report to boss","Full month summary to owner email / share","boss_m"},
-        {"📅","Send TODAY report to boss","Today only — quick share","boss_d"},
+        {"☀️","Send TODAY report to boss","Today only — quick share","boss_d"},
         {"📥","RM Receive Monthly — Day-wise","Receive by RM × each day of month","recv"},
-        {"🧪","RM Mixing-2 Monthly — Day-wise","Mixing use by day","mixm"},
-        {"🔢","Mixing-2 — Batch × Recipe Usage","Batch log × recipe consumption","mix"},
-        {"📋","RM Mixing-2 Batch Log","All mixing batches this month","blog"},
+        {"🥣","RM Mixing-2 Monthly — Day-wise","Mixing use by day","mixm"},
+        {"🔄","Mixing-2 — Batch × Recipe Usage","Batch log × recipe consumption","mix"},
+        {"📝","RM Mixing-2 Batch Log","All mixing batches this month","blog"},
         {"📆","Daily Date Report","One-day RM stock style sheet","daily"},
         {"📊","Final Monthly Usage","Month total usage per RM","fin"},
-        {"📄","Export CSV","Raw export for Excel","csv"},
-        {"💾","Backup JSON","Save all data file","backup"},
-        {"♻️","Restore JSON","Load from backup file","restore"}
+        {"📑","Export CSV","Raw export for Excel","csv"},
+        {"💾","Backup JSON","Full data backup file","backup"},
+        {"📥","Restore JSON","Load from backup file","restore"}
     };
     int[] accents={
         Color.rgb(20,55,95), Color.rgb(46,125,50), Color.rgb(21,101,192),
