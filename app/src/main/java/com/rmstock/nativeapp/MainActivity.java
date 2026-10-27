@@ -794,16 +794,16 @@ private void showSummary(){
             if("client".equals(db.setting("sync_mode","off"))){
                 SyncHub.get(MainActivity.this).pullChat(()->{
                     paint.run();
-                    if("Team Messenger".equals(currentScreen)) main.postDelayed(self, 2500);
+                    if("Team Messenger".equals(currentScreen)) main.postDelayed(self, 800);
                 });
             }else{
                 paint.run();
-                if("Team Messenger".equals(currentScreen)) main.postDelayed(self, 2500);
+                if("Team Messenger".equals(currentScreen)) main.postDelayed(self, 800);
             }
         }
     };
     dashboardRunnables.add(chatPoll);
-    main.postDelayed(chatPoll, 2000);
+    main.postDelayed(chatPoll, 800);
 
     // Bottom composer (WA-like)
     LinearLayout composer=new LinearLayout(this);
