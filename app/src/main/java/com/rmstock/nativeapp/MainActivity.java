@@ -3312,7 +3312,16 @@ private void applyVoiceFixCommand(String raw){
  }
  private void startCamera(){if(ContextCompat.checkSelfPermission(this,Manifest.permission.CAMERA)!=PackageManager.PERMISSION_GRANTED){ActivityCompat.requestPermissions(this,new String[]{Manifest.permission.CAMERA},CAM);return;}try{File dir=new File(getCacheDir(),"images");dir.mkdirs();File f=File.createTempFile("voucher_",".jpg",dir);photoFile=f;photoUri=FileProvider.getUriForFile(this,"com.rmstock.nativeapp.fileprovider",f);Intent i=new Intent(MediaStore.ACTION_IMAGE_CAPTURE);i.putExtra(MediaStore.EXTRA_OUTPUT,photoUri);i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION|Intent.FLAG_GRANT_WRITE_URI_PERMISSION);startActivityForResult(i,PHOTO);}catch(Exception e){error(e);}}
  @Override public void onRequestPermissionsResult(int r,String[] p,int[] g){
-    if(requestCode==LOC_PERM){ boolean ok=false; if(grantResults!=null) for(int g:grantResults) if(g==android.content.pm.PackageManager.PERMISSION_GRANTED) ok=true; if(ok) startDutyServiceSafe(); }
+    if(r==LOC_PERM){
+        boolean dutyOk=false;
+        if(g!=null){
+            for(int gi=0;gi<g.length;gi++){
+                if(g[gi]==android.content.pm.PackageManager.PERMISSION_GRANTED) dutyOk=true;
+            }
+        }
+        if(dutyOk) startDutyServiceSafe();
+    }
+
 super.onRequestPermissionsResult(r,p,g);if(r==CAM&&g.length>0&&g[0]==PackageManager.PERMISSION_GRANTED)startCamera();}
  @Override protected void onPause(){super.onPause();try{StockWidget.refresh(this);}catch(Exception ignored){}}
  @Override protected void onActivityResult(int r,int c,@Nullable Intent d){super.onActivityResult(r,c,d);if(Guard.onResult(r,c))return;if(r==PHOTO&&c==RESULT_OK&&photoUri!=null)ocr(photoUri); if(r==VOICE_FIX&&c==RESULT_OK&&d!=null){java.util.ArrayList<String> spoken=d.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS);if(spoken!=null&&!spoken.isEmpty()){toast(spoken.get(0));runAssistantCommand(spoken.get(0));}} if(r==79&&c==RESULT_OK&&d!=null&&pendingPdf!=null){try{OutputStream out=getContentResolver().openOutputStream(d.getData());FileInputStream in=new FileInputStream(pendingPdf);byte[] b=new byte[8192];int n;while((n=in.read(b))>0)out.write(b,0,n);in.close();out.close();toast("PDF saved ✔");}catch(Exception e){error(e);}} if(r==82&&c==RESULT_OK&&d!=null&&pendingPdf!=null){try{OutputStream out=getContentResolver().openOutputStream(d.getData());FileInputStream in=new FileInputStream(pendingPdf);byte[] z=new byte[8192];int n;while((n=in.read(z))>0)out.write(z,0,n);in.close();out.close();toast("CSV saved — open with Excel ✔");}catch(Exception e){error(e);}} if(r==80&&c==RESULT_OK&&d!=null&&pendingPdf!=null){try{OutputStream out=getContentResolver().openOutputStream(d.getData());FileInputStream in=new FileInputStream(pendingPdf);byte[] b=new byte[8192];int n;while((n=in.read(b))>0)out.write(b,0,n);in.close();out.close();toast("Backup saved ✔");}catch(Exception e){error(e);}} if(r==81&&c==RESULT_OK&&d!=null)importBackup(d.getData()); if(r==83&&c==RESULT_OK&&d!=null){try{InputStream in=getContentResolver().openInputStream(d.getData());new PmDb(this).importJson(new String(readAll(in),"UTF-8"));toast("PM import OK");}catch(Exception e){error(e);}}}
