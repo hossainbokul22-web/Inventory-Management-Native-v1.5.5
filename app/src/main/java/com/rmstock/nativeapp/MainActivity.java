@@ -235,7 +235,83 @@ private void clear(String head){
     if(h.equals("More")){showDashboard();return;}
     super.onBackPressed();
 }
- private boolean admin(){return db.canAdmin()||db.canEdit();}
+ 
+ /** Max safety: must be Admin role + device Guard (fresh) + Admin PIN. */
+ private void requireAdminPower(String why, Runnable ok){
+    if(!db.canAdmin()){
+        toast("Admin only — "+why);
+        db.audit(user(),role(),"denied_admin",why);
+        return;
+    }
+    Runnable afterGuard=()->{
+        if(!db.hasAdminPin()){
+            promptSetAdminPin(ok);
+            return;
+        }
+        promptAdminPin(why, ok);
+    };
+    // Always fresh biometric/PIN for admin power (even if guard "off" — still ask if device secure)
+    if(Guard.enabled(db)) Guard.run(this, db, why, true, afterGuard);
+    else {
+        // Guard off is dangerous — still require admin app PIN
+        afterGuard.run();
+    }
+ }
+
+ private void promptSetAdminPin(Runnable after){
+    final android.widget.EditText p1=new android.widget.EditText(this);
+    p1.setInputType(android.text.InputType.TYPE_CLASS_NUMBER|android.text.InputType.TYPE_NUMBER_VARIATION_PASSWORD);
+    p1.setHint("New Admin PIN (min 4)");
+    final android.widget.EditText p2=new android.widget.EditText(this);
+    p2.setInputType(android.text.InputType.TYPE_CLASS_NUMBER|android.text.InputType.TYPE_NUMBER_VARIATION_PASSWORD);
+    p2.setHint("Confirm Admin PIN");
+    LinearLayout box=new LinearLayout(this);
+    box.setOrientation(LinearLayout.VERTICAL);
+    box.setPadding(dp(20),dp(12),dp(20),dp(8));
+    box.addView(Ui.muted(this,"Set a PIN only YOU know. Supervisors must not know this. Required for role change, unlock guard, clear data."));
+    box.addView(p1);
+    box.addView(p2);
+    new AlertDialog.Builder(this)
+        .setTitle("Create Admin PIN")
+        .setView(box)
+        .setCancelable(false)
+        .setPositiveButton("Save PIN",(d,w)->{
+            try{
+                String a=p1.getText().toString().trim();
+                String b=p2.getText().toString().trim();
+                if(!a.equals(b)){ toast("PIN mismatch"); promptSetAdminPin(after); return; }
+                db.setAdminPin(a);
+                db.audit(user(),role(),"admin_pin_set","ok");
+                toast("Admin PIN saved ✔");
+                if(after!=null) after.run();
+            }catch(Exception e){ toast(e.getMessage()); }
+        })
+        .setNegativeButton("Cancel",null)
+        .show();
+ }
+
+ private void promptAdminPin(String why, Runnable ok){
+    final android.widget.EditText pin=new android.widget.EditText(this);
+    pin.setInputType(android.text.InputType.TYPE_CLASS_NUMBER|android.text.InputType.TYPE_NUMBER_VARIATION_PASSWORD);
+    pin.setHint("Admin PIN");
+    new AlertDialog.Builder(this)
+        .setTitle("Admin PIN required")
+        .setMessage(why)
+        .setView(pin)
+        .setPositiveButton("OK",(d,w)->{
+            if(db.checkAdminPin(pin.getText().toString())){
+                db.audit(user(),role(),"admin_pin_ok",why);
+                if(ok!=null) ok.run();
+            }else{
+                db.audit(user(),role(),"admin_pin_fail",why);
+                toast("Wrong Admin PIN");
+            }
+        })
+        .setNegativeButton("Cancel",null)
+        .show();
+ }
+
+private boolean admin(){return db.canAdmin()||db.canEdit();}
  private void showDashboard(){
     clear("Dashboard");
     try{
@@ -1009,8 +1085,16 @@ private void showMessenger(){
 
 
 
-private void showSettings(){
+private void ensureAdminSecurityBootstrap(){
+    if(!db.canAdmin()) return;
+    if(!"0".equals(db.setting("guard","1"))) db.setSetting("guard","1"); // keep default on
+    if(!db.hasAdminPin()){
+        main.post(()->promptSetAdminPin(null));
+    }
+ }
+ private void showSettings(){
     clear("Settings");
+    ensureAdminSecurityBootstrap();
     try{
         LinearLayout c0=Ui.card(this,Ui.CARD);
         c0.addView(Ui.text(this,"Role & user (this device)",15,Ui.NAVY_TEXT,true));
@@ -1023,17 +1107,24 @@ private void showSettings(){
         for(int i=0;i<roles.length;i++)if(roles[i].equalsIgnoreCase(cr)||(cr.contains("Admin")&&i==0))roleSp.setSelection(i);
         c0.addView(Ui.muted(this,"User"));c0.addView(uEt);
         c0.addView(Ui.muted(this,"Role"));c0.addView(roleSp);
+        roleSp.setEnabled(db.canAdmin());
+        uEt.setEnabled(db.canAdmin());
+        if(!db.canAdmin()){
+            c0.addView(Ui.muted(this,"🔒 Only Admin + Admin PIN can change role on this device."));
+        }
         Button saveRole=btn("Save user / role");
         saveRole.setOnClickListener(v->{
-            if(!db.canAdmin()){toast("Admin only — current role cannot change roles");return;}
-            Runnable save=()->{
+            requireAdminPower("Change user / role", ()->{
+                String newRole=roles[roleSp.getSelectedItemPosition()];
+                // Device role is global: only Admin may set any role (including demoting this device)
                 db.setSetting("current_user",uEt.getText().toString().trim());
-                db.setSetting("role",roles[roleSp.getSelectedItemPosition()]);
-                db.audit(user(),role(),"set_role",roles[roleSp.getSelectedItemPosition()]);
-                toast("Saved ✔");
-            };
-            if(Guard.enabled(db)) Guard.run(this,db,"Change role",true,save);
-            else save.run();
+                db.setSetting("role",newRole);
+                db.audit(user(),"Admin","set_role",newRole+" by admin power");
+                toast("Role saved ✔");
+                // If demoted away from Admin, leave settings
+                if(!db.canAdmin()){ toast("This device is no longer Admin"); showDashboard(); }
+                else showSettings();
+            });
         });
         c0.addView(saveRole);addCard(c0);
 
@@ -1277,8 +1368,36 @@ c7.addView(Ui.text(this,"Unified backup (RM + PM + Yield)",15,Ui.NAVY_TEXT,true)
         c8.addView(Ui.text(this,"Security",15,Ui.NAVY_TEXT,true));
         c8.addView(Ui.muted(this,"Fingerprint (or phone PIN) is asked before Settings, Master, Recipe and every delete. One unlock lasts 3 minutes; deleting always asks again. The same lock protects Daily PM."));
         Button gb=Ui.secondary(this,"Protection: "+(Guard.enabled(db)?"ON  — tap to turn off":"OFF — tap to turn on"));
-        gb.setOnClickListener(v->{if(Guard.enabled(db))Guard.run(this,db,"Turn protection off",true,()->{db.setSetting("guard","0");showSettings();});else{db.setSetting("guard","1");showSettings();}});
-        c8.addView(gb);addCard(c8);
+        gb.setOnClickListener(v->{
+            if(Guard.enabled(db)){
+                // Turning OFF is high risk — Admin power required
+                requireAdminPower("Turn OFF fingerprint protection", ()->{
+                    db.setSetting("guard","0");
+                    db.audit(user(),role(),"guard_off","admin pin");
+                    toast("Protection OFF — not recommended");
+                    showSettings();
+                });
+            }else{
+                if(!db.canAdmin()){ toast("Admin only"); return; }
+                db.setSetting("guard","1");
+                db.audit(user(),role(),"guard_on","ok");
+                toast("Protection ON ✔");
+                showSettings();
+            }
+        });
+        c8.addView(gb);
+        Button pinBtn=Ui.secondary(this, db.hasAdminPin()?"Change Admin PIN":"Set Admin PIN (required)");
+        pinBtn.setOnClickListener(v->{
+            if(!db.canAdmin()){toast("Admin only");return;}
+            if(db.hasAdminPin()){
+                requireAdminPower("Change Admin PIN", ()->promptSetAdminPin(null));
+            }else{
+                promptSetAdminPin(null);
+            }
+        });
+        c8.addView(pinBtn, Ui.lp(this,-1,-2,0,0,6,0,0));
+        c8.addView(Ui.muted(this,"Admin PIN is separate from phone fingerprint. Never share with supervisors."));
+        addCard(c8);
     }catch(Exception e){error(e);}
  }
  private void showLabels(){

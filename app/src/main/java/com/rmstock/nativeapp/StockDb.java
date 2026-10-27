@@ -133,4 +133,34 @@ public class StockDb extends SQLiteOpenHelper {
     boolean canEdit(){String r=currentRole();return !"Operator".equalsIgnoreCase(r);}
     boolean canAdmin(){String r=currentRole();return "Admin".equalsIgnoreCase(r)||"Owner/Admin".equalsIgnoreCase(r)||"Owner".equalsIgnoreCase(r);}
 
+    /** SHA-256 hex of admin PIN (never store plain PIN). */
+    boolean hasAdminPin(){
+        String h=setting("admin_pin_hash","");
+        return h!=null && h.length()>=32;
+    }
+    void setAdminPin(String plain) throws Exception {
+        if(plain==null) plain="";
+        plain=plain.trim();
+        if(plain.length()<4) throw new Exception("Admin PIN must be at least 4 digits");
+        setSetting("admin_pin_hash", sha256(plain));
+        setSetting("admin_security_on","1");
+    }
+    boolean checkAdminPin(String plain){
+        if(!hasAdminPin()) return false;
+        try{
+            return sha256(plain==null?"":plain.trim()).equals(setting("admin_pin_hash",""));
+        }catch(Exception e){ return false; }
+    }
+    private static String sha256(String s) throws Exception {
+        java.security.MessageDigest md=java.security.MessageDigest.getInstance("SHA-256");
+        byte[] d=md.digest(s.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        StringBuilder sb=new StringBuilder();
+        for(byte b:d) sb.append(String.format("%02x", b));
+        return sb.toString();
+    }
+    /** After first setup, prefer non-admin default only when explicitly reset — keep currentRole as stored. */
+    boolean securityHardened(){
+        return hasAdminPin() && !"0".equals(setting("admin_security_on","1"));
+    }
+
 }
