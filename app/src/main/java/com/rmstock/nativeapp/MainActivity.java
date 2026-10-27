@@ -2285,7 +2285,7 @@ java.util.regex.Matcher m=java.util.regex.Pattern.compile("(?i)^SUM\\(([^)]+)\\)
                     .setPositiveButton("OK",null)
                     .setNeutralButton("Fix qty…",(d,w)->{
                         final EditText q=new EditText(this);
-                        q.setInputType(InputType.TYPE_CLASS_NUMBER|InputType.TYPE_NUMBER_FLAG_DECIMAL);
+                        q.setInputType(android.text.InputType.TYPE_CLASS_NUMBER|android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL);
                         q.setHint("New receive qty");
                         new AlertDialog.Builder(this).setTitle("Set last receive → "+name)
                             .setView(q)
