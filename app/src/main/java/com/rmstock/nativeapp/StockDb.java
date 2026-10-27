@@ -3,7 +3,7 @@ package com.rmstock.nativeapp;
 import android.content.*;import android.database.*;import android.database.sqlite.*;import org.json.*;import java.io.*;import java.util.*;
 
 public class StockDb extends SQLiteOpenHelper {
-    private static final String DB="rmstock_native.db"; private static final int VER=12; private final Context ctx;
+    private static final String DB="rmstock_native.db"; private static final int VER=13; private final Context ctx;
     StockDb(Context c){super(c,DB,null,VER);ctx=c;}
     public void onCreate(SQLiteDatabase d){
         d.execSQL("CREATE TABLE rms(code TEXT PRIMARY KEY,name TEXT NOT NULL,uom TEXT NOT NULL,opening REAL NOT NULL DEFAULT 0,reorder REAL NOT NULL DEFAULT 0)");
@@ -39,6 +39,10 @@ public class StockDb extends SQLiteOpenHelper {
     String setting(String k,String def){Cursor c=getReadableDatabase().rawQuery("SELECT v FROM settings WHERE k=?",new String[]{k});try{return c.moveToFirst()?c.getString(0):def;}finally{c.close();}}
     void setSetting(String k,String v){putSetting(getWritableDatabase(),k,v);}
     public void onUpgrade(SQLiteDatabase d,int o,int n){
+        if(o<13){
+            d.execSQL("CREATE TABLE IF NOT EXISTS sync_queue(id INTEGER PRIMARY KEY AUTOINCREMENT,kind TEXT,payload TEXT,created_at TEXT,tries INTEGER DEFAULT 0,status TEXT DEFAULT 'pending')");
+        }
+
         if(o<12){
             d.execSQL("CREATE TABLE IF NOT EXISTS process_loss_defs(product_code INTEGER PRIMARY KEY,input_kg REAL DEFAULT 0,output_kg REAL DEFAULT 0,formula TEXT DEFAULT '',standard_pct REAL DEFAULT 0,enabled INTEGER DEFAULT 1)");
             try{ d.execSQL("ALTER TABLE process_loss_defs ADD COLUMN standard_pct REAL DEFAULT 0"); }catch(Exception ignored){}

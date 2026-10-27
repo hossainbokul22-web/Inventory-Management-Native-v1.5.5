@@ -816,7 +816,60 @@ c2.addView(Ui.text(this,"Tab names",15,Ui.NAVY_TEXT,true));
         addCard(c6);
 
         LinearLayout c7=Ui.card(this,Ui.CARD);
-        c7.addView(Ui.text(this,"Unified backup (RM + PM + Yield)",15,Ui.NAVY_TEXT,true));
+        
+        LinearLayout cSync=Ui.card(this,Ui.CARD);
+        cSync.addView(Ui.text(this,"Team sync (hotspot)",15,Ui.NAVY_TEXT,true));
+        cSync.addView(Ui.muted(this,"Admin: Start server on hotspot. Supervisors: mode Client, same PIN, server IP (often 192.168.43.1), Sync now."));
+        final TextView syncSt=Ui.text(this,"Status: "+SyncHub.get(this).status()+" · pending "+SyncHub.get(this).pendingCount(),13,Ui.INK,false);
+        cSync.addView(syncSt);
+        final EditText modeEt=edit("Mode: off / server / client");
+        modeEt.setText(db.setting("sync_mode","off"));
+        cSync.addView(Ui.muted(this,"Mode"));
+        cSync.addView(modeEt);
+        final EditText pinEt=edit("Shared PIN");
+        pinEt.setText(db.setting("sync_pin","1234"));
+        cSync.addView(Ui.muted(this,"PIN"));
+        cSync.addView(pinEt);
+        final EditText ipEt=edit("Server IP (client)");
+        ipEt.setText(db.setting("sync_server_ip","192.168.43.1"));
+        cSync.addView(Ui.muted(this,"Server IP"));
+        cSync.addView(ipEt);
+        Button saveSync=Ui.secondary(this,"Save sync settings");
+        Runnable refreshSt=()->syncSt.setText("Status: "+SyncHub.get(this).status()+" · pending "+SyncHub.get(this).pendingCount());
+        saveSync.setOnClickListener(v->{
+            if(!open())return;
+            db.setSetting("sync_mode",modeEt.getText().toString().trim().toLowerCase(Locale.US));
+            db.setSetting("sync_pin",pinEt.getText().toString().trim().isEmpty()?"1234":pinEt.getText().toString().trim());
+            db.setSetting("sync_server_ip",ipEt.getText().toString().trim().isEmpty()?"192.168.43.1":ipEt.getText().toString().trim());
+            toast("Sync settings saved");
+            refreshSt.run();
+        });
+        cSync.addView(saveSync,Ui.lp(this,-1,-2,0,0,3,0,3));
+        Button startSrv=Ui.primary(this,"Start admin server");
+        startSrv.setOnClickListener(v->{
+            db.setSetting("sync_mode","server");
+            modeEt.setText("server");
+            SyncHub.get(this).startServer(refreshSt);
+            toast("Server starting… keep app open");
+        });
+        cSync.addView(startSrv,Ui.lp(this,-1,-2,0,0,3,0,3));
+        Button stopSrv=Ui.secondary(this,"Stop server");
+        stopSrv.setOnClickListener(v->SyncHub.get(this).stopServer(refreshSt));
+        cSync.addView(stopSrv,Ui.lp(this,-1,-2,0,0,3,0,3));
+        Button ping=Ui.secondary(this,"Ping server");
+        ping.setOnClickListener(v->SyncHub.get(this).pingServer(refreshSt));
+        cSync.addView(ping,Ui.lp(this,-1,-2,0,0,3,0,3));
+        Button flush=Ui.primary(this,"Sync now (flush queue)");
+        flush.setOnClickListener(v->{
+            db.setSetting("sync_mode","client");
+            modeEt.setText("client");
+            SyncHub.get(this).flushQueue(refreshSt);
+            toast("Flushing…");
+        });
+        cSync.addView(flush,Ui.lp(this,-1,-2,0,0,3,0,3));
+        add(cSync);
+
+c7.addView(Ui.text(this,"Unified backup (RM + PM + Yield)",15,Ui.NAVY_TEXT,true));
         c7.addView(Ui.muted(this,"One file includes raw materials, products, batches, receives, PM packaging data and yield definitions."));
         Button b1=Ui.secondary(this,"Backup to JSON file");b1.setOnClickListener(v->backupJson());c7.addView(b1,Ui.lp(this,-1,-2,0,0,3,0,3));
         Button bShare=Ui.secondary(this,"Share backup (Email / Drive / WhatsApp)");bShare.setOnClickListener(v->shareUnifiedBackup());c7.addView(bShare,Ui.lp(this,-1,-2,0,0,3,0,3));
@@ -1360,7 +1413,17 @@ save.setTextSize(15);
 save.setAllCaps(false);
 save.setPadding(dp(12),dp(10),dp(12),dp(10));save.setOnClickListener(x->{try{
 String label=String.valueOf(rm.getSelectedItem());if(label==null||label.equals("null"))throw new Exception("RM required");
-String day=ymd(d);if(db.monthLocked(day)){toast("Month locked");return;}String code=label.split(" — ",2)[0].trim();ContentValues z=new ContentValues();z.put("date",day);z.put("rm_code",code);z.put("qty",num(q.getText().toString()));z.put("voucher_no",v.getText().toString().trim());z.put("note",note.getText().toString().trim());z.put("source","manual");z.put("lot",lot.getText().toString().trim());z.put("expiry",expiryOf(exp));db.insert("receives",z);toast("Receive saved ✔");showDaily();
+String day=ymd(d);if(db.monthLocked(day)){toast("Month locked");return;}String code=label.split(" — ",2)[0].trim();ContentValues z=new ContentValues();z.put("date",day);z.put("rm_code",code);z.put("qty",num(q.getText().toString()));z.put("voucher_no",v.getText().toString().trim());z.put("note",note.getText().toString().trim());z.put("source","manual");z.put("lot",lot.getText().toString().trim());z.put("expiry",expiryOf(exp));db.insert("receives",z);
+                try{
+                    if("client".equals(db.setting("sync_mode","off"))){
+                        org.json.JSONObject payload=new org.json.JSONObject();
+                        payload.put("date",day);payload.put("rm_code",code);payload.put("qty",num(q.getText().toString()));
+                        payload.put("voucher_no",v.getText().toString().trim());payload.put("note",note.getText().toString().trim());
+                        payload.put("source","manual");payload.put("lot",lot.getText().toString().trim());payload.put("expiry",expiryOf(exp));
+                        SyncHub.get(this).enqueue("receive", payload);
+                    }
+                }catch(Exception ignored){}
+                toast("Receive saved ✔");showDaily();
 }catch(Exception e){error(e);}});add(save);
 // List range: today | last 7 days (does not change monthly reports / DB)
 String entryRange=db.setting("entry_list_range","7");
