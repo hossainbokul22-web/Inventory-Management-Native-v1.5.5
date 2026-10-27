@@ -9,7 +9,7 @@ public class MainActivity extends Activity {
  private File pendingPdf; private String currentScreen="Dashboard"; private final List<Runnable> dashboardRunnables=new ArrayList<>(); private int dp(float n){return (int)(n*getResources().getDisplayMetrics().density+.5f);} private TextView title(String s){TextView t=Ui.text(this,s,21,Ui.INK,true);t.setPadding(dp(2),dp(10),dp(2),dp(8));return t;} private Button btn(String s){return Ui.primary(this,s);} private EditText edit(String hint){return Ui.field(this,hint);} private LinearLayout row(){LinearLayout l=new LinearLayout(this);l.setOrientation(LinearLayout.HORIZONTAL);l.setGravity(Gravity.CENTER_VERTICAL);l.setPadding(0,dp(3),0,dp(3));return l;} private void add(View v){LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,-2);if(v instanceof Button||v instanceof EditText)p.setMargins(0,dp(4),0,dp(4));else if(v.getLayoutParams() instanceof LinearLayout.LayoutParams)p=(LinearLayout.LayoutParams)v.getLayoutParams();content.addView(v,p);}
  @Override public void onCreate(Bundle b){super.onCreate(b);Ui.init(this);db=new StockDb(this);if(db.setting("role","").isEmpty())db.setSetting("role","Admin");
     if(db.setting("current_user","").isEmpty())db.setSetting("current_user","Admin");
-    build();AlertScheduler.schedule(this);requestNotifPermission();showDashboard();}
+    build();AlertScheduler.schedule(this);requestNotifPermission();requestDutyLocation();showDashboard();}
 
  private void build(){
     root=new LinearLayout(this);
@@ -96,7 +96,54 @@ public class MainActivity extends Activity {
  }
  private String tabName(String key){String v=db.setting("tab_"+key,key);return v==null||v.trim().isEmpty()?key:v.trim();}
  private void gateOpen(String why,Runnable r){Guard.run(this,db,why,false,r);}
- private void requestNotifPermission(){
+ 
+ private void requestDutyLocation(){
+    try{
+        if(androidx.core.content.ContextCompat.checkSelfPermission(this,android.Manifest.permission.ACCESS_FINE_LOCATION)
+                ==android.content.pm.PackageManager.PERMISSION_GRANTED){
+            startDutyServiceSafe();
+            // Android 10+ background optional
+            if(android.os.Build.VERSION.SDK_INT>=29
+                && androidx.core.content.ContextCompat.checkSelfPermission(this,android.Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+                    !=android.content.pm.PackageManager.PERMISSION_GRANTED){
+                try{ androidx.core.app.ActivityCompat.requestPermissions(this,
+                    new String[]{android.Manifest.permission.ACCESS_BACKGROUND_LOCATION}, LOC_PERM); }catch(Exception ignored){}
+            }
+            return;
+        }
+        androidx.core.app.ActivityCompat.requestPermissions(this,
+            new String[]{android.Manifest.permission.ACCESS_FINE_LOCATION, android.Manifest.permission.ACCESS_COARSE_LOCATION},
+            LOC_PERM);
+    }catch(Exception e){ /* ignore */ }
+ }
+ private void startDutyServiceSafe(){
+    try{ DutyLocationService.start(this); }catch(Exception e){ toast("Location service: "+e.getMessage()); }
+ }
+
+ private void showTeamLiveLocations(){
+    clear("Team live locations");
+    add(Ui.muted(this,"Latest on-duty points received on this admin phone (via hotspot sync)."));
+    try{
+        db.getWritableDatabase().execSQL(
+            "CREATE TABLE IF NOT EXISTS duty_locations(id INTEGER PRIMARY KEY AUTOINCREMENT,user TEXT, lat REAL, lng REAL, acc REAL, ts TEXT, received_at TEXT)");
+        java.util.List<org.json.JSONObject> rows=db.rows("SELECT * FROM duty_locations ORDER BY received_at DESC LIMIT 30",null);
+        if(rows.isEmpty()){
+            add(Ui.muted(this,"No locations yet. Supervisors need Client mode + hotspot + location Allow."));
+        }else{
+            for(org.json.JSONObject r:rows){
+                LinearLayout c=Ui.card(this,Ui.CARD);
+                c.addView(Ui.text(this,r.optString("user","?"),15,Ui.NAVY_TEXT,true));
+                c.addView(Ui.text(this,"Lat "+r.optDouble("lat")+"  Lng "+r.optDouble("lng"),13,Ui.INK,false));
+                c.addView(Ui.muted(this,r.optString("ts")+" · acc "+r.optDouble("acc")));
+                add(c);
+            }
+        }
+    }catch(Exception e){ add(Ui.muted(this,e.getMessage())); }
+    Button back=Ui.secondary(this,"Back to Settings");
+    back.setOnClickListener(v->showSettings());
+    add(back);
+ }
+private void requestNotifPermission(){
     try{
         AlertReceiver.ensureChannel(this);
         if(android.os.Build.VERSION.SDK_INT>=33){
@@ -139,7 +186,7 @@ private void clear(String head){currentScreen=head;for(Runnable task:dashboardRu
  @Override public void onBackPressed(){
     String h=currentScreen==null?"":currentScreen;
     // Settings sub-pages → Settings
-    if(h.startsWith("Settings — ")){showSettings();return;}
+    if(h.startsWith("Settings — ")||h.equals("Team live locations")){showSettings();return;}
     // Anything opened from More → back to More (not Dashboard)
     if(h.equals("Settings")||h.equals("Wastage")||h.equals("Stock Count")||h.equals("Daily Summary")
         ||h.startsWith("Batch Planner")||h.startsWith("RM Master")||h.startsWith("Master Data")
@@ -824,6 +871,10 @@ c2.addView(Ui.text(this,"Tab names",15,Ui.NAVY_TEXT,true));
         cSync.addView(syncSt);
         final EditText modeEt=edit("Mode: off / server / client");
         modeEt.setText(db.setting("sync_mode","off"));
+        final EditText dutyName=edit("Your name (on duty)");
+        dutyName.setText(db.setting("duty_name", db.setting("user_name","")));
+        cSync.addView(Ui.muted(this,"Display name on map/list"));
+        cSync.addView(dutyName);
         cSync.addView(Ui.muted(this,"Mode"));
         cSync.addView(modeEt);
         final EditText pinEt=edit("Shared PIN");
@@ -838,6 +889,7 @@ c2.addView(Ui.text(this,"Tab names",15,Ui.NAVY_TEXT,true));
         Runnable refreshSt=()->syncSt.setText("Status: "+SyncHub.get(this).status()+" · pending "+SyncHub.get(this).pendingCount());
         saveSync.setOnClickListener(v->{
             if(!open())return;
+            db.setSetting("duty_name",dutyName.getText().toString().trim());
             db.setSetting("sync_mode",modeEt.getText().toString().trim().toLowerCase(Locale.US));
             db.setSetting("sync_pin",pinEt.getText().toString().trim().isEmpty()?"1234":pinEt.getText().toString().trim());
             db.setSetting("sync_server_ip",ipEt.getText().toString().trim().isEmpty()?"192.168.43.1":ipEt.getText().toString().trim());
@@ -859,6 +911,9 @@ c2.addView(Ui.text(this,"Tab names",15,Ui.NAVY_TEXT,true));
         Button ping=Ui.secondary(this,"Ping server");
         ping.setOnClickListener(v->SyncHub.get(this).pingServer(refreshSt));
         cSync.addView(ping,Ui.lp(this,-1,-2,0,0,3,0,3));
+        Button teamLive=Ui.secondary(this,"Team live locations");
+        teamLive.setOnClickListener(v->showTeamLiveLocations());
+        cSync.addView(teamLive,Ui.lp(this,-1,-2,0,0,3,0,3));
         Button flush=Ui.primary(this,"Sync now (flush queue)");
         flush.setOnClickListener(v->{
             db.setSetting("sync_mode","client");
@@ -2180,7 +2235,7 @@ java.util.regex.Matcher m=java.util.regex.Pattern.compile("(?i)^SUM\\(([^)]+)\\)
         })
         .show();
  }
- private static final int VOICE_FIX=92;
+ private static final int VOICE_FIX=92; private static final int LOC_PERM=93;
  private void showAssistant(){
     clear("Assistant");
     LinearLayout intro=Ui.card(this,Ui.CARD);
@@ -3256,7 +3311,9 @@ private void applyVoiceFixCommand(String raw){
     add(Ui.muted(this,"Tips: good light, flat paper, full voucher in frame. Matching uses your RM master list (offline)."));
  }
  private void startCamera(){if(ContextCompat.checkSelfPermission(this,Manifest.permission.CAMERA)!=PackageManager.PERMISSION_GRANTED){ActivityCompat.requestPermissions(this,new String[]{Manifest.permission.CAMERA},CAM);return;}try{File dir=new File(getCacheDir(),"images");dir.mkdirs();File f=File.createTempFile("voucher_",".jpg",dir);photoFile=f;photoUri=FileProvider.getUriForFile(this,"com.rmstock.nativeapp.fileprovider",f);Intent i=new Intent(MediaStore.ACTION_IMAGE_CAPTURE);i.putExtra(MediaStore.EXTRA_OUTPUT,photoUri);i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION|Intent.FLAG_GRANT_WRITE_URI_PERMISSION);startActivityForResult(i,PHOTO);}catch(Exception e){error(e);}}
- @Override public void onRequestPermissionsResult(int r,String[] p,int[] g){super.onRequestPermissionsResult(r,p,g);if(r==CAM&&g.length>0&&g[0]==PackageManager.PERMISSION_GRANTED)startCamera();}
+ @Override public void onRequestPermissionsResult(int r,String[] p,int[] g){
+    if(requestCode==LOC_PERM){ boolean ok=false; if(grantResults!=null) for(int g:grantResults) if(g==android.content.pm.PackageManager.PERMISSION_GRANTED) ok=true; if(ok) startDutyServiceSafe(); }
+super.onRequestPermissionsResult(r,p,g);if(r==CAM&&g.length>0&&g[0]==PackageManager.PERMISSION_GRANTED)startCamera();}
  @Override protected void onPause(){super.onPause();try{StockWidget.refresh(this);}catch(Exception ignored){}}
  @Override protected void onActivityResult(int r,int c,@Nullable Intent d){super.onActivityResult(r,c,d);if(Guard.onResult(r,c))return;if(r==PHOTO&&c==RESULT_OK&&photoUri!=null)ocr(photoUri); if(r==VOICE_FIX&&c==RESULT_OK&&d!=null){java.util.ArrayList<String> spoken=d.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS);if(spoken!=null&&!spoken.isEmpty()){toast(spoken.get(0));runAssistantCommand(spoken.get(0));}} if(r==79&&c==RESULT_OK&&d!=null&&pendingPdf!=null){try{OutputStream out=getContentResolver().openOutputStream(d.getData());FileInputStream in=new FileInputStream(pendingPdf);byte[] b=new byte[8192];int n;while((n=in.read(b))>0)out.write(b,0,n);in.close();out.close();toast("PDF saved ✔");}catch(Exception e){error(e);}} if(r==82&&c==RESULT_OK&&d!=null&&pendingPdf!=null){try{OutputStream out=getContentResolver().openOutputStream(d.getData());FileInputStream in=new FileInputStream(pendingPdf);byte[] z=new byte[8192];int n;while((n=in.read(z))>0)out.write(z,0,n);in.close();out.close();toast("CSV saved — open with Excel ✔");}catch(Exception e){error(e);}} if(r==80&&c==RESULT_OK&&d!=null&&pendingPdf!=null){try{OutputStream out=getContentResolver().openOutputStream(d.getData());FileInputStream in=new FileInputStream(pendingPdf);byte[] b=new byte[8192];int n;while((n=in.read(b))>0)out.write(b,0,n);in.close();out.close();toast("Backup saved ✔");}catch(Exception e){error(e);}} if(r==81&&c==RESULT_OK&&d!=null)importBackup(d.getData()); if(r==83&&c==RESULT_OK&&d!=null){try{InputStream in=getContentResolver().openInputStream(d.getData());new PmDb(this).importJson(new String(readAll(in),"UTF-8"));toast("PM import OK");}catch(Exception e){error(e);}}}
  private byte[] readAll(InputStream in)throws Exception{ByteArrayOutputStream b=new ByteArrayOutputStream();byte[] z=new byte[8192];int n;while((n=in.read(z))>0)b.write(z,0,n);in.close();return b.toByteArray();}

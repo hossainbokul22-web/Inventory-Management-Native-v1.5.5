@@ -153,6 +153,11 @@ public final class SyncHub {
     private boolean applyIncoming(String kind, JSONObject data) {
         if (data == null) return false;
         try {
+            if ("location".equals(kind)) {
+                DutyLocationService.storeLocal(db, data);
+                lastStatus = "Location from " + data.optString("user");
+                return true;
+            }
             if ("receive".equals(kind)) {
                 ContentValues z = new ContentValues();
                 z.put("date", data.optString("date"));
