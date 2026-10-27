@@ -943,13 +943,18 @@ private void showMessenger(){
     if(me.isEmpty()) me=db.setting("user_name", role());
     if(me==null||me.isEmpty()) me="User";
     String kind=video?"📹 Video call":"📞 Voice call";
-    SyncHub.get(this).sendChat(me, "[CALL]"+kind+" from "+me+" — join on Team Chat / same hotspot", null);
-    new AlertDialog.Builder(this)
-        .setTitle(kind)
-        .setMessage("Call invite sent to team chat.\\n\\nReal live audio/video (like WhatsApp) needs WebRTC media engine — next step.\\nFor now the team sees the invite on live chat while on hotspot.")
-        .setPositiveButton("OK",null)
-        .show();
- }
+    SyncHub.get(this).sendChat(me, "[CALL]"+kind+" from "+me, null);
+    try{
+        Intent i=new Intent(this, CallActivity.class);
+        i.putExtra(CallActivity.EXTRA_VIDEO, video);
+        i.putExtra(CallActivity.EXTRA_OUTGOING, true);
+        i.putExtra(CallActivity.EXTRA_PEER, "Team");
+        startActivity(i);
+    }catch(Exception e){
+        toast("Call open failed: "+e.getMessage());
+    }
+}
+
 
  private void startCameraForChat(){
     try{

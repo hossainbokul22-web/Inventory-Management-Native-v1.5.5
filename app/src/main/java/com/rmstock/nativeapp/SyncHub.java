@@ -41,6 +41,66 @@ public final class SyncHub {
         this.db = new StockDb(app);
         ensureQueueTable();
         ensureChatTable();
+        ensureCallSignalTable();
+    }
+
+    private void ensureCallSignalTable() {
+        try {
+            db.getWritableDatabase().execSQL(
+                "CREATE TABLE IF NOT EXISTS call_signals(" +
+                "id INTEGER PRIMARY KEY AUTOINCREMENT, payload TEXT, created_at TEXT)");
+        } catch (Exception ignored) {}
+    }
+
+    public void storeCallSignal(org.json.JSONObject data) {
+        ensureCallSignalTable();
+        try {
+            android.content.ContentValues v = new android.content.ContentValues();
+            v.put("payload", data.toString());
+            v.put("created_at", String.valueOf(System.currentTimeMillis()));
+            db.getWritableDatabase().insert("call_signals", null, v);
+            // keep last 40
+            db.getWritableDatabase().execSQL(
+                "DELETE FROM call_signals WHERE id NOT IN (SELECT id FROM call_signals ORDER BY id DESC LIMIT 40)");
+        } catch (Exception ignored) {}
+    }
+
+    public org.json.JSONArray loadCallSignals(int limit) {
+        ensureCallSignalTable();
+        org.json.JSONArray arr = new org.json.JSONArray();
+        try (android.database.Cursor c = db.getReadableDatabase().rawQuery(
+                "SELECT payload FROM call_signals ORDER BY id DESC LIMIT ?",
+                new String[]{String.valueOf(limit)})) {
+            java.util.ArrayList<org.json.JSONObject> tmp = new java.util.ArrayList<>();
+            while (c.moveToNext()) {
+                try { tmp.add(new org.json.JSONObject(c.getString(0))); } catch (Exception ignored) {}
+            }
+            for (int i = tmp.size() - 1; i >= 0; i--) arr.put(tmp.get(i));
+        } catch (Exception ignored) {}
+        return arr;
+    }
+
+    public void pullCallSignals(Runnable onUi) {
+        pool.execute(() -> {
+            try {
+                if ("client".equals(db.setting("sync_mode", "off"))) {
+                    org.json.JSONObject req = new org.json.JSONObject();
+                    req.put("type", "call_pull");
+                    req.put("pin", db.setting("sync_pin", "1234"));
+                    org.json.JSONObject res = request(db.setting("sync_server_ip", "192.168.43.1"), port(), req);
+                    if (res != null && res.optBoolean("ok")) {
+                        org.json.JSONArray msgs = res.optJSONArray("signals");
+                        if (msgs != null) {
+                            ensureCallSignalTable();
+                            for (int i = 0; i < msgs.length(); i++) {
+                                storeCallSignal(msgs.getJSONObject(i));
+                            }
+                        }
+                    }
+                }
+            } catch (Exception ignored) {}
+            notifyUi(onUi);
+        });
     }
 
     private void ensureChatTable() {
@@ -165,6 +225,11 @@ public final class SyncHub {
     private boolean applyIncoming(String kind, JSONObject data) {
         if (data == null) return false;
         try {
+            if ("call_signal".equals(kind)) {
+                storeCallSignal(data);
+                lastStatus = "Call signal";
+                return true;
+            }
             if ("chat".equals(kind)) {
                 storeChat(data.optString("sender", "User"), data.optString("body", ""), data.optString("ts", ""));
                 lastStatus = "Chat from " + data.optString("sender");
