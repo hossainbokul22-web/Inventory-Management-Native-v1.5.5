@@ -779,6 +779,7 @@ private void showMessenger(){
         list.removeAllViews();
         try{
             org.json.JSONArray arr=SyncHub.get(this).loadChatJson(200);
+            SoftSounds.maybeNotifyNewChat(arr.length());
             if(arr.length()==0){
                 TextView empty=Ui.text(this,"No messages yet — say hello 👋",14,Color.rgb(90,90,90),false);
                 empty.setGravity(Gravity.CENTER);
@@ -859,6 +860,7 @@ private void showMessenger(){
         }catch(Exception e){ list.addView(Ui.muted(this,String.valueOf(e.getMessage()))); }
     };
     paint.run();
+    try{ SoftSounds.resetChatBaseline(SyncHub.get(this).loadChatJson(200).length()); }catch(Exception ignored){}
     SyncHub.get(this).pullChat(paint);
 
     final Runnable chatPoll=new Runnable(){
@@ -923,6 +925,7 @@ private void showMessenger(){
     send.setOnClickListener(v->{
         String t=box.getText().toString().trim();
         if(t.isEmpty()) return;
+        SoftSounds.messageSent();
         SyncHub.get(this).sendChat(me, t, ()->{ box.setText(""); paint.run(); });
     });
     composer.addView(box,new LinearLayout.LayoutParams(0,dp(48),1));
@@ -997,6 +1000,7 @@ private void showMessenger(){
             in.close(); os.close();
         }else{ toast("Cannot read file"); return; }
         String body=(image?"[IMG]":"[FILE]")+out.getAbsolutePath();
+        SoftSounds.messageSent();
         SyncHub.get(this).sendChat(me, body, ()->{ if("Team Messenger".equals(currentScreen)) showMessenger(); });
         toast(image?"Photo sent":"File sent");
     }catch(Exception e){error(e);}
