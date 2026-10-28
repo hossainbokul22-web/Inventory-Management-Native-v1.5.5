@@ -234,6 +234,7 @@ private void clear(String head){
     String h=currentScreen==null?"":currentScreen;
     // Settings sub-pages → Settings
     if(h.startsWith("Settings — ")||h.equals("Team live locations")){showSettings();return;}
+    if(h.equals("Admin Chamber")){showSettings();return;}
     if(h.equals("Team Messenger")){showDashboard();return;}
     // Anything opened from More → back to More (not Dashboard)
     if(h.equals("Settings")||h.equals("Wastage")||h.equals("Stock Count")||h.equals("Daily Summary")
@@ -1528,7 +1529,27 @@ c2.addView(Ui.text(this,"Tab names",15,Ui.NAVY_TEXT,true));
         cAlert.addView(test);
         addCard(cAlert);
 
-        LinearLayout c6=Ui.card(this,Ui.CARD);
+        
+        // Admin Chamber — hidden from non-admin entirely
+        if(db.canAdmin()){
+            LinearLayout cAdm=Ui.card(this,Ui.CARD);
+            cAdm.addView(Ui.text(this,"🔐 Admin Chamber",16,Ui.NAVY_TEXT,true));
+            cAdm.addView(Ui.muted(this,"Data clean-up · Team sync · Team devices · Security. Only Admin can open."));
+            Button openCh=Ui.primary(this,"Enter Admin Chamber");
+            openCh.setOnClickListener(v-> requireAdminPower("Enter Admin Chamber", this::showAdminChamber));
+            cAdm.addView(openCh, Ui.lp(this,-1,-2,0,0,8,0,0));
+            add(cAdm);
+        }
+
+    }catch(Exception e){error(e);}
+ }
+ 
+ private void showAdminChamber(){
+    if(!db.canAdmin()){ toast("Admin only"); showSettings(); return; }
+    clear("Admin Chamber");
+    add(Ui.muted(this,"Restricted · Admin PIN verified · Not visible to supervisors"));
+    try{
+LinearLayout c6=Ui.card(this,Ui.CARD);
         c6.addView(Ui.text(this,"Data clean-up",15,Ui.NAVY_TEXT,true));
         c6.addView(Ui.muted(this,"RM + PM clear in one place (Admin). Masters/recipes never touched. Guard + confirm. Backup first."));
         final EditText mo=dateField("Pick any date in the month");mo.setText(today());c6.addView(mo);
@@ -1610,7 +1631,7 @@ c2.addView(Ui.text(this,"Tab names",15,Ui.NAVY_TEXT,true));
             cDev.addView(Ui.muted(this,"Supervisors register when online/hotspot. You can deactivate a device — their app blocks until you activate again."));
             cDev.addView(Ui.muted(this,"This device: "+db.setting("device_code","—")+" · IP "+deviceIpHint()));
             Button refreshDev=Ui.secondary(this,"Refresh device list");
-            refreshDev.setOnClickListener(v->showSettings());
+            refreshDev.setOnClickListener(v->showAdminChamber());
             cDev.addView(refreshDev,Ui.lp(this,-1,-2,0,0,6,0,0));
             try{
                 java.util.List<org.json.JSONObject> devs=db.listDevices();
@@ -1635,7 +1656,7 @@ c2.addView(Ui.text(this,"Tab names",15,Ui.NAVY_TEXT,true));
                                 SyncHub.get(this).enqueue("device_status", st);
                             }catch(Exception ignored){}
                             toast(next?"Activated":"Deactivated");
-                            showSettings();
+                            showAdminChamber();
                         });
                     });
                     row.addView(tog);
@@ -1664,14 +1685,14 @@ c7.addView(Ui.text(this,"Unified backup (RM + PM + Yield)",15,Ui.NAVY_TEXT,true)
                     db.setSetting("guard","0");
                     db.audit(user(),role(),"guard_off","admin pin");
                     toast("Protection OFF — not recommended");
-                    showSettings();
+                    showAdminChamber();
                 });
             }else{
                 if(!db.canAdmin()){ toast("Admin only"); return; }
                 db.setSetting("guard","1");
                 db.audit(user(),role(),"guard_on","ok");
                 toast("Protection ON ✔");
-                showSettings();
+                showAdminChamber();
             }
         });
         c8.addView(gb);
@@ -1695,9 +1716,13 @@ c7.addView(Ui.text(this,"Unified backup (RM + PM + Yield)",15,Ui.NAVY_TEXT,true)
         });
         c8.addView(lockApp, Ui.lp(this,-1,-2,0,0,6,0,0));
         addCard(c8);
-    }catch(Exception e){error(e);}
+    }catch(Exception e){ error(e); }
+    Button back=Ui.secondary(this,"← Back to Settings");
+    back.setOnClickListener(v->showSettings());
+    add(back);
  }
- private void showLabels(){
+
+private void showLabels(){
     clear("Settings — Names and titles");
     add(Ui.muted(this,"Type a new name to replace the original. Leave a box empty to keep the original."));
     final List<String> keys=new ArrayList<>();final List<EditText> boxes=new ArrayList<>();
