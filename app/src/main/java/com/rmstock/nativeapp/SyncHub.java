@@ -8,6 +8,7 @@ import android.os.Handler;
 import android.os.Looper;
 import android.text.format.Formatter;
 import org.json.JSONObject;
+import org.json.JSONArray;
 import java.io.*;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
@@ -491,7 +492,7 @@ public final class SyncHub {
                     notifyUi(onUi);
                     return;
                 }
-                JSONArray events = res.optJSONArray("events");
+                org.json.JSONArray events = res.optJSONArray("events");
                 int applied = 0;
                 long maxTs = since;
                 if (events != null) {
