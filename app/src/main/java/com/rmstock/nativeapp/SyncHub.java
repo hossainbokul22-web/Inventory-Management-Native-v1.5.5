@@ -147,6 +147,29 @@ public final class SyncHub {
     }
 
     public String localIpHint() {
+        // Prefer real LAN/hotspot IPv4 from interfaces (not only WifiManager)
+        try {
+            java.util.List<String> found = new java.util.ArrayList<>();
+            java.util.Enumeration<java.net.NetworkInterface> en = java.net.NetworkInterface.getNetworkInterfaces();
+            while (en != null && en.hasMoreElements()) {
+                java.net.NetworkInterface ni = en.nextElement();
+                if (ni == null || !ni.isUp() || ni.isLoopback()) continue;
+                java.util.Enumeration<java.net.InetAddress> addrs = ni.getInetAddresses();
+                while (addrs.hasMoreElements()) {
+                    java.net.InetAddress a = addrs.nextElement();
+                    if (a.isLoopbackAddress() || !(a instanceof java.net.Inet4Address)) continue;
+                    String ip = a.getHostAddress();
+                    if (ip == null || ip.startsWith("169.254.")) continue; // link-local
+                    found.add(ip);
+                }
+            }
+            // Prefer hotspot-ish 192.168.43.x / 192.168.137.x then other 192.168/10/172
+            for (String ip : found) if (ip.startsWith("192.168.43.") || ip.startsWith("192.168.137.")) return ip;
+            for (String ip : found) if (ip.startsWith("192.168.")) return ip;
+            for (String ip : found) if (ip.startsWith("10.")) return ip;
+            for (String ip : found) if (ip.startsWith("172.")) return ip;
+            if (!found.isEmpty()) return found.get(0);
+        } catch (Exception ignored) {}
         try {
             WifiManager wm = (WifiManager) app.getApplicationContext().getSystemService(Context.WIFI_SERVICE);
             if (wm != null) {
@@ -173,7 +196,12 @@ public final class SyncHub {
                         Socket s = serverSocket.accept();
                         pool.execute(() -> handleClient(s));
                     } catch (Exception e) {
-                        if (serverOn.get()) lastStatus = "Accept: " + e.getMessage();
+                        if (serverOn.get()) {
+                            lastStatus = "Accept: " + e.getMessage();
+                            try { Thread.sleep(300); } catch (Exception ignored) {}
+                            // keep listening — one bad client must not kill server
+                            continue;
+                        }
                         break;
                     }
                 }
@@ -350,16 +378,17 @@ public final class SyncHub {
                     String netMode = db.setting("sync_net", "hotspot");
                     if ("internet".equals(netMode)) {
                         sent = httpPush(req);
-                    }
-                    if (!sent && !"internet".equals(netMode)) {
-                        try {
-                            JSONObject res = request(host, port, req);
-                            sent = res != null && res.optBoolean("ok");
-                        } catch (Exception lanEx) {
-                            sent = httpPush(req);
+                    } else {
+                        // Hotspot / Office LAN — TCP only, one retry
+                        for (int attempt = 0; attempt < 2 && !sent; attempt++) {
+                            try {
+                                JSONObject res = request(host, port, req);
+                                sent = res != null && res.optBoolean("ok");
+                            } catch (Exception lanEx) {
+                                if (attempt == 0) try { Thread.sleep(400); } catch (Exception ignored) {}
+                            }
                         }
                     }
-                    if (!sent) sent = httpPush(req);
                     if (sent) {
                         ContentValues u = new ContentValues();
                         u.put("status", "sent");
@@ -621,6 +650,26 @@ public final class SyncHub {
             String line = in.readLine();
             return line == null ? null : new JSONObject(line);
         }
+    }
+
+    public void testLanConnection(Runnable onUi) {
+        pool.execute(() -> {
+            try {
+                String host = db.setting("sync_server_ip", "192.168.43.1");
+                JSONObject req = new JSONObject();
+                req.put("type", "ping");
+                req.put("pin", db.setting("sync_pin", "1234"));
+                JSONObject res = request(host, port(), req);
+                if (res != null && res.optBoolean("ok")) {
+                    lastStatus = "LAN OK · " + host + ":" + port() + " · pending on server " + res.optInt("pending", 0);
+                } else {
+                    lastStatus = "LAN fail · check Wi-Fi, server ON, IP, PIN";
+                }
+            } catch (Exception e) {
+                lastStatus = "LAN fail: " + e.getMessage();
+            }
+            notifyUi(onUi);
+        });
     }
 
     private int port() {

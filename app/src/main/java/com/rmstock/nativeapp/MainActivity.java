@@ -563,6 +563,24 @@ private boolean admin(){return db.canAdmin()||db.canEdit();}
     if(isDeviceBlocked()){ showDeviceBlocked(); return; }
     clear("Dashboard");
     try{
+        if("server".equals(db.setting("sync_mode","off")) && !SyncHub.get(this).isServerOn()){
+            SyncHub.get(this).startServer(null);
+        }
+        if("client".equals(db.setting("sync_mode","off"))){
+            // periodic flush while on dashboard (hotspot/LAN)
+            final Runnable autoFlush=new Runnable(){
+                @Override public void run(){
+                    if(!"Dashboard".equals(currentScreen) && currentScreen!=null && !currentScreen.startsWith("Dashboard")) return;
+                    if(!"client".equals(db.setting("sync_mode","off"))) return;
+                    SyncHub.get(MainActivity.this).flushQueue(null);
+                    main.postDelayed(this, 15000);
+                }
+            };
+            dashboardRunnables.add(autoFlush);
+            main.postDelayed(autoFlush, 3000);
+        }
+    }catch(Exception ignored){}
+    try{
         if("internet".equals(db.setting("sync_net","hotspot"))
                 && db.setting("sync_http_url","").startsWith("http")){
             SyncHub.get(this).pullFromInternet(null);
@@ -1610,6 +1628,15 @@ LinearLayout c6=Ui.card(this,Ui.CARD);
             refreshSt.run();
         });
         cSync.addView(saveSync,Ui.lp(this,-1,-2,0,0,3,0,3));
+        Button testLan=Ui.secondary(this,"Test LAN / hotspot link");
+        testLan.setOnClickListener(v->{
+            toast("Testing…");
+            SyncHub.get(this).testLanConnection(()->{
+                syncSt.setText("Status: "+SyncHub.get(this).status()+" · pending "+SyncHub.get(this).pendingCount());
+                toast(SyncHub.get(this).status());
+            });
+        });
+        cSync.addView(testLan,Ui.lp(this,-1,-2,0,0,3,0,3));
         Button showIp=Ui.secondary(this,"Show my Wi-Fi / LAN IP");
         showIp.setOnClickListener(v->{
             String ip=SyncHub.get(this).localIpHint();
