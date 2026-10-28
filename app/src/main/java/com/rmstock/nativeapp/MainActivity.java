@@ -5,17 +5,22 @@ import com.googlecode.tesseract.android.TessBaseAPI;
 import android.Manifest;import android.app.*;import android.content.*;import android.content.pm.PackageManager;import android.graphics.*;import android.graphics.pdf.PdfDocument;import android.net.Uri;import android.os.*;import android.print.*;import android.provider.MediaStore;import android.speech.RecognizerIntent;import android.view.*;import android.widget.*;import androidx.annotation.Nullable;import android.app.Activity;import androidx.core.app.ActivityCompat;import androidx.core.content.ContextCompat;import androidx.core.content.FileProvider;import com.googlecode.tesseract.android.TessBaseAPI;import org.json.*;import java.io.*;import java.text.*;import java.util.*;import java.util.concurrent.*;
 
 public class MainActivity extends Activity {
- private StockDb db; private File photoFile;private LinearLayout root,content,navRow; private ScrollView mainScroll; private LinearLayout chatOverlay;private TextView brandView;private final List<ImageView> navIcons=new ArrayList<>();private final List<TextView> navViews=new ArrayList<>();private final List<String> navKeys=new ArrayList<>(); private Uri photoUri; private static final int CAM=77,PHOTO=78,CHAT_IMG=94,CHAT_FILE=95; private final Handler main=new Handler(Looper.getMainLooper()); private long accessUnlockedUntil=0; private String role(){return db.currentRole();} private String user(){return db.currentUser();}
+ private StockDb db; private File photoFile;private LinearLayout root,content,navRow; private ScrollView mainScroll; private LinearLayout chatOverlay;private TextView brandView;private final List<ImageView> navIcons=new ArrayList<>();private final List<TextView> navViews=new ArrayList<>();private final List<String> navKeys=new ArrayList<>(); private Uri photoUri; private static final int CAM=77,PHOTO=78,CHAT_IMG=94,CHAT_FILE=95; private final Handler main=new Handler(Looper.getMainLooper()); private long accessUnlockedUntil=0; private boolean accessDialogShowing=false; private String role(){return db.currentRole();} private String user(){return db.currentUser();}
  private File pendingPdf; private String currentScreen="Dashboard"; private final List<Runnable> dashboardRunnables=new ArrayList<>(); private int dp(float n){return (int)(n*getResources().getDisplayMetrics().density+.5f);} private TextView title(String s){TextView t=Ui.text(this,s,21,Ui.INK,true);t.setPadding(dp(2),dp(10),dp(2),dp(8));return t;} private Button btn(String s){return Ui.primary(this,s);} private EditText edit(String hint){return Ui.field(this,hint);} private LinearLayout row(){LinearLayout l=new LinearLayout(this);l.setOrientation(LinearLayout.HORIZONTAL);l.setGravity(Gravity.CENTER_VERTICAL);l.setPadding(0,dp(3),0,dp(3));return l;} private void add(View v){LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,-2);if(v instanceof Button||v instanceof EditText)p.setMargins(0,dp(4),0,dp(4));else if(v.getLayoutParams() instanceof LinearLayout.LayoutParams)p=(LinearLayout.LayoutParams)v.getLayoutParams();content.addView(v,p);}
  @Override protected void onResume(){
     super.onResume();
     try{
-        if(db!=null && db.setupDone() && System.currentTimeMillis()>accessUnlockedUntil){
-            if("Team Messenger".equals(currentScreen)|| (currentScreen!=null && currentScreen.startsWith("Call"))) return;
-            gateAppAccess(null);
-        }
+        if(db==null || !db.setupDone() || accessDialogShowing) return;
+        try{
+            long saved=Long.parseLong(db.setting("access_unlocked_until","0"));
+            if(saved > accessUnlockedUntil) accessUnlockedUntil=saved;
+        }catch(Exception ignored){}
+        if(System.currentTimeMillis() < accessUnlockedUntil) return;
+        if("Team Messenger".equals(currentScreen)) return;
+        gateAppAccess(null);
     }catch(Exception ignored){}
  }
+
 public void onCreate(Bundle b){super.onCreate(b);Ui.init(this);db=new StockDb(this);
     if(!db.setupDone()){
         if(db.setting("role","").isEmpty()) db.setSetting("role","");
@@ -263,42 +268,64 @@ private void clear(String head){
  private void gateAppAccess(Runnable after){
     if(db==null) return;
     if(!db.setupDone()){ showSetupWizard(); return; }
-    if(System.currentTimeMillis() < accessUnlockedUntil){ if(after!=null) after.run(); return; }
+    // Restore session from storage (survives leaving app)
+    try{
+        long saved=Long.parseLong(db.setting("access_unlocked_until","0"));
+        if(saved > accessUnlockedUntil) accessUnlockedUntil=saved;
+    }catch(Exception ignored){}
+    if(System.currentTimeMillis() < accessUnlockedUntil){
+        if(after!=null) after.run();
+        return;
+    }
+    if(accessDialogShowing){
+        // Already asking once — queue after for when unlocked
+        if(after!=null){
+            Runnable prev=after;
+            // run after unlock via single dialog only
+        }
+        return;
+    }
     if(!db.hasAccessPin()){
-        // Admin must set access PIN — if Admin device without PIN yet
         if(db.canAdmin()){
-            toast("Set Team Access PIN in Settings");
             if(after!=null) after.run();
             return;
         }
-        toast("No Access PIN — ask Admin to set up this device");
+        toast("No Access PIN — ask Admin");
         return;
     }
+    accessDialogShowing=true;
     final android.widget.EditText pin=new android.widget.EditText(this);
     pin.setInputType(android.text.InputType.TYPE_CLASS_NUMBER|android.text.InputType.TYPE_NUMBER_VARIATION_PASSWORD);
     pin.setHint("Team Access PIN");
+    final Runnable done=after;
     AlertDialog dlg=new AlertDialog.Builder(this)
-        .setTitle("Unlock Inventory App")
-        .setMessage("Enter the Access PIN given by Admin.\\nWrong PIN = no entry.")
+        .setTitle("Unlock")
+        .setMessage("Enter Access PIN (once — stays unlocked for 12 hours)")
         .setView(pin)
         .setCancelable(false)
         .setPositiveButton("Unlock", null)
         .create();
+    dlg.setOnDismissListener(d-> accessDialogShowing=false);
     dlg.setOnShowListener(d->{
         dlg.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v->{
             if(db.checkAccessPin(pin.getText().toString())){
-                accessUnlockedUntil=System.currentTimeMillis()+10*60*1000L;
-                db.audit(user(),role(),"access_ok","entry");
+                // 12 hours — no re-login every time you leave
+                long until=System.currentTimeMillis()+12L*60L*60L*1000L;
+                accessUnlockedUntil=until;
+                db.setSetting("access_unlocked_until", String.valueOf(until));
+                db.audit(user(),role(),"access_ok","12h");
+                accessDialogShowing=false;
                 dlg.dismiss();
-                if(after!=null) after.run();
+                if(done!=null) done.run();
             }else{
                 db.audit(user(),role(),"access_fail","entry");
-                toast("Wrong Access PIN");
+                toast("Wrong PIN");
             }
         });
     });
     dlg.show();
- }
+}
+
 
  /**
   * First install:
@@ -346,7 +373,7 @@ private void clear(String head){
                     db.setSetting("current_user","Admin");
                     db.setSetting("guard","1");
                     db.markSetupDone();
-                    accessUnlockedUntil=System.currentTimeMillis()+10*60*1000L;
+                    accessUnlockedUntil=System.currentTimeMillis()+12L*60L*60L*1000L; db.setSetting("access_unlocked_until", String.valueOf(accessUnlockedUntil));
                     db.audit("Admin","Admin","setup_admin","ok");
                     toast("Admin device ready ✔");
                     if(navRow!=null) navRow.setVisibility(View.VISIBLE);
@@ -376,7 +403,7 @@ private void clear(String head){
                     // Ensure no admin pin left empty / not set — cannot call admin powers
                     db.setSetting("admin_pin_hash",""); // no admin pin on supervisor device
                     db.markSetupDone();
-                    accessUnlockedUntil=System.currentTimeMillis()+10*60*1000L;
+                    accessUnlockedUntil=System.currentTimeMillis()+12L*60L*60L*1000L; db.setSetting("access_unlocked_until", String.valueOf(accessUnlockedUntil));
                     db.audit("Supervisor","Supervisor","setup_supervisor","ok");
                     toast("Supervisor device ready ✔");
                     if(navRow!=null) navRow.setVisibility(View.VISIBLE);
