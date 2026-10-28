@@ -125,23 +125,24 @@ public void onCreate(Bundle b){super.onCreate(b);Ui.init(this);db=new StockDb(th
  
  private void requestDutyLocation(){
     try{
-        if(androidx.core.content.ContextCompat.checkSelfPermission(this,android.Manifest.permission.ACCESS_FINE_LOCATION)
-                ==android.content.pm.PackageManager.PERMISSION_GRANTED){
+        boolean fine = androidx.core.content.ContextCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_FINE_LOCATION)
+                == android.content.pm.PackageManager.PERMISSION_GRANTED
+            || androidx.core.content.ContextCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_COARSE_LOCATION)
+                == android.content.pm.PackageManager.PERMISSION_GRANTED;
+        if(fine){
             startDutyServiceSafe();
-            // Android 10+ background optional
-            if(android.os.Build.VERSION.SDK_INT>=29
-                && androidx.core.content.ContextCompat.checkSelfPermission(this,android.Manifest.permission.ACCESS_BACKGROUND_LOCATION)
-                    !=android.content.pm.PackageManager.PERMISSION_GRANTED){
-                try{ androidx.core.app.ActivityCompat.requestPermissions(this,
-                    new String[]{android.Manifest.permission.ACCESS_BACKGROUND_LOCATION}, LOC_PERM); }catch(Exception ignored){}
-            }
+            // Do NOT re-ask background location on every open (very annoying)
             return;
         }
+        // Ask location only once per install (system still remembers Allow forever if user granted)
+        if("1".equals(db.setting("perm_loc_asked","0"))) return;
+        db.setSetting("perm_loc_asked","1");
         androidx.core.app.ActivityCompat.requestPermissions(this,
             new String[]{android.Manifest.permission.ACCESS_FINE_LOCATION, android.Manifest.permission.ACCESS_COARSE_LOCATION},
             LOC_PERM);
     }catch(Exception e){ /* ignore */ }
  }
+
  private void startDutyServiceSafe(){
     try{ DutyLocationService.start(this); }catch(Exception e){ toast("Location service: "+e.getMessage()); }
  }
@@ -181,9 +182,11 @@ private void requestNotifPermission(){
     try{
         AlertReceiver.ensureChannel(this);
         if(android.os.Build.VERSION.SDK_INT>=33){
-            if(ContextCompat.checkSelfPermission(this,"android.permission.POST_NOTIFICATIONS")!=PackageManager.PERMISSION_GRANTED){
-                ActivityCompat.requestPermissions(this,new String[]{"android.permission.POST_NOTIFICATIONS"},91);
-            }
+            if(ContextCompat.checkSelfPermission(this,"android.permission.POST_NOTIFICATIONS")==PackageManager.PERMISSION_GRANTED)
+                return;
+            if("1".equals(db.setting("perm_notif_asked","0"))) return;
+            db.setSetting("perm_notif_asked","1");
+            ActivityCompat.requestPermissions(this,new String[]{"android.permission.POST_NOTIFICATIONS"},91);
         }
     }catch(Exception ignored){}
  }
