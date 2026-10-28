@@ -230,6 +230,26 @@ public final class SyncHub {
                 lastStatus = "Call signal";
                 return true;
             }
+            if ("device_register".equals(kind)) {
+                db.upsertDevice(
+                    data.optString("device_id"),
+                    data.optString("device_code"),
+                    data.optString("name"),
+                    data.optString("role"),
+                    data.optString("ip"),
+                    data.optBoolean("active", true));
+                lastStatus = "Device registered " + data.optString("device_code");
+                return true;
+            }
+            if ("device_status".equals(kind)) {
+                // Admin pushed activate/deactivate to this device
+                String myId = db.setting("device_id", "");
+                if (myId.length() > 0 && myId.equals(data.optString("device_id"))) {
+                    db.setSetting("device_active", data.optBoolean("active", true) ? "1" : "0");
+                    lastStatus = "Device status updated";
+                }
+                return true;
+            }
             if ("chat".equals(kind)) {
                 storeChat(data.optString("sender", "User"), data.optString("body", ""), data.optString("ts", ""));
                 lastStatus = "Chat from " + data.optString("sender");

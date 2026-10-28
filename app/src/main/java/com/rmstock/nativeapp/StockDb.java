@@ -134,6 +134,44 @@ public class StockDb extends SQLiteOpenHelper {
     boolean canAdmin(){String r=currentRole();return "Admin".equalsIgnoreCase(r)||"Owner/Admin".equalsIgnoreCase(r)||"Owner".equalsIgnoreCase(r);}
 
     /** SHA-256 hex of admin PIN (never store plain PIN). */
+    void ensureDevicesTable(){
+        try{
+            getWritableDatabase().execSQL(
+                "CREATE TABLE IF NOT EXISTS team_devices(" +
+                "device_id TEXT PRIMARY KEY," +
+                "device_code TEXT," +
+                "name TEXT," +
+                "role TEXT," +
+                "ip TEXT," +
+                "last_seen TEXT," +
+                "active INTEGER DEFAULT 1)");
+        }catch(Exception ignored){}
+    }
+    void upsertDevice(String deviceId, String code, String name, String role, String ip, boolean active){
+        ensureDevicesTable();
+        try{
+            android.content.ContentValues v=new android.content.ContentValues();
+            v.put("device_id", deviceId);
+            v.put("device_code", code);
+            v.put("name", name);
+            v.put("role", role);
+            v.put("ip", ip==null?"":ip);
+            v.put("last_seen", new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.US).format(new java.util.Date()));
+            v.put("active", active?1:0);
+            getWritableDatabase().insertWithOnConflict("team_devices", null, v, android.database.sqlite.SQLiteDatabase.CONFLICT_REPLACE);
+        }catch(Exception ignored){}
+    }
+    java.util.List<org.json.JSONObject> listDevices(){
+        ensureDevicesTable();
+        return rows("SELECT * FROM team_devices ORDER BY last_seen DESC", null);
+    }
+    void setDeviceActive(String deviceId, boolean active){
+        ensureDevicesTable();
+        android.content.ContentValues v=new android.content.ContentValues();
+        v.put("active", active?1:0);
+        getWritableDatabase().update("team_devices", v, "device_id=?", new String[]{deviceId});
+    }
+
     boolean hasAccessPin(){
         String h=setting("access_pin_hash","");
         return h!=null && h.length()>=32;

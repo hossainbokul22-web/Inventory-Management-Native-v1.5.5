@@ -264,18 +264,93 @@ private void clear(String head){
  /** Max safety: must be Admin role + device Guard (fresh) + Admin PIN. */
  
  /** Unlock app with Team Access PIN (supervisors use this). Session \~10 minutes. */
- private void gateAppAccess(Runnable after){
+ 
+ private void ensureDeviceIdentity(){
+    if(db.setting("device_id","").isEmpty()){
+        db.setSetting("device_id", java.util.UUID.randomUUID().toString());
+    }
+    if(db.setting("device_code","").isEmpty()){
+        String code = Integer.toHexString((db.setting("device_id","x").hashCode() & 0x7fffffff) % 0x1000000).toUpperCase(java.util.Locale.US);
+        while(code.length()<6) code="0"+code;
+        db.setSetting("device_code", code);
+    }
+    if(db.setting("device_active","").isEmpty()) db.setSetting("device_active","1");
+ }
+
+ private String deviceIpHint(){
+    try{
+        return SyncHub.get(this).localIpHint();
+    }catch(Exception e){ return "-"; }
+ }
+
+ private void registerDeviceWithAdmin(){
+    try{
+        ensureDeviceIdentity();
+        org.json.JSONObject o=new org.json.JSONObject();
+        o.put("device_id", db.setting("device_id",""));
+        o.put("device_code", db.setting("device_code",""));
+        o.put("name", db.setting("current_user", db.setting("duty_name","Device")));
+        o.put("role", db.currentRole());
+        o.put("ip", deviceIpHint());
+        o.put("active", true);
+        // Local admin list if this is admin
+        if(db.canAdmin()){
+            db.upsertDevice(o.getString("device_id"), o.getString("device_code"), o.getString("name"), o.getString("role"), o.getString("ip"), true);
+        }
+        // Push to admin server / queue when client
+        if("client".equals(db.setting("sync_mode","off"))){
+            SyncHub.get(this).enqueue("device_register", o);
+            SyncHub.get(this).flushQueue(null);
+        } else if("server".equals(db.setting("sync_mode","off"))){
+            // already upserted
+        } else {
+            // Optional internet webhook once
+            SyncHub.get(this).enqueue("device_register", o);
+        }
+    }catch(Exception ignored){}
+ }
+
+ private boolean isDeviceBlocked(){
+    return "0".equals(db.setting("device_active","1"));
+ }
+
+ private void showDeviceBlocked(){
+    clear("Device deactivated");
+    if(navRow!=null) navRow.setVisibility(View.GONE);
+    add(Ui.text(this,"⛔ App deactivated by Admin",18,Ui.NAVY_TEXT,true));
+    add(Ui.muted(this,"Device code: "+db.setting("device_code","—")+"\\nContact Admin to re-activate.\\nWhen Admin is online (hotspot/webhook), status will sync."));
+    Button retry=Ui.secondary(this,"Check status / Sync");
+    retry.setOnClickListener(v->{
+        try{
+            if("client".equals(db.setting("sync_mode","off"))){
+                SyncHub.get(this).flushQueue(null);
+                SyncHub.get(this).pullChat(null);
+            }
+        }catch(Exception ignored){}
+        if(!isDeviceBlocked()){ if(navRow!=null) navRow.setVisibility(View.VISIBLE); showDashboard(); }
+        else toast("Still deactivated");
+    });
+    add(retry);
+ }
+
+private void gateAppAccess(Runnable after){
     if(db==null) return;
     if(!db.setupDone()){ showSetupWizard(); return; }
-    // Messenger-style: once unlocked on this device, stay unlocked until explicit Lock
+    ensureDeviceIdentity();
+    if(isDeviceBlocked()){ showDeviceBlocked(); return; }
+    // Admin device: never ask access PIN after setup
+    if(db.canAdmin()){
+        db.setSetting("access_remember","1");
+        if(after!=null) after.run();
+        return;
+    }
     if("1".equals(db.setting("access_remember","0"))){
         if(after!=null) after.run();
         return;
     }
     if(accessDialogShowing) return;
     if(!db.hasAccessPin()){
-        if(db.canAdmin()){ if(after!=null) after.run(); return; }
-        toast("No Access PIN — ask Admin");
+        if(after!=null) after.run();
         return;
     }
     accessDialogShowing=true;
@@ -285,7 +360,7 @@ private void clear(String head){
     final Runnable done=after;
     AlertDialog dlg=new AlertDialog.Builder(this)
         .setTitle("Unlock")
-        .setMessage("Enter Access PIN once. This device will stay signed in like Messenger.")
+        .setMessage("Enter Access PIN once. Stays signed in like Messenger.")
         .setView(pin)
         .setCancelable(false)
         .setPositiveButton("Unlock", null)
@@ -296,19 +371,19 @@ private void clear(String head){
             if(db.checkAccessPin(pin.getText().toString())){
                 db.setSetting("access_remember","1");
                 accessUnlockedUntil=Long.MAX_VALUE/2;
-                db.setSetting("access_unlocked_until", String.valueOf(accessUnlockedUntil));
                 db.audit(user(),role(),"access_ok","remember");
                 accessDialogShowing=false;
                 dlg.dismiss();
+                registerDeviceWithAdmin();
                 if(done!=null) done.run();
             }else{
-                db.audit(user(),role(),"access_fail","entry");
                 toast("Wrong PIN");
             }
         });
     });
     dlg.show();
 }
+
 
 
 
@@ -361,6 +436,9 @@ private void clear(String head){
                     db.setSetting("access_remember","1");
                     accessUnlockedUntil=System.currentTimeMillis()+12L*60L*60L*1000L; db.setSetting("access_unlocked_until", String.valueOf(accessUnlockedUntil));
                     db.audit("Admin","Admin","setup_admin","ok");
+                    db.setSetting("access_remember","1");
+                    ensureDeviceIdentity();
+                    registerDeviceWithAdmin();
                     toast("Admin device ready ✔");
                     if(navRow!=null) navRow.setVisibility(View.VISIBLE);
                     build(); showDashboard();
@@ -392,6 +470,9 @@ private void clear(String head){
                     db.setSetting("access_remember","1");
                     accessUnlockedUntil=System.currentTimeMillis()+12L*60L*60L*1000L; db.setSetting("access_unlocked_until", String.valueOf(accessUnlockedUntil));
                     db.audit("Supervisor","Supervisor","setup_supervisor","ok");
+                    db.setSetting("access_remember","1");
+                    ensureDeviceIdentity();
+                    registerDeviceWithAdmin();
                     toast("Supervisor device ready ✔");
                     if(navRow!=null) navRow.setVisibility(View.VISIBLE);
                     build(); showDashboard();
@@ -478,6 +559,7 @@ private void requireAdminPower(String why, Runnable ok){
 
 private boolean admin(){return db.canAdmin()||db.canEdit();}
  private void showDashboard(){
+    if(isDeviceBlocked()){ showDeviceBlocked(); return; }
     clear("Dashboard");
     try{
         TextView live=new TextView(this); live.setText("LIVE DATA  •  Today’s RM Receive, Mixing-2 Use, Batch and Closing Stock");
@@ -1520,6 +1602,48 @@ c2.addView(Ui.text(this,"Tab names",15,Ui.NAVY_TEXT,true));
         });
         cSync.addView(flush,Ui.lp(this,-1,-2,0,0,3,0,3));
         add(cSync);
+
+
+        if(db.canAdmin()){
+            LinearLayout cDev=Ui.card(this,Ui.CARD);
+            cDev.addView(Ui.text(this,"Team devices",15,Ui.NAVY_TEXT,true));
+            cDev.addView(Ui.muted(this,"Supervisors register when online/hotspot. You can deactivate a device — their app blocks until you activate again."));
+            cDev.addView(Ui.muted(this,"This device: "+db.setting("device_code","—")+" · IP "+deviceIpHint()));
+            Button refreshDev=Ui.secondary(this,"Refresh device list");
+            refreshDev.setOnClickListener(v->showSettings());
+            cDev.addView(refreshDev,Ui.lp(this,-1,-2,0,0,6,0,0));
+            try{
+                java.util.List<org.json.JSONObject> devs=db.listDevices();
+                if(devs.isEmpty()) cDev.addView(Ui.muted(this,"No devices yet — supervisors open app on hotspot/client mode once."));
+                for(final org.json.JSONObject drow:devs){
+                    LinearLayout row=Ui.card(this,Ui.SOFT_BLUE);
+                    boolean on=drow.optInt("active",1)==1;
+                    row.addView(Ui.text(this,drow.optString("name","?")+" · "+drow.optString("role"),14,Ui.NAVY_TEXT,true));
+                    row.addView(Ui.muted(this,"Code "+drow.optString("device_code")+" · IP "+drow.optString("ip")+" · "+drow.optString("last_seen")));
+                    row.addView(Ui.text(this, on?"Status: ACTIVE":"Status: OFF",13, on?Ui.GOOD:Ui.BAD,true));
+                    Button tog=Ui.secondary(this, on?"Deactivate":"Activate");
+                    tog.setOnClickListener(v->{
+                        requireAdminPower("Device activate/deactivate", ()->{
+                            boolean next=!on;
+                            db.setDeviceActive(drow.optString("device_id"), next);
+                            try{
+                                org.json.JSONObject st=new org.json.JSONObject();
+                                st.put("device_id", drow.optString("device_id"));
+                                st.put("active", next);
+                                // Store for clients to pull when online
+                                SyncHub.get(this).storeCallSignal(new org.json.JSONObject().put("kind","device_status_broadcast").put("data",st));
+                                SyncHub.get(this).enqueue("device_status", st);
+                            }catch(Exception ignored){}
+                            toast(next?"Activated":"Deactivated");
+                            showSettings();
+                        });
+                    });
+                    row.addView(tog);
+                    cDev.addView(row);
+                }
+            }catch(Exception e){ cDev.addView(Ui.muted(this,e.getMessage())); }
+            add(cDev);
+        }
 
 c7.addView(Ui.text(this,"Unified backup (RM + PM + Yield)",15,Ui.NAVY_TEXT,true));
         c7.addView(Ui.muted(this,"One file includes raw materials, products, batches, receives, PM packaging data and yield definitions."));
