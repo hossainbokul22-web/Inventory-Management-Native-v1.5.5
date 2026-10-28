@@ -11,11 +11,7 @@ public class MainActivity extends Activity {
     super.onResume();
     try{
         if(db==null || !db.setupDone() || accessDialogShowing) return;
-        try{
-            long saved=Long.parseLong(db.setting("access_unlocked_until","0"));
-            if(saved > accessUnlockedUntil) accessUnlockedUntil=saved;
-        }catch(Exception ignored){}
-        if(System.currentTimeMillis() < accessUnlockedUntil) return;
+        if("1".equals(db.setting("access_remember","0"))) return;
         if("Team Messenger".equals(currentScreen)) return;
         gateAppAccess(null);
     }catch(Exception ignored){}
@@ -268,28 +264,14 @@ private void clear(String head){
  private void gateAppAccess(Runnable after){
     if(db==null) return;
     if(!db.setupDone()){ showSetupWizard(); return; }
-    // Restore session from storage (survives leaving app)
-    try{
-        long saved=Long.parseLong(db.setting("access_unlocked_until","0"));
-        if(saved > accessUnlockedUntil) accessUnlockedUntil=saved;
-    }catch(Exception ignored){}
-    if(System.currentTimeMillis() < accessUnlockedUntil){
+    // Messenger-style: once unlocked on this device, stay unlocked until explicit Lock
+    if("1".equals(db.setting("access_remember","0"))){
         if(after!=null) after.run();
         return;
     }
-    if(accessDialogShowing){
-        // Already asking once — queue after for when unlocked
-        if(after!=null){
-            Runnable prev=after;
-            // run after unlock via single dialog only
-        }
-        return;
-    }
+    if(accessDialogShowing) return;
     if(!db.hasAccessPin()){
-        if(db.canAdmin()){
-            if(after!=null) after.run();
-            return;
-        }
+        if(db.canAdmin()){ if(after!=null) after.run(); return; }
         toast("No Access PIN — ask Admin");
         return;
     }
@@ -300,7 +282,7 @@ private void clear(String head){
     final Runnable done=after;
     AlertDialog dlg=new AlertDialog.Builder(this)
         .setTitle("Unlock")
-        .setMessage("Enter Access PIN (once — stays unlocked for 12 hours)")
+        .setMessage("Enter Access PIN once. This device will stay signed in like Messenger.")
         .setView(pin)
         .setCancelable(false)
         .setPositiveButton("Unlock", null)
@@ -309,11 +291,10 @@ private void clear(String head){
     dlg.setOnShowListener(d->{
         dlg.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v->{
             if(db.checkAccessPin(pin.getText().toString())){
-                // 12 hours — no re-login every time you leave
-                long until=System.currentTimeMillis()+12L*60L*60L*1000L;
-                accessUnlockedUntil=until;
-                db.setSetting("access_unlocked_until", String.valueOf(until));
-                db.audit(user(),role(),"access_ok","12h");
+                db.setSetting("access_remember","1");
+                accessUnlockedUntil=Long.MAX_VALUE/2;
+                db.setSetting("access_unlocked_until", String.valueOf(accessUnlockedUntil));
+                db.audit(user(),role(),"access_ok","remember");
                 accessDialogShowing=false;
                 dlg.dismiss();
                 if(done!=null) done.run();
@@ -325,6 +306,7 @@ private void clear(String head){
     });
     dlg.show();
 }
+
 
 
  /**
@@ -373,6 +355,7 @@ private void clear(String head){
                     db.setSetting("current_user","Admin");
                     db.setSetting("guard","1");
                     db.markSetupDone();
+                    db.setSetting("access_remember","1");
                     accessUnlockedUntil=System.currentTimeMillis()+12L*60L*60L*1000L; db.setSetting("access_unlocked_until", String.valueOf(accessUnlockedUntil));
                     db.audit("Admin","Admin","setup_admin","ok");
                     toast("Admin device ready ✔");
@@ -403,6 +386,7 @@ private void clear(String head){
                     // Ensure no admin pin left empty / not set — cannot call admin powers
                     db.setSetting("admin_pin_hash",""); // no admin pin on supervisor device
                     db.markSetupDone();
+                    db.setSetting("access_remember","1");
                     accessUnlockedUntil=System.currentTimeMillis()+12L*60L*60L*1000L; db.setSetting("access_unlocked_until", String.valueOf(accessUnlockedUntil));
                     db.audit("Supervisor","Supervisor","setup_supervisor","ok");
                     toast("Supervisor device ready ✔");
@@ -1575,6 +1559,14 @@ c7.addView(Ui.text(this,"Unified backup (RM + PM + Yield)",15,Ui.NAVY_TEXT,true)
         });
         c8.addView(pinBtn, Ui.lp(this,-1,-2,0,0,6,0,0));
         c8.addView(Ui.muted(this,"Admin PIN is separate from phone fingerprint. Never share with supervisors."));
+        Button lockApp=Ui.secondary(this,"Lock app (ask PIN next open)");
+        lockApp.setOnClickListener(v->{
+            db.setSetting("access_remember","0");
+            accessUnlockedUntil=0;
+            db.setSetting("access_unlocked_until","0");
+            toast("Locked — PIN required next time");
+        });
+        c8.addView(lockApp, Ui.lp(this,-1,-2,0,0,6,0,0));
         addCard(c8);
     }catch(Exception e){error(e);}
  }
