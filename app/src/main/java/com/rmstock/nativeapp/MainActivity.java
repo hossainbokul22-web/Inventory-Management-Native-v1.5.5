@@ -299,7 +299,7 @@ private void clear(String head){
             db.upsertDevice(o.getString("device_id"), o.getString("device_code"), o.getString("name"), o.getString("role"), o.getString("ip"), true);
         }
         // Push to admin server / queue when client
-        if("client".equals(db.setting("sync_mode","off"))){
+        if("client".equals(db.setting("sync_mode","off")) || "internet".equals(db.setting("sync_net","hotspot"))){
             SyncHub.get(this).enqueue("device_register", o);
             SyncHub.get(this).flushQueue(null);
         } else if("server".equals(db.setting("sync_mode","off"))){
@@ -323,7 +323,7 @@ private void clear(String head){
     Button retry=Ui.secondary(this,"Check status / Sync");
     retry.setOnClickListener(v->{
         try{
-            if("client".equals(db.setting("sync_mode","off"))){
+            if("client".equals(db.setting("sync_mode","off")) || "internet".equals(db.setting("sync_net","hotspot"))){
                 SyncHub.get(this).flushQueue(null);
                 SyncHub.get(this).pullChat(null);
             }
@@ -870,7 +870,7 @@ private boolean admin(){return db.canAdmin()||db.canEdit();}
             ContentValues z=new ContentValues();z.put("batch_id",nid);z.put("date",ymd(d));z.put("product_code",0);z.put("shift",0);z.put("rm_code",code);z.put("recipe_qty",0);z.put("batch_count",0);z.put("consumption",qty);z.put("created_at","WASTE|"+note.getText().toString().trim());
             db.insert("mixing2_batch_log",z);
             try{
-                if("client".equals(db.setting("sync_mode","off"))){
+                if("client".equals(db.setting("sync_mode","off")) || "internet".equals(db.setting("sync_net","hotspot"))){
                     org.json.JSONObject payload=new org.json.JSONObject();
                     payload.put("date",ymd(d));
                     payload.put("rm_code",code);
@@ -1191,7 +1191,7 @@ private void showMessenger(){
         @Override public void run(){
             if(!"Team Messenger".equals(currentScreen)) return;
             final Runnable self=this;
-            if("client".equals(db.setting("sync_mode","off"))){
+            if("client".equals(db.setting("sync_mode","off")) || "internet".equals(db.setting("sync_net","hotspot"))){
                 SyncHub.get(MainActivity.this).pullChat(()->{
                     paint.run();
                     if("Team Messenger".equals(currentScreen)) main.postDelayed(self, 800);
@@ -1560,8 +1560,8 @@ LinearLayout c6=Ui.card(this,Ui.CARD);
         LinearLayout c7=Ui.card(this,Ui.CARD);
         
         LinearLayout cSync=Ui.card(this,Ui.CARD);
-        cSync.addView(Ui.text(this,"Team sync (hotspot)",15,Ui.NAVY_TEXT,true));
-        cSync.addView(Ui.muted(this,"Admin: Start server on hotspot. Supervisors: mode Client, same PIN, server IP (often 192.168.43.1), Sync now."));
+        cSync.addView(Ui.text(this,"Team sync — 3 ways",15,Ui.NAVY_TEXT,true));
+        cSync.addView(Ui.muted(this,"① Hotspot  ② Internet webhook  ③ Office LAN/router Wi-Fi (same as hotspot protocol, use Admin Wi-Fi IP)"));
         final TextView syncSt=Ui.text(this,"Status: "+SyncHub.get(this).status()+" · pending "+SyncHub.get(this).pendingCount(),13,Ui.INK,false);
         cSync.addView(syncSt);
         final EditText modeEt=edit("Mode: off / server / client");
@@ -1570,8 +1570,12 @@ LinearLayout c6=Ui.card(this,Ui.CARD);
         dutyName.setText(db.setting("duty_name", db.setting("user_name","")));
         cSync.addView(Ui.muted(this,"Display name on map/list"));
         cSync.addView(dutyName);
-        cSync.addView(Ui.muted(this,"Mode"));
+        cSync.addView(Ui.muted(this,"Mode server/client/off"));
         cSync.addView(modeEt);
+        final EditText netEt=edit("Network: hotspot / lan / internet");
+        netEt.setText(db.setting("sync_net","hotspot"));
+        cSync.addView(Ui.muted(this,"① hotspot  ② internet  ③ lan"));
+        cSync.addView(netEt);
         final EditText pinEt=edit("Shared PIN");
         pinEt.setText(db.setting("sync_pin","1234"));
         cSync.addView(Ui.muted(this,"PIN"));
@@ -1590,6 +1594,7 @@ LinearLayout c6=Ui.card(this,Ui.CARD);
             if(!open())return;
             db.setSetting("duty_name",dutyName.getText().toString().trim());
             db.setSetting("sync_mode",modeEt.getText().toString().trim().toLowerCase(Locale.US));
+            try{ db.setSetting("sync_net", netEt.getText().toString().trim().toLowerCase(Locale.US)); }catch(Exception ignored){}
             db.setSetting("sync_pin",pinEt.getText().toString().trim().isEmpty()?"1234":pinEt.getText().toString().trim());
             db.setSetting("sync_server_ip",ipEt.getText().toString().trim().isEmpty()?"192.168.43.1":ipEt.getText().toString().trim());
             db.setSetting("sync_http_url",httpEt.getText().toString().trim());
@@ -1597,6 +1602,15 @@ LinearLayout c6=Ui.card(this,Ui.CARD);
             refreshSt.run();
         });
         cSync.addView(saveSync,Ui.lp(this,-1,-2,0,0,3,0,3));
+        Button showIp=Ui.secondary(this,"Show my Wi-Fi / LAN IP");
+        showIp.setOnClickListener(v->{
+            String ip=SyncHub.get(this).localIpHint();
+            ipEt.setText(ip);
+            new AlertDialog.Builder(this).setTitle("Office LAN IP")
+                .setMessage("On office Wi-Fi, supervisors set Server IP to:\n\n"+ip)
+                .setPositiveButton("OK",null).show();
+        });
+        cSync.addView(showIp,Ui.lp(this,-1,-2,0,0,3,0,3));
         Button startSrv=Ui.primary(this,"Start admin server");
         startSrv.setOnClickListener(v->{
             db.setSetting("sync_mode","server");
@@ -2252,12 +2266,13 @@ save.setPadding(dp(12),dp(10),dp(12),dp(10));save.setOnClickListener(x->{try{
 String label=String.valueOf(rm.getSelectedItem());if(label==null||label.equals("null"))throw new Exception("RM required");
 String day=ymd(d);if(db.monthLocked(day)){toast("Month locked");return;}String code=label.split(" — ",2)[0].trim();ContentValues z=new ContentValues();z.put("date",day);z.put("rm_code",code);z.put("qty",num(q.getText().toString()));z.put("voucher_no",v.getText().toString().trim());z.put("note",note.getText().toString().trim());z.put("source","manual");z.put("lot",lot.getText().toString().trim());z.put("expiry",expiryOf(exp));db.insert("receives",z);
                 try{
-                    if("client".equals(db.setting("sync_mode","off"))){
+                    if("client".equals(db.setting("sync_mode","off")) || "internet".equals(db.setting("sync_net","hotspot"))){
                         org.json.JSONObject payload=new org.json.JSONObject();
                         payload.put("date",day);payload.put("rm_code",code);payload.put("qty",num(q.getText().toString()));
                         payload.put("voucher_no",v.getText().toString().trim());payload.put("note",note.getText().toString().trim());
                         payload.put("source","manual");payload.put("lot",lot.getText().toString().trim());payload.put("expiry",expiryOf(exp));
                         SyncHub.get(this).enqueue("receive", payload);
+                        SyncHub.get(this).flushQueue(null);
                     }
                 }catch(Exception ignored){}
                 toast("Receive saved ✔");showDaily();
@@ -2325,7 +2340,7 @@ save.setPadding(dp(12),dp(10),dp(12),dp(10));save.setOnClickListener(v->{try{Str
     ContentValues z=new ContentValues();z.put("date",day);z.put("product_code",Integer.parseInt(code));z.put("shift",sh);z.put("qty",bc);z.put("saved_at",new Date().toString());
     JSONObject existing=db.one("SELECT id FROM batches WHERE date=? AND product_code=? AND shift=?",new String[]{day,code,String.valueOf(sh)});long batchId;if(existing==null){batchId=db.insert("batches",z);}else{batchId=existing.getLong("id");db.update("batches",z,"id=?",new String[]{existing.getString("id")});}syncBatchLog(batchId,ymd(d),Integer.parseInt(code),sh,bc,new Date().toString());
     try{
-        if("client".equals(db.setting("sync_mode","off"))){
+        if("client".equals(db.setting("sync_mode","off")) || "internet".equals(db.setting("sync_net","hotspot"))){
             org.json.JSONObject payload=new org.json.JSONObject();
             payload.put("date",day);
             payload.put("product_code",Integer.parseInt(code));

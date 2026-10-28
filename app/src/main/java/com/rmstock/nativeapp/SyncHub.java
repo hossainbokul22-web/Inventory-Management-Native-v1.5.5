@@ -315,8 +315,12 @@ public final class SyncHub {
 
     public void flushQueue(Runnable onUi) {
         pool.execute(() -> {
-            if (!"client".equals(db.setting("sync_mode", "off"))) {
-                lastStatus = "Set mode = Client to flush";
+            String mode = db.setting("sync_mode", "off");
+            String net = db.setting("sync_net", "hotspot");
+            String http = db.setting("sync_http_url", "");
+            boolean canFlush = "client".equals(mode) || (http != null && http.startsWith("http"));
+            if (!canFlush) {
+                lastStatus = "Set Client (LAN/hotspot) or Internet webhook URL";
                 notifyUi(onUi); return;
             }
             String host = db.setting("sync_server_ip", "192.168.43.1");
@@ -342,11 +346,20 @@ public final class SyncHub {
                     req.put("pin", pin);
                     req.put("kind", jobs.get(i)[0]);
                     req.put("data", new JSONObject(jobs.get(i)[1]));
-                    boolean sent = httpPush(req);
-                    if (!sent) {
-                        JSONObject res = request(host, port, req);
-                        sent = res != null && res.optBoolean("ok");
+                    boolean sent = false;
+                    String netMode = db.setting("sync_net", "hotspot");
+                    if ("internet".equals(netMode)) {
+                        sent = httpPush(req);
                     }
+                    if (!sent && !"internet".equals(netMode)) {
+                        try {
+                            JSONObject res = request(host, port, req);
+                            sent = res != null && res.optBoolean("ok");
+                        } catch (Exception lanEx) {
+                            sent = httpPush(req);
+                        }
+                    }
+                    if (!sent) sent = httpPush(req);
                     if (sent) {
                         ContentValues u = new ContentValues();
                         u.put("status", "sent");
