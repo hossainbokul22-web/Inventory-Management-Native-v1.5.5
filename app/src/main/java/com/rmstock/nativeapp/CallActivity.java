@@ -54,18 +54,25 @@ public class CallActivity extends Activity {
         status.setGravity(Gravity.CENTER);
         root.addView(status);
 
-        TextView end = new TextView(this);
-        end.setText("✕ End");
-        end.setTextColor(Color.WHITE);
-        end.setTextSize(16);
-        end.setPadding(64, 28, 64, 28);
-        end.setBackgroundColor(Color.rgb(220, 50, 50));
-        end.setGravity(Gravity.CENTER);
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2);
-        lp.topMargin = 80;
-        lp.gravity = Gravity.CENTER_HORIZONTAL;
+        LinearLayout dock = new LinearLayout(this);
+        dock.setOrientation(LinearLayout.HORIZONTAL);
+        dock.setGravity(Gravity.CENTER);
+        dock.setPadding(dp(20), dp(16), dp(20), dp(28));
+        android.graphics.drawable.GradientDrawable dockBg = new android.graphics.drawable.GradientDrawable();
+        dockBg.setColor(Color.argb(40, 255, 255, 255));
+        dockBg.setCornerRadius(dp(28));
+        dock.setBackground(dockBg);
+        TextView muteHint = circleCtrl("🎙", Color.rgb(60, 80, 95), "Mic");
+        muteHint.setOnClickListener(v -> SoftSounds.messageSent());
+        TextView end = circleCtrl("⏻", Color.rgb(232, 72, 85), "End");
         end.setOnClickListener(v -> hangup());
-        root.addView(end, lp);
+        dock.addView(muteHint);
+        dock.addView(new android.view.View(this), new LinearLayout.LayoutParams(dp(28), 1));
+        dock.addView(end);
+        LinearLayout.LayoutParams dlp = new LinearLayout.LayoutParams(-2, -2);
+        dlp.topMargin = dp(24);
+        dlp.gravity = Gravity.CENTER_HORIZONTAL;
+        root.addView(dock, dlp);
 
         setContentView(root);
         SoftSounds.startCallRing();
@@ -91,6 +98,26 @@ public class CallActivity extends Activity {
         }, 2500);
     }
 
+    private TextView circleCtrl(String icon, int bg, String contentDesc) {
+        TextView tv = new TextView(this);
+        tv.setText(icon);
+        tv.setTextColor(Color.WHITE);
+        tv.setTextSize(22);
+        tv.setGravity(Gravity.CENTER);
+        int sz = dp(72);
+        tv.setMinWidth(sz);
+        tv.setMinHeight(sz);
+        tv.setPadding(dp(16), dp(16), dp(16), dp(16));
+        android.graphics.drawable.GradientDrawable g = new android.graphics.drawable.GradientDrawable();
+        g.setShape(android.graphics.drawable.GradientDrawable.OVAL);
+        g.setColor(bg);
+        tv.setBackground(g);
+        tv.setContentDescription(contentDesc);
+        return tv;
+    }
+    private int dp(int v) {
+        return Math.round(v * getResources().getDisplayMetrics().density);
+    }
     private void hangup() {
         if (ended) return;
         ended = true;
