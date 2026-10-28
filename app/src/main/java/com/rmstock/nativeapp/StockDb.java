@@ -163,7 +163,11 @@ public class StockDb extends SQLiteOpenHelper {
     }
     java.util.List<org.json.JSONObject> listDevices(){
         ensureDevicesTable();
-        return rows("SELECT * FROM team_devices ORDER BY last_seen DESC", null);
+        try{
+            return rows("SELECT * FROM team_devices ORDER BY last_seen DESC", null);
+        }catch(Exception e){
+            return new java.util.ArrayList<>();
+        }
     }
     void setDeviceActive(String deviceId, boolean active){
         ensureDevicesTable();

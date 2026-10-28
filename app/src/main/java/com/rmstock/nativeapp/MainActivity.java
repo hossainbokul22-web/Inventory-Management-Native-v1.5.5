@@ -1617,14 +1617,14 @@ c2.addView(Ui.text(this,"Tab names",15,Ui.NAVY_TEXT,true));
                 if(devs.isEmpty()) cDev.addView(Ui.muted(this,"No devices yet — supervisors open app on hotspot/client mode once."));
                 for(final org.json.JSONObject drow:devs){
                     LinearLayout row=Ui.card(this,Ui.SOFT_BLUE);
-                    boolean on=drow.optInt("active",1)==1;
+                    final boolean devActive=drow.optInt("active",1)==1;
                     row.addView(Ui.text(this,drow.optString("name","?")+" · "+drow.optString("role"),14,Ui.NAVY_TEXT,true));
                     row.addView(Ui.muted(this,"Code "+drow.optString("device_code")+" · IP "+drow.optString("ip")+" · "+drow.optString("last_seen")));
-                    row.addView(Ui.text(this, on?"Status: ACTIVE":"Status: OFF",13, on?Ui.GOOD:Ui.BAD,true));
-                    Button tog=Ui.secondary(this, on?"Deactivate":"Activate");
+                    row.addView(Ui.text(this, devActive?"Status: ACTIVE":"Status: OFF",13, devActive?Ui.GOOD:Ui.BAD,true));
+                    Button tog=Ui.secondary(this, devActive?"Deactivate":"Activate");
                     tog.setOnClickListener(v->{
                         requireAdminPower("Device activate/deactivate", ()->{
-                            boolean next=!on;
+                            boolean next=!devActive;
                             db.setDeviceActive(drow.optString("device_id"), next);
                             try{
                                 org.json.JSONObject st=new org.json.JSONObject();
