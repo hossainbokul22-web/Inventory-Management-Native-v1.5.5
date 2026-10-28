@@ -563,6 +563,14 @@ private boolean admin(){return db.canAdmin()||db.canEdit();}
     if(isDeviceBlocked()){ showDeviceBlocked(); return; }
     clear("Dashboard");
     try{
+        if("internet".equals(db.setting("sync_net","hotspot"))
+                && db.setting("sync_http_url","").startsWith("http")){
+            SyncHub.get(this).pullFromInternet(null);
+            if("client".equals(db.setting("sync_mode","off")) || db.canAdmin())
+                SyncHub.get(this).flushQueue(null);
+        }
+    }catch(Exception ignored){}
+    try{
         TextView live=new TextView(this); live.setText("LIVE DATA  •  Today’s RM Receive, Mixing-2 Use, Batch and Closing Stock");
         live.setTextSize(12); live.setTextColor(Ui.MUTED); live.setPadding(dp(2),0,dp(2),dp(10)); add(live);
 
@@ -1586,7 +1594,7 @@ LinearLayout c6=Ui.card(this,Ui.CARD);
         cSync.addView(ipEt);
         final EditText httpEt=edit("Internet webhook URL (optional)");
         httpEt.setText(db.setting("sync_http_url",""));
-        cSync.addView(Ui.muted(this,"Optional HTTPS endpoint to receive JSON pushes when not on hotspot"));
+        cSync.addView(Ui.muted(this,"Internet: Cloudflare Worker URL from /relay/cloudflare-worker.js (POST push, GET pull). Same PIN as X-Sync-Pin / SYNC_PIN."));
         cSync.addView(httpEt);
         Button saveSync=Ui.secondary(this,"Save sync settings");
         Runnable refreshSt=()->syncSt.setText("Status: "+SyncHub.get(this).status()+" · pending "+SyncHub.get(this).pendingCount());
@@ -1628,7 +1636,16 @@ LinearLayout c6=Ui.card(this,Ui.CARD);
         Button teamLive=Ui.secondary(this,"Team live locations");
         teamLive.setOnClickListener(v->showTeamLiveLocations());
         cSync.addView(teamLive,Ui.lp(this,-1,-2,0,0,3,0,3));
-        Button flush=Ui.primary(this,"Sync now (flush queue)");
+        Button flush=Ui.primary(this,"Sync now (flush + pull)");
+        Button netSync=Ui.secondary(this,"Internet pull now");
+        netSync.setOnClickListener(v->{
+            toast("Pulling…");
+            SyncHub.get(this).pullFromInternet(()->{
+                syncSt.setText("Status: "+SyncHub.get(this).status()+" · pending "+SyncHub.get(this).pendingCount());
+                toast(SyncHub.get(this).status());
+            });
+        });
+        cSync.addView(netSync,Ui.lp(this,-1,-2,0,0,3,0,3));
         flush.setOnClickListener(v->{
             db.setSetting("sync_mode","client");
             modeEt.setText("client");

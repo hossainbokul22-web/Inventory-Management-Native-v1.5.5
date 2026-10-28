@@ -393,8 +393,8 @@ public final class SyncHub {
         if (url == null || !url.startsWith("http")) return false;
         try {
             java.net.HttpURLConnection c = (java.net.HttpURLConnection) new java.net.URL(url).openConnection();
-            c.setConnectTimeout(8000);
-            c.setReadTimeout(10000);
+            c.setConnectTimeout(12000);
+            c.setReadTimeout(15000);
             c.setRequestMethod("POST");
             c.setDoOutput(true);
             c.setRequestProperty("Content-Type", "application/json; charset=utf-8");
@@ -402,13 +402,120 @@ public final class SyncHub {
             byte[] body = req.toString().getBytes(StandardCharsets.UTF_8);
             c.getOutputStream().write(body);
             int code = c.getResponseCode();
+            boolean ok = code >= 200 && code < 300;
+            try {
+                java.io.InputStream is = ok ? c.getInputStream() : c.getErrorStream();
+                if (is != null) {
+                    byte[] buf = new byte[2048];
+                    int n = is.read(buf);
+                    if (n > 0) {
+                        JSONObject res = new JSONObject(new String(buf, 0, n, StandardCharsets.UTF_8));
+                        if (res.has("ok")) ok = res.optBoolean("ok");
+                    }
+                }
+            } catch (Exception ignored) {}
             c.disconnect();
-            return code >= 200 && code < 300;
+            if (ok) lastStatus = "HTTP push OK";
+            return ok;
         } catch (Exception e) {
-            lastStatus = "HTTP: " + e.getMessage();
+            lastStatus = "HTTP push: " + e.getMessage();
             return false;
         }
     }
+
+    /** Admin / any device: pull events from relay since last cursor. */
+    public void pullFromInternet(Runnable onUi) {
+        pool.execute(() -> {
+            try {
+                String url = db.setting("sync_http_url", "");
+                if (url == null || !url.startsWith("http")) {
+                    lastStatus = "No webhook URL";
+                    notifyUi(onUi);
+                    return;
+                }
+                long since = 0;
+                try { since = Long.parseLong(db.setting("sync_http_since", "0")); } catch (Exception ignored) {}
+                String pin = db.setting("sync_pin", "1234");
+                String sep = url.contains("?") ? "&" : "?";
+                String full = url + sep + "pull=1&since=" + since + "&pin=" + java.net.URLEncoder.encode(pin, "UTF-8");
+                java.net.HttpURLConnection c = (java.net.HttpURLConnection) new java.net.URL(full).openConnection();
+                c.setConnectTimeout(12000);
+                c.setReadTimeout(20000);
+                c.setRequestMethod("GET");
+                c.setRequestProperty("X-Sync-Pin", pin);
+                int code = c.getResponseCode();
+                if (code < 200 || code >= 300) {
+                    lastStatus = "HTTP pull HTTP " + code;
+                    c.disconnect();
+                    notifyUi(onUi);
+                    return;
+                }
+                java.io.ByteArrayOutputStream bos = new java.io.ByteArrayOutputStream();
+                java.io.InputStream in = c.getInputStream();
+                byte[] buf = new byte[4096];
+                int n;
+                while ((n = in.read(buf)) > 0) bos.write(buf, 0, n);
+                c.disconnect();
+                JSONObject res = new JSONObject(new String(bos.toByteArray(), StandardCharsets.UTF_8));
+                if (!res.optBoolean("ok")) {
+                    lastStatus = "HTTP pull not ok";
+                    notifyUi(onUi);
+                    return;
+                }
+                JSONArray events = res.optJSONArray("events");
+                int applied = 0;
+                long maxTs = since;
+                if (events != null) {
+                    for (int i = 0; i < events.length(); i++) {
+                        JSONObject ev = events.getJSONObject(i);
+                        long ts = ev.optLong("ts", 0);
+                        if (ts > maxTs) maxTs = ts;
+                        String kind = ev.optString("kind");
+                        JSONObject data = ev.optJSONObject("data");
+                        if (data == null) data = ev;
+                        // skip our own echoes if device_id matches
+                        String myId = db.setting("device_id", "");
+                        if (myId.length() > 0 && myId.equals(data.optString("device_id"))) continue;
+                        if (applyIncoming(kind, data)) applied++;
+                    }
+                }
+                if (maxTs > since) db.setSetting("sync_http_since", String.valueOf(maxTs));
+                lastStatus = "HTTP pull: " + applied + " applied";
+            } catch (Exception e) {
+                lastStatus = "HTTP pull: " + e.getMessage();
+            }
+            notifyUi(onUi);
+        });
+    }
+
+    /** Flush outbox + pull inbox (internet / hybrid). */
+    public void syncInternetNow(Runnable onUi) {
+        pool.execute(() -> {
+            // flush pending via existing logic
+            final Object lock = new Object();
+            final boolean[] done = {false};
+            flushQueue(() -> {
+                pullFromInternet(() -> {
+                    synchronized (lock) {
+                        done[0] = true;
+                        lock.notifyAll();
+                    }
+                    notifyUi(onUi);
+                });
+            });
+            // if flush returned immediately without client mode, still pull
+            try {
+                synchronized (lock) {
+                    if (!done[0]) {
+                        // fallback pull after short wait
+                    }
+                }
+            } catch (Exception ignored) {}
+        });
+        // Also always pull in parallel for admin
+        pullFromInternet(onUi);
+    }
+
 
     
     public void storeChat(String sender, String body, String ts) {
