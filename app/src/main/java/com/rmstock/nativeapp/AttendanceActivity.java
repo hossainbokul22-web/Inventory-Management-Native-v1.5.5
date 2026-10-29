@@ -56,7 +56,7 @@ public class AttendanceActivity extends Activity implements SurfaceHolder.Callba
     private SurfaceView preview;
     private TextView statusTv, punchTv, todayTv;
     private FaceDetector detector;
-    private volatile boolean faceOk;
+    private volatile boolean faceOk; private volatile boolean eyeLiveness;
     private volatile long lastFaceMs;
     private boolean punching;
     private String punchType = "IN";
@@ -72,7 +72,8 @@ public class AttendanceActivity extends Activity implements SurfaceHolder.Callba
         db = new StockDb(this);
         db.ensureAttendanceTables();
         detector = FaceDetection.getClient(new FaceDetectorOptions.Builder()
-                .setPerformanceMode(FaceDetectorOptions.PERFORMANCE_MODE_FAST).build());
+                .setPerformanceMode(FaceDetectorOptions.PERFORMANCE_MODE_FAST)
+                .setClassificationMode(FaceDetectorOptions.CLASSIFICATION_MODE_ALL).build());
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
                 != PackageManager.PERMISSION_GRANTED) {
             ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.CAMERA}, 301);
@@ -176,7 +177,7 @@ public class AttendanceActivity extends Activity implements SurfaceHolder.Callba
     private final Runnable faceTicker = new Runnable() {
         @Override public void run() {
             boolean ok = faceOk && (System.currentTimeMillis() - lastFaceMs) < 1000;
-            statusTv.setText(ok ? "FACE OK · tap worker · " + punchType : "No face · use Photo backup");
+            statusTv.setText(ok && eyeLiveness ? "FACE+LIVE · "+punchType : (ok ? "Eyes? retry/Photo" : "No face · Photo"));
             statusTv.setBackgroundColor(ok ? Color.argb(170, 20, 140, 80) : Color.argb(140, 0, 0, 0));
             main.postDelayed(this, 350);
         }
@@ -219,7 +220,7 @@ public class AttendanceActivity extends Activity implements SurfaceHolder.Callba
             toast("Already " + punchType + " in last " + DUP_MINUTES + " min");
             return;
         }
-        boolean ok = faceOk && (System.currentTimeMillis() - lastFaceMs) < 1500;
+        boolean ok = faceOk && eyeLiveness && (System.currentTimeMillis() - lastFaceMs) < 1500;
         if (ok) {
             new AlertDialog.Builder(this)
                     .setTitle(punchType + " · Face")
@@ -275,8 +276,17 @@ public class AttendanceActivity extends Activity implements SurfaceHolder.Callba
             String time = new SimpleDateFormat("HH:mm:ss", Locale.US).format(new Date());
             String user = db.setting("current_user", db.setting("duty_name", "User"));
             String device = db.setting("device_code", "-");
+            double[] loc = lastKnownLatLng();
+            int late = 0;
+            if ("IN".equals(punchType)) {
+                String cutoff = db.setting("att_late_after", "09:15");
+                try {
+                    if (time.length() >= 5 && time.substring(0, 5).compareTo(cutoff) > 0) late = 1;
+                } catch (Exception ignored) {}
+            }
             long id = db.addAttendance(workerId, name, day, time, punchType, method,
-                    photoPath == null ? "" : photoPath, user, device, "");
+                    photoPath == null ? "" : photoPath, user, device,
+                    late == 1 ? "LATE" : "", loc[0], loc[1], late);
             if (id <= 0) { toast("Save failed"); return; }
             try {
                 JSONObject o = new JSONObject();
@@ -298,6 +308,35 @@ public class AttendanceActivity extends Activity implements SurfaceHolder.Callba
         } finally {
             punching = false;
         }
+    }
+
+    
+    private double[] lastKnownLatLng() {
+        double[] out = new double[]{0, 0};
+        try {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
+                    != PackageManager.PERMISSION_GRANTED
+                    && ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION)
+                    != PackageManager.PERMISSION_GRANTED) return out;
+            android.location.LocationManager lm =
+                    (android.location.LocationManager) getSystemService(LOCATION_SERVICE);
+            android.location.Location loc = lm != null
+                    ? lm.getLastKnownLocation(android.location.LocationManager.NETWORK_PROVIDER) : null;
+            if (loc == null && lm != null)
+                loc = lm.getLastKnownLocation(android.location.LocationManager.GPS_PROVIDER);
+            if (loc != null) { out[0] = loc.getLatitude(); out[1] = loc.getLongitude(); }
+        } catch (Exception ignored) {}
+        return out;
+    }
+    private void showAbsent() {
+        String day = new SimpleDateFormat("yyyy-MM-dd", Locale.US).format(new Date());
+        java.util.List<JSONObject> abs = db.listAbsentWorkers(day);
+        StringBuilder sb = new StringBuilder("Absent (" + abs.size() + ")\n");
+        for (JSONObject w : abs)
+            sb.append("• ").append(w.optString("name")).append("\n");
+        if (abs.isEmpty()) sb.append("All present (IN).");
+        new AlertDialog.Builder(this).setTitle("Absent today").setMessage(sb.toString())
+                .setPositiveButton("OK", null).show();
     }
 
     private String saveLastFrameFile() {

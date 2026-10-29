@@ -248,7 +248,10 @@ public class StockDb extends SQLiteOpenHelper {
                 "photo_path TEXT,"+
                 "by_user TEXT,"+
                 "device_code TEXT,"+
-                "note TEXT)");
+                "note TEXT,"+ "lat REAL,"+ "lng REAL,"+ "late INTEGER DEFAULT 0)");
+            try{getWritableDatabase().execSQL("ALTER TABLE attendance ADD COLUMN lat REAL");}catch(Exception ignored){}
+            try{getWritableDatabase().execSQL("ALTER TABLE attendance ADD COLUMN lng REAL");}catch(Exception ignored){}
+            try{getWritableDatabase().execSQL("ALTER TABLE attendance ADD COLUMN late INTEGER DEFAULT 0");}catch(Exception ignored){}
         }catch(Exception ignored){}
     }
     long addWorker(String code,String name,String shift,String photo){
@@ -270,6 +273,11 @@ public class StockDb extends SQLiteOpenHelper {
     }
     long addAttendance(long workerId,String wname,String day,String time,String punch,
                        String method,String photo,String byUser,String device,String note){
+        return addAttendance(workerId,wname,day,time,punch,method,photo,byUser,device,note,0,0,0);
+    }
+    long addAttendance(long workerId,String wname,String day,String time,String punch,
+                       String method,String photo,String byUser,String device,String note,
+                       double lat,double lng,int late){
         ensureAttendanceTables();
         android.content.ContentValues v=new android.content.ContentValues();
         v.put("worker_id",workerId); v.put("worker_name",wname);
@@ -277,8 +285,10 @@ public class StockDb extends SQLiteOpenHelper {
         v.put("method",method); v.put("photo_path",photo==null?"":photo);
         v.put("by_user",byUser); v.put("device_code",device);
         v.put("note",note==null?"":note);
+        v.put("lat",lat); v.put("lng",lng); v.put("late",late);
         return getWritableDatabase().insert("attendance",null,v);
     }
+
     /** Today's IN punches: total workers, male, female (by worker gender). */
     java.util.List<org.json.JSONObject> attendanceReportRows(String day){
         ensureAttendanceTables();
