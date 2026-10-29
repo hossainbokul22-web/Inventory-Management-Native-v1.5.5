@@ -156,6 +156,15 @@ final class Ui {
     }
 
     /** Soft neumorphic surface colour (light grey-blue). */
+    
+    // Brand accents — Prompt Blue · Clay Brown · Forest Graphite
+    static int PROMPT_BLUE = Color.rgb(91, 141, 239);   // #5B8DEF
+    static int PROMPT_SOFT = Color.rgb(232, 240, 252);
+    static int CLAY_BROWN = Color.rgb(166, 124, 82);    // #A67C52
+    static int CLAY_SOFT = Color.rgb(245, 236, 224);
+    static int FOREST_GRAPHITE = Color.rgb(44, 58, 52); // #2C3A34
+    static int FOREST_SOFT = Color.rgb(228, 234, 230);
+
     static int NEU_BG = Color.rgb(228, 233, 240);
     static int NEU_FACE = Color.rgb(232, 236, 242);
     static int NEU_LIGHT = Color.rgb(255, 255, 255);

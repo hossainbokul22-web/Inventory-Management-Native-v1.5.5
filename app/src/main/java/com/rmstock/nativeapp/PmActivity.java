@@ -78,13 +78,13 @@ public class PmActivity extends Activity {
 
         root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setBackgroundColor(Ui.BG);
+        root.setBackgroundColor(Ui.NEU_BG);
 
         // Match main app header: navy + same padding
         LinearLayout bar = new LinearLayout(this);
         bar.setOrientation(LinearLayout.HORIZONTAL);
         bar.setGravity(Gravity.CENTER_VERTICAL);
-        bar.setBackgroundColor(Ui.NAVY);
+        bar.setBackgroundColor(Ui.FOREST_GRAPHITE);
         bar.setPadding(Ui.dp(this, 16), Ui.dp(this, 10), Ui.dp(this, 12), Ui.dp(this, 10));
         TextView back = Ui.text(this, "‹  Back", 16, 0xFFFFFFFF, true);
         back.setPadding(Ui.dp(this, 0), Ui.dp(this, 4), Ui.dp(this, 12), Ui.dp(this, 4));
@@ -93,14 +93,14 @@ public class PmActivity extends Activity {
         titleTv = Ui.text(this, pm.meta("appTitle", "Daily PM Report"), 17, 0xFFFFFFFF, true);
         bar.addView(titleTv, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
         statusTv = Ui.text(this, "", 11, Color.WHITE, true);
-        statusTv.setBackground(Ui.shape(this, Color.parseColor("#333333"), Color.parseColor("#333333"), 14));
+        statusTv.setBackground(Ui.shape(this, Ui.CLAY_BROWN, Ui.CLAY_BROWN, 14));
         statusTv.setPadding(Ui.dp(this, 10), Ui.dp(this, 4), Ui.dp(this, 10), Ui.dp(this, 4));
         bar.addView(statusTv);
         root.addView(bar);
 
         HorizontalScrollView hsv = new HorizontalScrollView(this);
         hsv.setHorizontalScrollBarEnabled(false);
-        hsv.setBackgroundColor(Color.WHITE);
+        hsv.setBackgroundColor(Ui.NEU_FACE);
         LinearLayout tabs = new LinearLayout(this);
         tabs.setOrientation(LinearLayout.HORIZONTAL);
         tabs.setPadding(Ui.dp(this, 4), 0, Ui.dp(this, 4), 0);
@@ -144,6 +144,7 @@ public class PmActivity extends Activity {
 
     private void updateStatus() {
         statusTv.setText(pm.entryCount() + " entries");
+        try{ if(root.getChildCount()>1 && root.getChildAt(1) instanceof HorizontalScrollView){ HorizontalScrollView h=(HorizontalScrollView)root.getChildAt(1); if(h.getChildCount()>0 && h.getChildAt(0) instanceof LinearLayout) stylePmTabLabels((LinearLayout)h.getChildAt(0)); } }catch(Exception ignored){}
         titleTv.setText(pm.meta("appTitle", "Daily PM Report"));
     }
 
