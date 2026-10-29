@@ -17,7 +17,7 @@ public class MainActivity extends Activity {
     }catch(Exception ignored){}
  }
 
-public void onCreate(Bundle b){super.onCreate(b);Ui.init(this);db=new StockDb(this);
+public void onCreate(Bundle b){super.onCreate(b);Ui.init(this);db=StockDb.get(this);
     if(!db.setupDone()){
         if(db.setting("role","").isEmpty()) db.setSetting("role","");
         build();

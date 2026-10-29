@@ -69,7 +69,7 @@ public class AttendanceActivity extends Activity implements SurfaceHolder.Callba
 
     @Override protected void onCreate(Bundle b) {
         super.onCreate(b);
-        db = new StockDb(this);
+        db = StockDb.get(this);
         db.ensureAttendanceTables();
         detector = FaceDetection.getClient(new FaceDetectorOptions.Builder()
                 .setPerformanceMode(FaceDetectorOptions.PERFORMANCE_MODE_FAST)

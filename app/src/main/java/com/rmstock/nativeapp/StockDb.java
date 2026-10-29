@@ -3,8 +3,44 @@ package com.rmstock.nativeapp;
 import android.content.*;import android.database.*;import android.database.sqlite.*;import org.json.*;import java.io.*;import java.util.*;
 
 public class StockDb extends SQLiteOpenHelper {
-    private static final String DB="rmstock_native.db"; private static final int VER=13; private final Context ctx;
-    StockDb(Context c){super(c,DB,null,VER);ctx=c;}
+    private static final String DB="rmstock_native.db"; private static final int VER=14; private final Context ctx;
+    private static StockDb INSTANCE;
+    /** Single helper instance — faster cache, less memory (Android SQLite best practice). */
+    public static synchronized StockDb get(Context c){
+        if(INSTANCE==null) INSTANCE=new StockDb(c.getApplicationContext());
+        return INSTANCE;
+    }
+    StockDb(Context c){super(c,DB,null,VER);ctx=c.getApplicationContext();}
+    @Override public void onConfigure(SQLiteDatabase d){
+        super.onConfigure(d);
+        try{ d.setForeignKeyConstraintsEnabled(true); }catch(Exception ignored){}
+    }
+    @Override public void onOpen(SQLiteDatabase d){
+        super.onOpen(d);
+        if(!d.isReadOnly()){
+            try{ d.enableWriteAheadLogging(); }catch(Exception ignored){}
+            try{
+                d.execSQL("PRAGMA synchronous=NORMAL");
+                d.execSQL("PRAGMA temp_store=MEMORY");
+            }catch(Exception ignored){}
+            ensurePerfIndexes(d);
+        }
+    }
+    private void ensurePerfIndexes(SQLiteDatabase d){
+        try{
+            d.execSQL("CREATE INDEX IF NOT EXISTS idx_receives_date ON receives(date)");
+            d.execSQL("CREATE INDEX IF NOT EXISTS idx_receives_rm ON receives(rm_code)");
+            d.execSQL("CREATE INDEX IF NOT EXISTS idx_batches_date ON batches(date)");
+            d.execSQL("CREATE INDEX IF NOT EXISTS idx_batches_prod ON batches(product_code)");
+            d.execSQL("CREATE INDEX IF NOT EXISTS idx_counts_date ON counts(date)");
+            d.execSQL("CREATE INDEX IF NOT EXISTS idx_att_day ON attendance(day)");
+            d.execSQL("CREATE INDEX IF NOT EXISTS idx_att_worker ON attendance(worker_id)");
+            d.execSQL("CREATE INDEX IF NOT EXISTS idx_att_day_punch ON attendance(day,punch)");
+            d.execSQL("CREATE INDEX IF NOT EXISTS idx_sync_status ON sync_queue(status)");
+            d.execSQL("CREATE INDEX IF NOT EXISTS idx_yield_hist_date ON yield_history(date)");
+        }catch(Exception ignored){}
+    }
+
     public void onCreate(SQLiteDatabase d){
         d.execSQL("CREATE TABLE rms(code TEXT PRIMARY KEY,name TEXT NOT NULL,uom TEXT NOT NULL,opening REAL NOT NULL DEFAULT 0,reorder REAL NOT NULL DEFAULT 0)");
         d.execSQL("CREATE TABLE products(code INTEGER PRIMARY KEY,name TEXT NOT NULL)");
@@ -39,6 +75,9 @@ public class StockDb extends SQLiteOpenHelper {
     String setting(String k,String def){Cursor c=getReadableDatabase().rawQuery("SELECT v FROM settings WHERE k=?",new String[]{k});try{return c.moveToFirst()?c.getString(0):def;}finally{c.close();}}
     void setSetting(String k,String v){putSetting(getWritableDatabase(),k,v);}
     public void onUpgrade(SQLiteDatabase d,int o,int n){
+        if(o<14){
+            try{ ensurePerfIndexes(d); }catch(Exception ignored){}
+        }
         if(o<13){
             d.execSQL("CREATE TABLE IF NOT EXISTS sync_queue(id INTEGER PRIMARY KEY AUTOINCREMENT,kind TEXT,payload TEXT,created_at TEXT,tries INTEGER DEFAULT 0,status TEXT DEFAULT 'pending')");
         }

@@ -71,7 +71,7 @@ public class PmActivity extends Activity {
         super.onCreate(b);
         Ui.init(this);
         pm = new PmDb(this);
-        db = new StockDb(this);
+        db = StockDb.get(this);
         stockDate = PmDb.today();
         monthYm = PmDb.thisMonth();
         tab = 0;
