@@ -562,6 +562,20 @@ private boolean admin(){return db.canAdmin()||db.canEdit();}
  private void showDashboard(){
     if(isDeviceBlocked()){ showDeviceBlocked(); return; }
     clear("Dashboard");
+    // Attendance — start-of-shift corner (always visible on home)
+    try{
+        LinearLayout dashAtt=new LinearLayout(this);
+        dashAtt.setOrientation(LinearLayout.HORIZONTAL);
+        dashAtt.setGravity(Gravity.END|Gravity.CENTER_VERTICAL);
+        dashAtt.setPadding(dp(4),dp(2),dp(4),dp(6));
+        TextView attChip=Ui.text(this,"👤 Attendance",14,Color.WHITE,true);
+        attChip.setBackgroundColor(Color.rgb(30,120,90));
+        attChip.setPadding(dp(14),dp(10),dp(14),dp(10));
+        attChip.setOnClickListener(v->startActivity(new Intent(this,AttendanceActivity.class)));
+        dashAtt.addView(attChip);
+        content.addView(dashAtt);
+    }catch(Exception ignored){}
+
     try{
         if("server".equals(db.setting("sync_mode","off")) && !SyncHub.get(this).isServerOn()){
             SyncHub.get(this).startServer(null);

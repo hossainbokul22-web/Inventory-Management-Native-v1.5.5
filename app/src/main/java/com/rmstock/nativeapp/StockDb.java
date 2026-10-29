@@ -233,7 +233,9 @@ public class StockDb extends SQLiteOpenHelper {
                 "name TEXT NOT NULL,"+
                 "shift TEXT,"+
                 "photo_path TEXT,"+
+                "gender TEXT,"+
                 "active INTEGER DEFAULT 1)");
+            try{ getWritableDatabase().execSQL("ALTER TABLE workers ADD COLUMN gender TEXT"); }catch(Exception ignored){}
             getWritableDatabase().execSQL(
                 "CREATE TABLE IF NOT EXISTS attendance("+
                 "id INTEGER PRIMARY KEY AUTOINCREMENT,"+
@@ -250,10 +252,15 @@ public class StockDb extends SQLiteOpenHelper {
         }catch(Exception ignored){}
     }
     long addWorker(String code,String name,String shift,String photo){
+        return addWorker(code,name,shift,photo,"");
+    }
+    long addWorker(String code,String name,String shift,String photo,String gender){
         ensureAttendanceTables();
         android.content.ContentValues v=new android.content.ContentValues();
         v.put("code",code); v.put("name",name); v.put("shift",shift);
-        v.put("photo_path",photo==null?"":photo); v.put("active",1);
+        v.put("photo_path",photo==null?"":photo);
+        v.put("gender", gender==null?"":gender);
+        v.put("active",1);
         return getWritableDatabase().insert("workers",null,v);
     }
     java.util.List<org.json.JSONObject> listWorkers(){
@@ -271,6 +278,26 @@ public class StockDb extends SQLiteOpenHelper {
         v.put("by_user",byUser); v.put("device_code",device);
         v.put("note",note==null?"":note);
         return getWritableDatabase().insert("attendance",null,v);
+    }
+    /** Today's IN punches: total workers, male, female (by worker gender). */
+    int[] attendanceGenderStats(String day){
+        ensureAttendanceTables();
+        // [0]=total unique IN, [1]=male, [2]=female
+        int[] out=new int[]{0,0,0};
+        try{
+            java.util.List<org.json.JSONObject> rows=rows(
+                "SELECT a.worker_id, IFNULL(w.gender,'') AS gender FROM attendance a "+
+                "LEFT JOIN workers w ON w.id=a.worker_id "+
+                "WHERE a.day=? AND a.punch='IN' GROUP BY a.worker_id",
+                new String[]{day});
+            out[0]=rows.size();
+            for(org.json.JSONObject r:rows){
+                String g=r.optString("gender","").trim().toLowerCase(java.util.Locale.US);
+                if(g.startsWith("f")||g.contains("female")||g.contains("মহিলা")||g.contains("মেয়ে")||g.equals("nari")) out[2]++;
+                else if(g.startsWith("m")||g.contains("male")||g.contains("পুরুষ")||g.contains("ছেলে")) out[1]++;
+            }
+        }catch(Exception ignored){}
+        return out;
     }
     boolean hasRecentPunch(long workerId, String punch, int withinMinutes){
         ensureAttendanceTables();

@@ -310,16 +310,18 @@ public class AttendanceActivity extends Activity implements SurfaceHolder.Callba
         code.setHint("Code / ID");
         final EditText shift = new EditText(this);
         shift.setHint("Shift A/B/C/General");
+        final EditText gender = new EditText(this);
+        gender.setHint("Gender: Male / Female");
         LinearLayout box = new LinearLayout(this);
         box.setOrientation(LinearLayout.VERTICAL);
         box.setPadding(dp(20), dp(8), dp(20), dp(8));
-        box.addView(name); box.addView(code); box.addView(shift);
+        box.addView(name); box.addView(code); box.addView(shift); box.addView(gender);
         new AlertDialog.Builder(this).setTitle("Add worker").setView(box)
                 .setPositiveButton("Add", (d, w) -> {
                     String n = name.getText().toString().trim();
                     if (n.isEmpty()) { toast("Name required"); return; }
                     String path = saveLastFrameFile();
-                    db.addWorker(code.getText().toString().trim(), n, shift.getText().toString().trim(), path == null ? "" : path);
+                    db.addWorker(code.getText().toString().trim(), n, shift.getText().toString().trim(), path == null ? "" : path, gender.getText().toString().trim());
                     reloadWorkers();
                     toast("Worker added");
                 })
@@ -338,6 +340,11 @@ public class AttendanceActivity extends Activity implements SurfaceHolder.Callba
                     .append(r.optString("method")).append("]\n");
         }
         if (rows.isEmpty()) sb.append("No punches yet.");
+        int[] st = db.attendanceGenderStats(day);
+        sb.append("\n────────────\n");
+        sb.append("Total (IN): ").append(st[0]);
+        sb.append("   ছেলে: ").append(st[1]);
+        sb.append("   মেয়ে: ").append(st[2]);
         todayTv.setText(sb.toString());
     }
 
