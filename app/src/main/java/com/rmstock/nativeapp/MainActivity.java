@@ -780,6 +780,35 @@ private boolean admin(){return db.canAdmin()||db.canEdit();}
  private void viewPhoto(String path){try{File f=new File(path);if(!f.exists())throw new Exception("Photo file not found");Intent i=new Intent(Intent.ACTION_VIEW);i.setDataAndType(FileProvider.getUriForFile(this,"com.rmstock.nativeapp.fileprovider",f),"image/jpeg");i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);startActivity(i);}catch(Exception e){error(e);}}
  private void confirmDo(String title,String msg,Runnable action){Guard.run(this,db,title,true,()->new AlertDialog.Builder(this).setTitle(title).setMessage(msg).setNegativeButton("Cancel",null).setPositiveButton("Delete",(dd,ww)->action.run()).show());}
 
+ 
+ private void showPrintCenter(){
+    clear("Print center");
+    add(Ui.muted(this,"Same Wi‑Fi as office printer → Print → pick printer. Install HP/Epson/Mopria app if printer not listed."));
+    File[] pdfs=EasyPrint.listRecentPdfs(this);
+    if(pdfs==null||pdfs.length==0){
+        add(Ui.text(this,"No PDF yet. Open any report and generate PDF first.",14,Ui.INK,false));
+        return;
+    }
+    int n=Math.min(pdfs.length,30);
+    for(int i=0;i<n;i++){
+        final File f=pdfs[i];
+        LinearLayout row=Ui.card(this,Ui.CARD);
+        row.setOrientation(LinearLayout.VERTICAL);
+        row.addView(Ui.text(this,f.getName(),14,Ui.FOREST_GRAPHITE,true));
+        long ago=System.currentTimeMillis()-f.lastModified();
+        row.addView(Ui.muted(this,(ago<60000?"just now":(ago/60000)+" min ago")+" · tap Print"));
+        row.setOnClickListener(v->{
+            new AlertDialog.Builder(this)
+                .setTitle(f.getName())
+                .setItems(new String[]{"Print (Wi‑Fi printer)","Share PDF"},(d,w)->{
+                    if(w==0) EasyPrint.printPdf(this,f,f.getName());
+                    else EasyPrint.share(this,f);
+                }).setNegativeButton("Close",null).show();
+        });
+        add(row);
+    }
+ }
+
  private void showMore(){
     clear("More");
     add(Ui.muted(this,"Modules"));
@@ -843,6 +872,7 @@ private boolean admin(){return db.canAdmin()||db.canEdit();}
         {"Custom sheets","Your formulas","custom",String.valueOf(Color.rgb(100,210,180)),"📑"},
         {"Yield %","Formulas + history","yield",String.valueOf(Color.rgb(255,179,64)),"📈"},
         {"Process Loss %","Loss vs standard","ploss",String.valueOf(Color.rgb(255,59,48)),"📉"},
+        {"Print center","Wi‑Fi printer / PDF","printc",String.valueOf(Color.rgb(91,141,239)),"🖨️"},
         {"Attendance","Face + photo punch","att",String.valueOf(Color.rgb(40,160,120)),"👤"},
                 {"Owner pack","Stock + yield page","owner",String.valueOf(Color.rgb(50,173,230)),"📊"},
         {"Audit log","Who changed what","audit",String.valueOf(Color.rgb(142,142,147)),"🧾"},
@@ -901,6 +931,7 @@ private boolean admin(){return db.canAdmin()||db.canEdit();}
             else if(k.equals("custom"))showCustom();
             else if(k.equals("yield"))showYieldSheet();
             else if(k.equals("ploss"))showProcessLossSheet();
+            else if(k.equals("printc")){ showPrintCenter(); }
             else if(k.equals("att"))startActivity(new Intent(this,AttendanceActivity.class));
             else if(k.equals("owner"))showOwnerPack();
             else if(k.equals("audit"))showAuditLog();
@@ -3482,7 +3513,7 @@ private void applyVoiceFixCommand(String raw){
 
  private void sharePdf(String text,String name)throws Exception{File f=createPdf(text,name);Uri u=FileProvider.getUriForFile(this,"com.rmstock.nativeapp.fileprovider",f);new AlertDialog.Builder(this).setTitle("Report ready").setItems(new String[]{"Save PDF","Share PDF","Print PDF"},(d,w)->{if(w==0){pendingPdf=f;Intent i=new Intent(Intent.ACTION_CREATE_DOCUMENT);i.setType("application/pdf");i.putExtra(Intent.EXTRA_TITLE,f.getName());startActivityForResult(i,79);}else if(w==1){Intent i=new Intent(Intent.ACTION_SEND);i.setType("application/pdf");i.putExtra(Intent.EXTRA_STREAM,u);i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);startActivity(Intent.createChooser(i,"Share PDF"));}else{printPdf(f);}}).show();}
  private File createPdf(String text,String name)throws Exception{PdfDocument doc=new PdfDocument();Paint p=new Paint(Paint.ANTI_ALIAS_FLAG);p.setTextSize(10*getResources().getDisplayMetrics().scaledDensity);p.setTypeface(Typeface.create("sans-serif",Typeface.NORMAL));ArrayList<String> lines=new ArrayList<>();for(String raw:text.split("\n")){if(raw.length()<=78)lines.add(raw);else{for(int i=0;i<raw.length();i+=78)lines.add(raw.substring(i,Math.min(raw.length(),i+78)));}}int page=1,y=42;PdfDocument.Page pg=null;Canvas c=null;for(String line:lines){if(pg==null||y>790){if(pg!=null){p.setTextSize(8*getResources().getDisplayMetrics().scaledDensity);c.drawText("Page "+(page-1),520,820,p);doc.finishPage(pg);}pg=doc.startPage(new PdfDocument.PageInfo.Builder(595,842,page++).create());c=pg.getCanvas();p.setTextSize(11*getResources().getDisplayMetrics().scaledDensity);c.drawText(db.setting("company","RM Stock"),24,24,p);p.setTextSize(10*getResources().getDisplayMetrics().scaledDensity);y=42;}c.drawText(line,24,y,p);y+=16;}if(pg!=null){p.setTextSize(8*getResources().getDisplayMetrics().scaledDensity);c.drawText("Page "+(page-1),520,820,p);doc.finishPage(pg);}File dir=new File(getFilesDir(),"reports");dir.mkdirs();File f=new File(dir,name+".pdf");FileOutputStream o=new FileOutputStream(f);doc.writeTo(o);o.close();doc.close();return f;}
- private void printPdf(File f){PrintManager pm=(PrintManager)getSystemService(PRINT_SERVICE);pm.print(f.getName(),new PrintAdapter(this,f),null);}
+ private void printPdf(File f){ EasyPrint.printPdf(this, f, f!=null?f.getName():"Report"); }
  private static class PrintAdapter extends PrintDocumentAdapter{Context c;File f;PrintAdapter(Context c,File f){this.c=c;this.f=f;}public void onLayout(PrintAttributes oldA,PrintAttributes newA,CancellationSignal s,LayoutResultCallback cb,Bundle m){if(s.isCanceled()){cb.onLayoutCancelled();return;}cb.onLayoutFinished(new PrintDocumentInfo.Builder(f.getName()).setContentType(PrintDocumentInfo.CONTENT_TYPE_DOCUMENT).setPageCount(PrintDocumentInfo.PAGE_COUNT_UNKNOWN).build(),true);}public void onWrite(PageRange[] pages,ParcelFileDescriptor dest,CancellationSignal s,WriteResultCallback cb){try{FileInputStream in=new FileInputStream(f);FileOutputStream out=new FileOutputStream(dest.getFileDescriptor());byte[] b=new byte[8192];int n;while((n=in.read(b))>0)out.write(b,0,n);in.close();cb.onWriteFinished(new PageRange[]{PageRange.ALL_PAGES});}catch(Exception e){cb.onWriteFailed(e.toString());}}}
  private void moveColumn(long cid,String sheet,int delta){try{List<JSONObject> cs=db.rows("SELECT id,position FROM custom_cols WHERE sheet_id=? ORDER BY position",new String[]{sheet});int idx=-1;for(int i=0;i<cs.size();i++)if(cs.get(i).getLong("id")==cid)idx=i;if(idx<0)return;int ni=idx+delta;if(ni<0||ni>=cs.size())return;long other=cs.get(ni).getLong("id");int p=cs.get(idx).getInt("position"),op=cs.get(ni).getInt("position");ContentValues a=new ContentValues();a.put("position",op);db.update("custom_cols",a,"id=?",new String[]{String.valueOf(cid)});ContentValues b=new ContentValues();b.put("position",p);db.update("custom_cols",b,"id=?",new String[]{String.valueOf(other)});showCustomDefinition(sheet,db.one("SELECT name FROM custom_sheets WHERE id=?",new String[]{sheet}).getString("name"));}catch(Exception e){error(e);}}
  private void showMixing2(String month){clear("Mixing-2 — Batch × Recipe Usage");try{for(JSONObject b:db.rows("SELECT date,product_code,shift,qty FROM batches WHERE date LIKE ? ORDER BY date,product_code,shift",new String[]{month+"-%"})){JSONObject p=db.one("SELECT name FROM products WHERE code=?",new String[]{b.optString("product_code")});LinearLayout r=row();TextView t=new TextView(this);t.setText(b.optString("date")+" | "+(p==null?b.optString("product_code"):p.getString("name"))+" | Shift "+b.optString("shift")+" | Batches "+batchCountText(b.getDouble("qty")));t.setLayoutParams(new LinearLayout.LayoutParams(0,-2,1));r.addView(t);Button e=btn("Edit Batch");e.setOnClickListener(v->editBatchCount(b));r.addView(e);Button er=btn("Edit RM Recipe");er.setOnClickListener(v->editMixingRecipe(b.optString("product_code"),month));r.addView(er);add(r);for(JSONObject rm:db.rows("SELECT rm_code,qty FROM recipes WHERE product_code=? AND qty<>0 ORDER BY rm_code",new String[]{b.optString("product_code")})){double use=b.getDouble("qty")*rm.getDouble("qty");TextView u=tv("   RM "+rm.getString("rm_code")+" = "+fmt(use),1);add(u);}}}catch(Exception e){error(e);}}

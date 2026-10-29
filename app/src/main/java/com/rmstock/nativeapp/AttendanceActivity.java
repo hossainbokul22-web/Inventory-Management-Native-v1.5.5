@@ -562,6 +562,9 @@ public class AttendanceActivity extends Activity implements SurfaceHolder.Callba
     }
 
     private void doPrint(final File pdf, final String day) {
+        EasyPrint.printPdf(this, pdf, "Attendance-" + day);
+        if (true) return;
+        // legacy below
         try {
             PrintManager pm = (PrintManager) getSystemService(PRINT_SERVICE);
             if (pm == null) { sharePdf(pdf, day); return; }
