@@ -456,7 +456,7 @@ public class AttendanceActivity extends Activity implements SurfaceHolder.Callba
     }
     private void runFaceMatchBg(byte[] frame, int previewW, int previewH) {
         if (frame == null || previewW <= 0) return;
-        android.graphics.android.graphics.Bitmap live = FaceMatch.nv21ToBitmap(frame, previewW, previewH);
+        android.graphics.Bitmap live = FaceMatch.nv21ToBitmap(frame, previewW, previewH);
         if (live == null) return;
         boolean useNet = FaceNetEngine.get(this).isReady();
         float[] liveE = useNet ? null : FaceMatch.embedBitmap(live);
