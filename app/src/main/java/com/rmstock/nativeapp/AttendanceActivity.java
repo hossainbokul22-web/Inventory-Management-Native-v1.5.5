@@ -74,6 +74,7 @@ public class AttendanceActivity extends Activity implements SurfaceHolder.Callba
         super.onCreate(b);
         db = StockDb.get(this);
         db.ensureAttendanceTables();
+        try{ FaceNetEngine.get(this); }catch(Throwable ignored){}
         detector = FaceDetection.getClient(new FaceDetectorOptions.Builder()
                 .setPerformanceMode(FaceDetectorOptions.PERFORMANCE_MODE_FAST)
                 .setClassificationMode(FaceDetectorOptions.CLASSIFICATION_MODE_ALL).build());
@@ -127,7 +128,11 @@ public class AttendanceActivity extends Activity implements SurfaceHolder.Callba
         for (String sh : new String[]{"ALL", "A", "B", "C", "General"}) {
             final String f = sh;
             TextView t = chip(sh);
-            t.setOnClickListener(v -> { shiftFilter = f; reloadWorkers(); });
+            t.setOnClickListener(v -> { shiftFilter = f; reloadWorkers();
+        try {
+            if (FaceNetEngine.get(this).isReady()) toast("MobileFaceNet ON (offline)");
+            else toast("FaceNet model missing — basic match");
+        } catch (Throwable ignored) {} });
             shifts.addView(t);
         }
         root.addView(shifts);
@@ -442,7 +447,8 @@ public class AttendanceActivity extends Activity implements SurfaceHolder.Callba
         if (lastFrame == null || previewW <= 0 || !faceOk) return;
         Bitmap live = FaceMatch.nv21ToBitmap(lastFrame, previewW, previewH);
         if (live == null) return;
-        float[] liveE = FaceMatch.embedBitmap(live);
+        boolean useNet = FaceNetEngine.get(this).isReady();
+        float[] liveE = useNet ? null : FaceMatch.embedBitmap(live);
         if (liveE == null) return;
         long bestId = -1;
         String bestName = null;
@@ -457,7 +463,13 @@ public class AttendanceActivity extends Activity implements SurfaceHolder.Callba
                 if (ref != null) embedCache.put(id, ref);
             }
             if (ref == null) continue;
-            float sc = FaceMatch.cosine(liveE, ref);
+            float sc;
+            if (useNet) {
+                android.graphics.Bitmap refBmp = android.graphics.BitmapFactory.decodeFile(path);
+                sc = FaceNetEngine.get(this).compare(live, refBmp);
+            } else {
+                sc = FaceMatch.cosine(liveE, ref);
+            }
             if (sc > best) {
                 best = sc;
                 bestId = id;
@@ -466,14 +478,14 @@ public class AttendanceActivity extends Activity implements SurfaceHolder.Callba
         }
         lastAutoMatchId = bestId;
         lastAutoScore = best;
-        if (bestId > 0 && best >= FaceMatch.SUGGEST_THRESHOLD && bestName != null) {
+        if (bestId > 0 && best >= FaceNetEngine.SUGGEST && bestName != null) {
             final long fid = bestId;
             final String fn = bestName;
             final float fs = best;
             main.post(() -> {
                 statusTv.setText(String.format(Locale.US,
                         "MATCH %s %.0f%% · %s", fn, fs * 100f, punchType));
-                if (fs >= FaceMatch.AUTO_THRESHOLD && !punching) {
+                if (fs >= FaceNetEngine.THRESHOLD && !punching) {
                     if (db.hasRecentPunch(fid, punchType, DUP_MINUTES)) return;
                     new AlertDialog.Builder(this)
                             .setTitle("Face match")
