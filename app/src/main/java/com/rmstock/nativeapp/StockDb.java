@@ -272,6 +272,25 @@ public class StockDb extends SQLiteOpenHelper {
         v.put("note",note==null?"":note);
         return getWritableDatabase().insert("attendance",null,v);
     }
+    boolean hasRecentPunch(long workerId, String punch, int withinMinutes){
+        ensureAttendanceTables();
+        try{
+            String day=new java.text.SimpleDateFormat("yyyy-MM-dd",java.util.Locale.US).format(new java.util.Date());
+            java.util.List<org.json.JSONObject> rows=rows(
+                "SELECT time,punch FROM attendance WHERE worker_id=? AND day=? AND punch=? ORDER BY id DESC LIMIT 5",
+                new String[]{String.valueOf(workerId), day, punch});
+            if(rows.isEmpty()) return false;
+            java.text.SimpleDateFormat tf=new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss",java.util.Locale.US);
+            long now=System.currentTimeMillis();
+            for(org.json.JSONObject r:rows){
+                try{
+                    long t=tf.parse(day+" "+r.optString("time")).getTime();
+                    if(now-t <= withinMinutes*60L*1000L) return true;
+                }catch(Exception ignored){}
+            }
+            return false;
+        }catch(Exception e){ return false; }
+    }
     java.util.List<org.json.JSONObject> listAttendance(String day){
         ensureAttendanceTables();
         try{
