@@ -154,25 +154,7 @@ public class PmActivity extends Activity {
     }
 
     /** Phone back / header Back: nested → tab; other tab → Entry; Entry → leave PM (dashboard). */
-    private 
-    private void stylePmTabLabels(LinearLayout tabs) {
-        if (tabs == null) return;
-        for (int i = 0; i < tabs.getChildCount(); i++) {
-            android.view.View ch = tabs.getChildAt(i);
-            if (!(ch instanceof TextView)) continue;
-            TextView t = (TextView) ch;
-            boolean on = (i == tab);
-            t.setTextColor(on ? Ui.PROMPT_BLUE : Ui.MUTED);
-            if (on) {
-                t.setBackground(Ui.shape(this, Ui.PROMPT_SOFT, Ui.PROMPT_BLUE, 12));
-            } else {
-                t.setBackground(Ui.neuRaised(this, 12));
-            }
-            t.setPadding(Ui.dp(this, 14), Ui.dp(this, 8), Ui.dp(this, 14), Ui.dp(this, 8));
-        }
-    }
-
-    void handlePmBack() {
+    private void handlePmBack() {
         if (pmNested) {
             pmNested = false;
             render();
@@ -2191,4 +2173,22 @@ public class PmActivity extends Activity {
             }
         }
     }
+
+    private void stylePmTabLabels(LinearLayout tabs) {
+        if (tabs == null) return;
+        for (int i = 0; i < tabs.getChildCount(); i++) {
+            android.view.View ch = tabs.getChildAt(i);
+            if (!(ch instanceof TextView)) continue;
+            TextView t = (TextView) ch;
+            boolean on = (i == tab);
+            t.setTextColor(on ? Ui.PROMPT_BLUE : Ui.MUTED);
+            if (on) {
+                t.setBackground(Ui.shape(this, Ui.PROMPT_SOFT, Ui.PROMPT_BLUE, 12));
+            } else {
+                t.setBackground(Ui.neuRaised(this, 12));
+            }
+            t.setPadding(Ui.dp(this, 14), Ui.dp(this, 8), Ui.dp(this, 14), Ui.dp(this, 8));
+        }
+    }
+
 }
