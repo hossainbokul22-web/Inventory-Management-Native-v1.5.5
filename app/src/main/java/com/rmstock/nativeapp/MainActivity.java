@@ -790,6 +790,25 @@ private boolean admin(){return db.canAdmin()||db.canEdit();}
     TextView pmArrow=Ui.text(this,"›",22,Color.rgb(20,55,95),true);
     pmHero.addView(pmArrow);
     pmHero.setOnClickListener(v->openDailyPm());
+    // Attendance hero
+    LinearLayout attHero=new LinearLayout(this);
+    attHero.setOrientation(LinearLayout.HORIZONTAL);
+    attHero.setGravity(Gravity.CENTER_VERTICAL);
+    attHero.setPadding(dp(16),dp(14),dp(16),dp(14));
+    attHero.setBackground(Ui.shape(this,Color.rgb(230,250,240),Color.rgb(30,120,90),16));
+    TextView attEmoji=Ui.text(this,"👤",18,Color.rgb(20,80,60),true);
+    attHero.addView(attEmoji);
+    LinearLayout attTxt=new LinearLayout(this);
+    attTxt.setOrientation(LinearLayout.VERTICAL);
+    attTxt.setPadding(dp(12),0,0,0);
+    attTxt.addView(Ui.text(this,"Attendance",16,Color.rgb(20,80,60),true));
+    attTxt.addView(Ui.text(this,"Face punch · Photo fallback · Today list",12,Color.rgb(50,100,80),false));
+    attHero.addView(attTxt,new LinearLayout.LayoutParams(0,-2,1));
+    attHero.addView(Ui.text(this,"›",22,Color.rgb(20,80,60),true));
+    attHero.setOnClickListener(v->startActivity(new Intent(this,AttendanceActivity.class)));
+    LinearLayout.LayoutParams attLp=new LinearLayout.LayoutParams(-1,-2);
+    attLp.setMargins(0,0,0,dp(12));
+    content.addView(attHero,attLp);
     LinearLayout.LayoutParams heroLp=new LinearLayout.LayoutParams(-1,-2);
     heroLp.setMargins(0,dp(4),0,dp(12));
     content.addView(pmHero,heroLp);
@@ -864,6 +883,7 @@ private boolean admin(){return db.canAdmin()||db.canEdit();}
             else if(k.equals("custom"))showCustom();
             else if(k.equals("yield"))showYieldSheet();
             else if(k.equals("ploss"))showProcessLossSheet();
+            else if(k.equals("att"))startActivity(new Intent(this,AttendanceActivity.class));
             else if(k.equals("owner"))showOwnerPack();
             else if(k.equals("audit"))showAuditLog();
             else if(k.equals("ai"))showAI();

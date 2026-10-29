@@ -148,7 +148,7 @@ public class StockDb extends SQLiteOpenHelper {
         }catch(Exception ignored){}
     }
     void upsertDevice(String deviceId, String code, String name, String role, String ip, boolean active){
-        ensureDevicesTable(); ensureAttendanceTables();
+        ensureDevicesTable(); ensureAttendanceTables(); ensureAttendanceTables();
         try{
             android.content.ContentValues v=new android.content.ContentValues();
             v.put("device_id", deviceId);
