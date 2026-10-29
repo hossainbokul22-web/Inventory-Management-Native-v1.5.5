@@ -70,7 +70,7 @@ public class PmActivity extends Activity {
     protected void onCreate(Bundle b) {
         super.onCreate(b);
         Ui.init(this);
-        pm = new PmDb(this);
+        pm = PmDb.get(this);
         db = StockDb.get(this);
         stockDate = PmDb.today();
         monthYm = PmDb.thisMonth();

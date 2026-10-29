@@ -445,9 +445,18 @@ public class AttendanceActivity extends Activity implements SurfaceHolder.Callba
     }
 
     /** Rank enrolled workers by live frame similarity; auto-punch if very high. */
+    private long lastMatchAt;
     private void runFaceMatch() {
         if (lastFrame == null || previewW <= 0 || !faceOk) return;
-        android.graphics.Bitmap live = FaceMatch.nv21ToBitmap(lastFrame, previewW, previewH);
+        if (System.currentTimeMillis() - lastMatchAt < 1200) return;
+        lastMatchAt = System.currentTimeMillis();
+        final byte[] frame = lastFrame;
+        final int w = previewW, h = previewH;
+        AppExec.io(() -> runFaceMatchBg(frame, w, h));
+    }
+    private void runFaceMatchBg(byte[] frame, int previewW, int previewH) {
+        if (frame == null || previewW <= 0) return;
+        android.graphics.android.graphics.Bitmap live = FaceMatch.nv21ToBitmap(frame, previewW, previewH);
         if (live == null) return;
         boolean useNet = FaceNetEngine.get(this).isReady();
         float[] liveE = useNet ? null : FaceMatch.embedBitmap(live);

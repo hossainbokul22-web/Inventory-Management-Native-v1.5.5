@@ -25,6 +25,11 @@ final class PmDb extends SQLiteOpenHelper {
     private static final String NAME = "rm_pm.db";
     private static final int VER = 2;
     private final Context ctx;
+    private static PmDb INSTANCE;
+    static synchronized PmDb get(Context c) {
+        if (INSTANCE == null) INSTANCE = new PmDb(c.getApplicationContext());
+        return INSTANCE;
+    }
 
     PmDb(Context c) {
         super(c, NAME, null, VER);

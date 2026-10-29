@@ -41,7 +41,7 @@ public class StockDb extends SQLiteOpenHelper {
         }catch(Exception ignored){}
     }
 
-    public void onCreate(SQLiteDatabase d){
+    @Override public void onCreate(SQLiteDatabase d){
         d.execSQL("CREATE TABLE rms(code TEXT PRIMARY KEY,name TEXT NOT NULL,uom TEXT NOT NULL,opening REAL NOT NULL DEFAULT 0,reorder REAL NOT NULL DEFAULT 0)");
         d.execSQL("CREATE TABLE products(code INTEGER PRIMARY KEY,name TEXT NOT NULL)");
         d.execSQL("CREATE TABLE recipes(rm_code TEXT NOT NULL,product_code INTEGER NOT NULL,qty REAL NOT NULL DEFAULT 0,PRIMARY KEY(rm_code,product_code))");
