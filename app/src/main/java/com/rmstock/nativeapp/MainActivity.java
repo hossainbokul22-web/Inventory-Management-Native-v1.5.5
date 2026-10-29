@@ -54,6 +54,10 @@ public void onCreate(Bundle b){super.onCreate(b);Ui.init(this);db=StockDb.get(th
     TextView gear=Ui.text(this,"\u2699",22,0xFFFFFFFF,false);
     gear.setPadding(dp(12),dp(4),dp(4),dp(4));
     gear.setOnClickListener(v->gateOpen("Settings",()->showSettings()));
+    TextView attHeaderIcon=Ui.text(this,"👤",20,0xFFFFFFFF,false);
+    attHeaderIcon.setPadding(dp(8),dp(4),dp(6),dp(4));
+    attHeaderIcon.setOnClickListener(v->startActivity(new Intent(this,AttendanceActivity.class)));
+    header.addView(attHeaderIcon);
     TextView msgIcon=Ui.text(this,"💬",20,0xFFFFFFFF,false);
     msgIcon.setPadding(dp(10),dp(4),dp(8),dp(4));
     msgIcon.setOnClickListener(v->showMessenger());
@@ -566,19 +570,6 @@ private boolean admin(){return db.canAdmin()||db.canEdit();}
     clear("Dashboard");
     try{ content.setBackgroundColor(Ui.NEU_BG); }catch(Exception ignored){}
     try{ if(root!=null) root.setBackgroundColor(Ui.NEU_BG); }catch(Exception ignored){}
-    // Attendance — start-of-shift corner (always visible on home)
-    try{
-        LinearLayout dashAtt=new LinearLayout(this);
-        dashAtt.setOrientation(LinearLayout.HORIZONTAL);
-        dashAtt.setGravity(Gravity.END|Gravity.CENTER_VERTICAL);
-        dashAtt.setPadding(dp(4),dp(2),dp(4),dp(6));
-        TextView attChip=Ui.text(this,"👤 Attendance",14,Color.WHITE,true);
-        attChip.setBackground(Ui.neuRaised(this,14)); attChip.setTextColor(Color.rgb(20,90,70)); Ui.neuElevate(attChip,4);
-        attChip.setPadding(dp(14),dp(10),dp(14),dp(10));
-        attChip.setOnClickListener(v->startActivity(new Intent(this,AttendanceActivity.class)));
-        dashAtt.addView(attChip);
-        content.addView(dashAtt);
-    }catch(Exception ignored){}
 
     try{
         if("server".equals(db.setting("sync_mode","off")) && !SyncHub.get(this).isServerOn()){

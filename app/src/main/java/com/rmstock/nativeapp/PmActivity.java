@@ -85,12 +85,12 @@ public class PmActivity extends Activity {
         bar.setOrientation(LinearLayout.HORIZONTAL);
         bar.setGravity(Gravity.CENTER_VERTICAL);
         bar.setBackgroundColor(Ui.FOREST_GRAPHITE);
-        bar.setPadding(Ui.dp(this, 16), Ui.dp(this, 10), Ui.dp(this, 12), Ui.dp(this, 10));
+        bar.setPadding(Ui.dp(this, 16), Ui.dp(this, 14), Ui.dp(this, 12), Ui.dp(this, 14));
         TextView back = Ui.text(this, "‹  Back", 16, 0xFFFFFFFF, true);
         back.setPadding(Ui.dp(this, 0), Ui.dp(this, 4), Ui.dp(this, 12), Ui.dp(this, 4));
         back.setOnClickListener(v -> handlePmBack());
         bar.addView(back);
-        titleTv = Ui.text(this, pm.meta("appTitle", "Daily PM Report"), 17, 0xFFFFFFFF, true);
+        titleTv = Ui.text(this, pm.meta("appTitle", "Daily PM Report"), 18, 0xFFFFFFFF, true);
         bar.addView(titleTv, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
         statusTv = Ui.text(this, "", 11, Color.WHITE, true);
         statusTv.setBackground(Ui.shape(this, Ui.CLAY_BROWN, Ui.CLAY_BROWN, 14));
@@ -107,7 +107,7 @@ public class PmActivity extends Activity {
         for (int i = 0; i < TABS.length; i++) {
             final int idx = i;
             TextView t = Ui.text(this, TABS[i], 13, Ui.MUTED, true);
-            t.setPadding(Ui.dp(this, 16), Ui.dp(this, 10), Ui.dp(this, 16), Ui.dp(this, 10));
+            t.setPadding(Ui.dp(this, 16), Ui.dp(this, 12), Ui.dp(this, 16), Ui.dp(this, 12));
             LinearLayout.LayoutParams tlp = new LinearLayout.LayoutParams(-2, -2);
             tlp.setMargins(Ui.dp(this, 4), Ui.dp(this, 8), Ui.dp(this, 4), Ui.dp(this, 8));
             t.setLayoutParams(tlp);
@@ -178,7 +178,7 @@ public class PmActivity extends Activity {
             boolean on = i == tab;
             t.setTextColor(on ? Color.WHITE : Ui.MUTED);
             t.setBackground(Ui.shape(this, on ? Color.BLACK : Color.TRANSPARENT, on ? Color.BLACK : Ui.LINE, 20));
-            t.setPadding(Ui.dp(this, 16), Ui.dp(this, 10), Ui.dp(this, 16), Ui.dp(this, 10));
+            t.setPadding(Ui.dp(this, 16), Ui.dp(this, 12), Ui.dp(this, 16), Ui.dp(this, 12));
         }
         switch (tab) {
             case 0: showPmDashboard(); break;
@@ -2187,7 +2187,7 @@ public class PmActivity extends Activity {
             } else {
                 t.setBackground(Ui.neuRaised(this, 12));
             }
-            t.setPadding(Ui.dp(this, 14), Ui.dp(this, 8), Ui.dp(this, 14), Ui.dp(this, 8));
+            t.setPadding(Ui.dp(this, 16), Ui.dp(this, 12), Ui.dp(this, 16), Ui.dp(this, 12));
         }
     }
 
