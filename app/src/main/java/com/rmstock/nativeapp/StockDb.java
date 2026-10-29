@@ -280,6 +280,45 @@ public class StockDb extends SQLiteOpenHelper {
         return getWritableDatabase().insert("attendance",null,v);
     }
     /** Today's IN punches: total workers, male, female (by worker gender). */
+    java.util.List<org.json.JSONObject> attendanceReportRows(String day){
+        ensureAttendanceTables();
+        java.util.List<org.json.JSONObject> out=new java.util.ArrayList<>();
+        try{
+            java.util.List<org.json.JSONObject> punches=rows(
+                "SELECT a.*, IFNULL(w.code,'') AS wcode, IFNULL(w.shift,'') AS wshift, IFNULL(w.gender,'') AS wgender "+
+                "FROM attendance a LEFT JOIN workers w ON w.id=a.worker_id WHERE a.day=? ORDER BY a.worker_name, a.time",
+                new String[]{day});
+            java.util.LinkedHashMap<Long,org.json.JSONObject> map=new java.util.LinkedHashMap<>();
+            for(org.json.JSONObject r:punches){
+                long wid=r.optLong("worker_id");
+                org.json.JSONObject row=map.get(wid);
+                if(row==null){
+                    row=new org.json.JSONObject();
+                    row.put("worker_id",wid);
+                    row.put("name", r.optString("worker_name"));
+                    row.put("code", r.optString("wcode"));
+                    row.put("shift", r.optString("wshift"));
+                    row.put("gender", r.optString("wgender"));
+                    row.put("in_time","");
+                    row.put("out_time","");
+                    row.put("in_method","");
+                    row.put("out_method","");
+                    map.put(wid,row);
+                }
+                String punch=r.optString("punch");
+                if("IN".equalsIgnoreCase(punch) && row.optString("in_time").isEmpty()){
+                    row.put("in_time", r.optString("time"));
+                    row.put("in_method", r.optString("method"));
+                }
+                if("OUT".equalsIgnoreCase(punch)){
+                    row.put("out_time", r.optString("time"));
+                    row.put("out_method", r.optString("method"));
+                }
+            }
+            out.addAll(map.values());
+        }catch(Exception ignored){}
+        return out;
+    }
     int[] attendanceGenderStats(String day){
         ensureAttendanceTables();
         // [0]=total unique IN, [1]=male, [2]=female
