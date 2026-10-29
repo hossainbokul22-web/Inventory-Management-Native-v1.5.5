@@ -35,7 +35,7 @@ final class Ui {
             SOFT_PURPLE = Color.rgb(40, 33, 62); SOFT_RED = Color.rgb(62, 30, 32);
             GOOD = Color.rgb(83, 197, 133); BAD = Color.rgb(255, 138, 128); WARN = Color.rgb(240, 180, 60);
         } else {
-            BG = Color.rgb(243, 246, 250); CARD = Color.WHITE; INK = Color.rgb(27, 36, 48); MUTED = Color.rgb(93, 107, 124);
+            BG = Color.rgb(228, 233, 240); CARD = Color.rgb(232, 236, 242); INK = Color.rgb(27, 36, 48); MUTED = Color.rgb(93, 107, 124);
             LINE = Color.rgb(225, 231, 238); NAVY_TEXT = Color.rgb(20, 55, 95); BTN = Color.rgb(20, 55, 95);
             SOFT_BLUE = Color.rgb(232, 241, 252); SOFT_GREEN = Color.rgb(228, 246, 238); SOFT_AMBER = Color.rgb(255, 244, 222);
             SOFT_PURPLE = Color.rgb(240, 235, 252); SOFT_RED = Color.rgb(253, 232, 231);
@@ -154,4 +154,37 @@ final class Ui {
         box.addView(track, lp(c, -1, dp(c, 8), 0, 0, 3, 0, 0));
         return box;
     }
+
+    /** Soft neumorphic surface colour (light grey-blue). */
+    static int NEU_BG = Color.rgb(228, 233, 240);
+    static int NEU_FACE = Color.rgb(232, 236, 242);
+    static int NEU_LIGHT = Color.rgb(255, 255, 255);
+    static int NEU_DARK = Color.rgb(190, 198, 210);
+
+    /** Raised soft card — neumorphism vibe (rounded, soft face). */
+    static android.graphics.drawable.Drawable neuRaised(Context c, int radiusDp) {
+        GradientDrawable g = new GradientDrawable();
+        g.setColor(NEU_FACE);
+        g.setCornerRadius(dp(c, radiusDp));
+        g.setStroke(dp(c, 1), Color.rgb(210, 216, 225));
+        return g;
+    }
+
+    /** Soft inset-style panel (slightly deeper grey). */
+    static android.graphics.drawable.Drawable neuInset(Context c, int radiusDp) {
+        GradientDrawable g = new GradientDrawable();
+        g.setColor(Color.rgb(220, 226, 234));
+        g.setCornerRadius(dp(c, radiusDp));
+        g.setStroke(dp(c, 1), Color.rgb(200, 208, 218));
+        return g;
+    }
+
+    /** Apply elevation shadow for soft “lifted” neu look (API 21+). */
+    static void neuElevate(View v, float dpElev) {
+        try {
+            v.setElevation(dp(v.getContext(), (int) dpElev));
+            v.setTranslationZ(dp(v.getContext(), 1));
+        } catch (Exception ignored) {}
+    }
+
 }

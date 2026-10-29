@@ -219,6 +219,8 @@ private void requestNotifPermission(){
  }
 
 private void clear(String head){
+        try{ if(content!=null) content.setBackgroundColor(Ui.BG); }catch(Exception ignored){}
+
     currentScreen=head;
     for(Runnable task:dashboardRunnables)main.removeCallbacks(task);
     dashboardRunnables.clear();
@@ -562,6 +564,8 @@ private boolean admin(){return db.canAdmin()||db.canEdit();}
  private void showDashboard(){
     if(isDeviceBlocked()){ showDeviceBlocked(); return; }
     clear("Dashboard");
+    try{ content.setBackgroundColor(Ui.NEU_BG); }catch(Exception ignored){}
+    try{ if(root!=null) root.setBackgroundColor(Ui.NEU_BG); }catch(Exception ignored){}
     // Attendance — start-of-shift corner (always visible on home)
     try{
         LinearLayout dashAtt=new LinearLayout(this);
@@ -569,7 +573,7 @@ private boolean admin(){return db.canAdmin()||db.canEdit();}
         dashAtt.setGravity(Gravity.END|Gravity.CENTER_VERTICAL);
         dashAtt.setPadding(dp(4),dp(2),dp(4),dp(6));
         TextView attChip=Ui.text(this,"👤 Attendance",14,Color.WHITE,true);
-        attChip.setBackgroundColor(Color.rgb(30,120,90));
+        attChip.setBackground(Ui.neuRaised(this,14)); attChip.setTextColor(Color.rgb(20,90,70)); Ui.neuElevate(attChip,4);
         attChip.setPadding(dp(14),dp(10),dp(14),dp(10));
         attChip.setOnClickListener(v->startActivity(new Intent(this,AttendanceActivity.class)));
         dashAtt.addView(attChip);
@@ -1935,7 +1939,7 @@ private void showLabels(){
     }catch(Exception ex){error(ex);}
  }
  private double closingFor(String code,String d)throws Exception{return opening(d,code)+receive(d,code)-use(d,code);}
- private void addLiveCard(LinearLayout parent,String label,TextView value,String color){LinearLayout card=new LinearLayout(this);card.setOrientation(LinearLayout.VERTICAL);card.setPadding(dp(12),dp(10),dp(10),dp(10));card.setBackground(Ui.shape(this,Ui.CARD,Ui.LINE,14));TextView l=new TextView(this);l.setText(label);l.setTextSize(11);l.setTextColor(Ui.MUTED);value.setTextSize(17);value.setTypeface(null,Typeface.BOLD);value.setTextColor(Ui.NAVY_TEXT);value.setSingleLine(false);value.setMaxLines(3);value.setEllipsize(android.text.TextUtils.TruncateAt.END);card.addView(l);card.addView(value);LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(0,dp(96),1);cp.setMargins(dp(3),dp(3),dp(3),dp(3));parent.addView(card,cp);}
+ private void addLiveCard(LinearLayout parent,String label,TextView value,String color){LinearLayout card=new LinearLayout(this);card.setOrientation(LinearLayout.VERTICAL);card.setPadding(dp(12),dp(10),dp(10),dp(10));card.setBackground(Ui.neuRaised(this,16)); Ui.neuElevate(card,5);TextView l=new TextView(this);l.setText(label);l.setTextSize(11);l.setTextColor(Ui.MUTED);value.setTextSize(17);value.setTypeface(null,Typeface.BOLD);value.setTextColor(Ui.NAVY_TEXT);value.setSingleLine(false);value.setMaxLines(3);value.setEllipsize(android.text.TextUtils.TruncateAt.END);card.addView(l);card.addView(value);LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(0,dp(96),1);cp.setMargins(dp(3),dp(3),dp(3),dp(3));parent.addView(card,cp);}
  private void startLive(final TextView[] views,final List<List<String>> items,final String[] empty,final String[] summary,final String[] sub){
     final int n=views.length;final int[] pos=new int[n];final int[] turn={0};
     boolean any=false;
