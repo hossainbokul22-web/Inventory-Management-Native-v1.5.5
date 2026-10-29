@@ -148,7 +148,7 @@ public class StockDb extends SQLiteOpenHelper {
         }catch(Exception ignored){}
     }
     void upsertDevice(String deviceId, String code, String name, String role, String ip, boolean active){
-        ensureDevicesTable();
+        ensureDevicesTable(); ensureAttendanceTables();
         try{
             android.content.ContentValues v=new android.content.ContentValues();
             v.put("device_id", deviceId);
@@ -221,6 +221,64 @@ public class StockDb extends SQLiteOpenHelper {
     /** After first setup, prefer non-admin default only when explicitly reset — keep currentRole as stored. */
     boolean securityHardened(){
         return hasAdminPin() && !"0".equals(setting("admin_security_on","1"));
+    }
+
+
+    void ensureAttendanceTables(){
+        try{
+            getWritableDatabase().execSQL(
+                "CREATE TABLE IF NOT EXISTS workers("+
+                "id INTEGER PRIMARY KEY AUTOINCREMENT,"+
+                "code TEXT,"+
+                "name TEXT NOT NULL,"+
+                "shift TEXT,"+
+                "photo_path TEXT,"+
+                "active INTEGER DEFAULT 1)");
+            getWritableDatabase().execSQL(
+                "CREATE TABLE IF NOT EXISTS attendance("+
+                "id INTEGER PRIMARY KEY AUTOINCREMENT,"+
+                "worker_id INTEGER,"+
+                "worker_name TEXT,"+
+                "day TEXT,"+
+                "time TEXT,"+
+                "punch TEXT,"+
+                "method TEXT,"+
+                "photo_path TEXT,"+
+                "by_user TEXT,"+
+                "device_code TEXT,"+
+                "note TEXT)");
+        }catch(Exception ignored){}
+    }
+    long addWorker(String code,String name,String shift,String photo){
+        ensureAttendanceTables();
+        android.content.ContentValues v=new android.content.ContentValues();
+        v.put("code",code); v.put("name",name); v.put("shift",shift);
+        v.put("photo_path",photo==null?"":photo); v.put("active",1);
+        return getWritableDatabase().insert("workers",null,v);
+    }
+    java.util.List<org.json.JSONObject> listWorkers(){
+        ensureAttendanceTables();
+        try{ return rows("SELECT * FROM workers WHERE active=1 ORDER BY name",null); }
+        catch(Exception e){ return new java.util.ArrayList<>(); }
+    }
+    long addAttendance(long workerId,String wname,String day,String time,String punch,
+                       String method,String photo,String byUser,String device,String note){
+        ensureAttendanceTables();
+        android.content.ContentValues v=new android.content.ContentValues();
+        v.put("worker_id",workerId); v.put("worker_name",wname);
+        v.put("day",day); v.put("time",time); v.put("punch",punch);
+        v.put("method",method); v.put("photo_path",photo==null?"":photo);
+        v.put("by_user",byUser); v.put("device_code",device);
+        v.put("note",note==null?"":note);
+        return getWritableDatabase().insert("attendance",null,v);
+    }
+    java.util.List<org.json.JSONObject> listAttendance(String day){
+        ensureAttendanceTables();
+        try{
+            if(day==null||day.isEmpty())
+                return rows("SELECT * FROM attendance ORDER BY id DESC LIMIT 100",null);
+            return rows("SELECT * FROM attendance WHERE day=? ORDER BY id DESC",new String[]{day});
+        }catch(Exception e){ return new java.util.ArrayList<>(); }
     }
 
 }

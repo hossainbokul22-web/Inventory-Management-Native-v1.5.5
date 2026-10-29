@@ -21,7 +21,8 @@
    <intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter>
   </activity>
   <service android:name=".DutyLocationService" android:exported="false" android:foregroundServiceType="location"/>
-  <activity android:name=".CallActivity" android:exported="false" android:screenOrientation="portrait" android:theme="@style/AppTheme"/>
+  <activity android:name=".CallActivity" android:exported="false"/>
+  <activity android:name=".AttendanceActivity" android:exported="false" android:screenOrientation="portrait" android:screenOrientation="portrait" android:theme="@style/AppTheme"/>
   <activity android:name=".PmActivity" android:exported="false" android:configChanges="orientation|screenSize|keyboardHidden|uiMode"/>
   <receiver android:name=".StockWidget" android:exported="false">
    <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE"/></intent-filter>

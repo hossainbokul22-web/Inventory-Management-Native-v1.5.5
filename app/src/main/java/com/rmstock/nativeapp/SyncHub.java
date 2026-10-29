@@ -259,6 +259,22 @@ public final class SyncHub {
                 lastStatus = "Call signal";
                 return true;
             }
+            if ("attendance".equals(kind)) {
+                db.ensureAttendanceTables();
+                db.addAttendance(
+                    data.optLong("worker_id"),
+                    data.optString("worker_name"),
+                    data.optString("day"),
+                    data.optString("time"),
+                    data.optString("punch","IN"),
+                    data.optString("method","sync"),
+                    data.optString("photo_path",""),
+                    data.optString("by_user",""),
+                    data.optString("device_code",""),
+                    "synced");
+                lastStatus = "Attendance synced";
+                return true;
+            }
             if ("device_register".equals(kind)) {
                 db.upsertDevice(
                     data.optString("device_id"),
