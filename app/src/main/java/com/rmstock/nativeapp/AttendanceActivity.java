@@ -605,17 +605,7 @@ public class AttendanceActivity extends Activity implements SurfaceHolder.Callba
         } catch (Exception e) { toast("Share: " + e.getMessage()); }
     }
 
-    private void showAbsent() {
-        String day = new SimpleDateFormat("yyyy-MM-dd", Locale.US).format(new Date());
-        try {
-            java.util.List<JSONObject> abs = db.listAbsentWorkers(day);
-            StringBuilder sb = new StringBuilder("Absent (" + abs.size() + ")\n");
-            for (JSONObject w : abs) sb.append("• ").append(w.optString("name")).append("\n");
-            if (abs.isEmpty()) sb.append("All present (IN).");
-            new AlertDialog.Builder(this).setTitle("Absent today").setMessage(sb.toString())
-                    .setPositiveButton("OK", null).show();
-        } catch (Throwable t) { toast("Absent list not ready"); }
-    }
+    
 
 
     @Override protected void onDestroy() {
