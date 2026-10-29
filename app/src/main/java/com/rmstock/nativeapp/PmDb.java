@@ -31,16 +31,20 @@ final class PmDb extends SQLiteOpenHelper {
         this.ctx = c.getApplicationContext();
     }
 
+    
+    
     @Override
-    @Override public void onOpen(SQLiteDatabase d){
+    public void onOpen(SQLiteDatabase d) {
         super.onOpen(d);
-        if(!d.isReadOnly()){
-            try{ d.enableWriteAheadLogging(); }catch(Exception ignored){}
-            try{
-                d.execSQL("CREATE INDEX IF NOT EXISTS idx_pm_stock_date ON pm_stock(date)");
-            }catch(Exception ignored){}
+        if (!d.isReadOnly()) {
+            try { d.enableWriteAheadLogging(); } catch (Exception ignored) {}
+            try {
+                d.execSQL("PRAGMA synchronous=NORMAL");
+            } catch (Exception ignored) {}
         }
     }
+
+    @Override
     public void onCreate(SQLiteDatabase db) {
         db.execSQL("CREATE TABLE items(code INTEGER PRIMARY KEY, name TEXT, uom TEXT, open REAL)");
         db.execSQL("CREATE TABLE products(code INTEGER PRIMARY KEY, name TEXT)");
