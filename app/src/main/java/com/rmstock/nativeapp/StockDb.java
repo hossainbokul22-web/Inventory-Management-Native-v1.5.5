@@ -357,6 +357,23 @@ public class StockDb extends SQLiteOpenHelper {
             return false;
         }catch(Exception e){ return false; }
     }
+    java.util.List<org.json.JSONObject> listAbsentWorkers(String day){
+        ensureAttendanceTables();
+        java.util.List<org.json.JSONObject> out=new java.util.ArrayList<>();
+        try{
+            java.util.HashSet<Long> present=new java.util.HashSet<>();
+            for(org.json.JSONObject r:rows("SELECT DISTINCT worker_id FROM attendance WHERE day=? AND punch='IN'", new String[]{day}))
+                present.add(r.optLong("worker_id"));
+            for(org.json.JSONObject w:listWorkers()) if(!present.contains(w.optLong("id"))) out.add(w);
+        }catch(Exception ignored){}
+        return out;
+    }
+    int countLate(String day){
+        try{
+            java.util.List<org.json.JSONObject> r=rows("SELECT COUNT(*) AS c FROM attendance WHERE day=? AND punch='IN' AND IFNULL(late,0)=1", new String[]{day});
+            return r.isEmpty()?0:r.get(0).optInt("c");
+        }catch(Exception e){return 0;}
+    }
     java.util.List<org.json.JSONObject> listAttendance(String day){
         ensureAttendanceTables();
         try{

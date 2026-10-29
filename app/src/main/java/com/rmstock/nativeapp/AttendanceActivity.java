@@ -5,6 +5,7 @@ import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
+import android.net.Uri;
 import android.graphics.Paint;
 import android.graphics.pdf.PdfDocument;
 import android.print.PrintAttributes;
@@ -393,6 +394,191 @@ public class AttendanceActivity extends Activity implements SurfaceHolder.Callba
     }
     private int dp(int v) { return Math.round(v * getResources().getDisplayMetrics().density); }
     private void toast(String m) { Toast.makeText(this, m, Toast.LENGTH_SHORT).show(); }
+    
+    private void printAttendanceSheet() {
+        final String day = new SimpleDateFormat("yyyy-MM-dd", Locale.US).format(new Date());
+        File pdf = buildAttendancePdf(day);
+        if (pdf == null || !pdf.exists()) { toast("PDF failed"); return; }
+        new AlertDialog.Builder(this)
+                .setTitle("Attendance sheet")
+                .setMessage(day + "\nPrint or share for boss.")
+                .setPositiveButton("Print", (d, w) -> doPrint(pdf, day))
+                .setNeutralButton("Share", (d, w) -> sharePdf(pdf, day))
+                .setNegativeButton("Close", null)
+                .show();
+    }
+
+    private File buildAttendancePdf(String day) {
+        try {
+            String company = db.setting("company", "Company");
+            java.util.List<JSONObject> rows;
+            try { rows = db.attendanceReportRows(day); }
+            catch (Throwable t) {
+                rows = new java.util.ArrayList<>();
+                for (JSONObject r : db.listAttendance(day)) {
+                    JSONObject o = new JSONObject();
+                    o.put("name", r.optString("worker_name"));
+                    o.put("code", "");
+                    o.put("shift", "");
+                    o.put("gender", "");
+                    o.put("in_time", "IN".equalsIgnoreCase(r.optString("punch")) ? r.optString("time") : "");
+                    o.put("out_time", "OUT".equalsIgnoreCase(r.optString("punch")) ? r.optString("time") : "");
+                    rows.add(o);
+                }
+            }
+            int[] st;
+            try { st = db.attendanceGenderStats(day); }
+            catch (Throwable t) { st = new int[]{rows.size(), 0, 0}; }
+            int lateN = 0, absN = 0;
+            try { lateN = db.countLate(day); } catch (Throwable ignored) {}
+            try { absN = db.listAbsentWorkers(day).size(); } catch (Throwable ignored) {}
+
+            PdfDocument doc = new PdfDocument();
+            Paint title = new Paint();
+            title.setTextSize(14);
+            title.setFakeBoldText(true);
+            title.setColor(Color.rgb(15, 40, 70));
+            Paint head = new Paint();
+            head.setTextSize(9);
+            head.setFakeBoldText(true);
+            head.setColor(Color.rgb(20, 40, 60));
+            Paint cell = new Paint();
+            cell.setTextSize(8);
+            cell.setColor(Color.rgb(30, 40, 50));
+            Paint line = new Paint();
+            line.setColor(Color.rgb(180, 190, 200));
+            line.setStrokeWidth(1f);
+
+            int pageW = 595, pageH = 842, margin = 36, pageNo = 1;
+            PdfDocument.PageInfo info = new PdfDocument.PageInfo.Builder(pageW, pageH, pageNo).create();
+            PdfDocument.Page page = doc.startPage(info);
+            android.graphics.Canvas c = page.getCanvas();
+            int y = margin;
+            c.drawText(company, margin, y, title); y += 18;
+            c.drawText("Attendance Report (Hajira Sheet)", margin, y, title); y += 14;
+            c.drawText("Date: " + day + "  Prepared: " +
+                    new SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US).format(new Date()), margin, y, cell);
+            y += 16;
+            c.drawLine(margin, y, pageW - margin, y, line); y += 14;
+
+            String[] headers = {"#", "Code", "Name", "Shift", "Gender", "IN", "OUT"};
+            float[] xs = {margin, margin + 28, margin + 70, margin + 220, margin + 268, margin + 320, margin + 390};
+            for (int i = 0; i < headers.length; i++) c.drawText(headers[i], xs[i], y, head);
+            y += 6;
+            c.drawLine(margin, y, pageW - margin, y, line); y += 12;
+
+            int n = 0;
+            for (JSONObject r : rows) {
+                if (y > pageH - 90) {
+                    c.drawText("Continued...", margin, pageH - 28, cell);
+                    doc.finishPage(page);
+                    pageNo++;
+                    info = new PdfDocument.PageInfo.Builder(pageW, pageH, pageNo).create();
+                    page = doc.startPage(info);
+                    c = page.getCanvas();
+                    y = margin;
+                    for (int i = 0; i < headers.length; i++) c.drawText(headers[i], xs[i], y, head);
+                    y += 12;
+                }
+                n++;
+                String name = r.optString("name");
+                if (name.length() > 22) name = name.substring(0, 21) + ".";
+                String g = r.optString("gender");
+                if (g.length() > 8) g = g.substring(0, 8);
+                c.drawText(String.valueOf(n), xs[0], y, cell);
+                c.drawText(r.optString("code"), xs[1], y, cell);
+                c.drawText(name, xs[2], y, cell);
+                c.drawText(r.optString("shift"), xs[3], y, cell);
+                c.drawText(g, xs[4], y, cell);
+                c.drawText(r.optString("in_time"), xs[5], y, cell);
+                c.drawText(r.optString("out_time"), xs[6], y, cell);
+                y += 13;
+            }
+            y += 10;
+            c.drawLine(margin, y, pageW - margin, y, line); y += 16;
+            Paint foot = new Paint();
+            foot.setTextSize(10);
+            foot.setFakeBoldText(true);
+            foot.setColor(Color.rgb(15, 40, 70));
+            c.drawText("Total(IN): " + st[0] + "  Male: " + st[1] + "  Female: " + st[2]
+                    + "  Late: " + lateN + "  Absent: " + absN, margin, y, foot);
+            y += 20;
+            c.drawText("Supervisor: _______________     Admin/Boss: _______________", margin, y, cell);
+            y += 24;
+            c.drawText("Inventory Management App", margin, y, cell);
+            doc.finishPage(page);
+
+            File dir = new File(getExternalFilesDir(null), "reports");
+            if (!dir.exists()) dir.mkdirs();
+            File out = new File(dir, "Attendance_" + day + ".pdf");
+            FileOutputStream fos = new FileOutputStream(out);
+            doc.writeTo(fos);
+            fos.close();
+            doc.close();
+            return out;
+        } catch (Exception e) {
+            toast("PDF: " + e.getMessage());
+            return null;
+        }
+    }
+
+    private void doPrint(final File pdf, final String day) {
+        try {
+            PrintManager pm = (PrintManager) getSystemService(PRINT_SERVICE);
+            if (pm == null) { sharePdf(pdf, day); return; }
+            pm.print("Attendance-" + day, new PrintDocumentAdapter() {
+                @Override public void onLayout(PrintAttributes oldAttr, PrintAttributes newAttr,
+                        CancellationSignal signal, LayoutResultCallback cb, android.os.Bundle extras) {
+                    if (signal.isCanceled()) { cb.onLayoutCancelled(); return; }
+                    cb.onLayoutFinished(new PrintDocumentInfo.Builder("Attendance_" + day + ".pdf")
+                            .setContentType(PrintDocumentInfo.CONTENT_TYPE_DOCUMENT)
+                            .setPageCount(PrintDocumentInfo.PAGE_COUNT_UNKNOWN).build(), true);
+                }
+                @Override public void onWrite(android.print.PageRange[] pages, ParcelFileDescriptor dest,
+                        CancellationSignal signal, WriteResultCallback cb) {
+                    try {
+                        InputStream in = new FileInputStream(pdf);
+                        OutputStream out = new FileOutputStream(dest.getFileDescriptor());
+                        byte[] buf = new byte[8192];
+                        int n;
+                        while ((n = in.read(buf)) > 0) out.write(buf, 0, n);
+                        in.close(); out.close();
+                        cb.onWriteFinished(new android.print.PageRange[]{android.print.PageRange.ALL_PAGES});
+                    } catch (Exception e) { cb.onWriteFailed(e.getMessage()); }
+                }
+            }, null);
+        } catch (Exception e) {
+            toast(e.getMessage());
+            sharePdf(pdf, day);
+        }
+    }
+
+    private void sharePdf(File pdf, String day) {
+        try {
+            Uri uri = androidx.core.content.FileProvider.getUriForFile(
+                    this, "com.rmstock.nativeapp.fileprovider", pdf);
+            android.content.Intent i = new android.content.Intent(android.content.Intent.ACTION_SEND);
+            i.setType("application/pdf");
+            i.putExtra(android.content.Intent.EXTRA_STREAM, uri);
+            i.putExtra(android.content.Intent.EXTRA_SUBJECT, "Attendance " + day);
+            i.addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            startActivity(android.content.Intent.createChooser(i, "Share attendance PDF"));
+        } catch (Exception e) { toast("Share: " + e.getMessage()); }
+    }
+
+    private void showAbsent() {
+        String day = new SimpleDateFormat("yyyy-MM-dd", Locale.US).format(new Date());
+        try {
+            java.util.List<JSONObject> abs = db.listAbsentWorkers(day);
+            StringBuilder sb = new StringBuilder("Absent (" + abs.size() + ")\n");
+            for (JSONObject w : abs) sb.append("• ").append(w.optString("name")).append("\n");
+            if (abs.isEmpty()) sb.append("All present (IN).");
+            new AlertDialog.Builder(this).setTitle("Absent today").setMessage(sb.toString())
+                    .setPositiveButton("OK", null).show();
+        } catch (Throwable t) { toast("Absent list not ready"); }
+    }
+
+
     @Override protected void onDestroy() {
         main.removeCallbacks(faceTicker);
         if (detector != null) try { detector.close(); } catch (Exception ignored) {}
