@@ -296,6 +296,12 @@ public class StockDb extends SQLiteOpenHelper {
     long addWorker(String code,String name,String shift,String photo){
         return addWorker(code,name,shift,photo,"");
     }
+    void updateWorkerPhoto(long id,String path){
+        ensureAttendanceTables();
+        android.content.ContentValues v=new android.content.ContentValues();
+        v.put("photo_path", path==null?"":path);
+        getWritableDatabase().update("workers", v, "id=?", new String[]{String.valueOf(id)});
+    }
     long addWorker(String code,String name,String shift,String photo,String gender){
         ensureAttendanceTables();
         android.content.ContentValues v=new android.content.ContentValues();

@@ -56,7 +56,10 @@ public class AttendanceActivity extends Activity implements SurfaceHolder.Callba
     private SurfaceView preview;
     private TextView statusTv, punchTv, todayTv;
     private FaceDetector detector;
-    private volatile boolean faceOk; private volatile boolean eyeLiveness;
+    private volatile boolean faceOk;
+    private final java.util.HashMap<Long,float[]> embedCache = new java.util.HashMap<>();
+    private long lastAutoMatchId = -1;
+    private float lastAutoScore = 0f; private volatile boolean eyeLiveness;
     private volatile long lastFaceMs;
     private boolean punching;
     private String punchType = "IN";
@@ -357,28 +360,132 @@ public class AttendanceActivity extends Activity implements SurfaceHolder.Callba
 
     private void manageWorkers() {
         final EditText name = new EditText(this);
-        name.setHint("Worker name *");
+        name.setHint("Worker full name *");
         final EditText code = new EditText(this);
-        code.setHint("Code / ID");
+        code.setHint("ID / Code *");
         final EditText shift = new EditText(this);
         shift.setHint("Shift A/B/C/General");
         final EditText gender = new EditText(this);
         gender.setHint("Gender: Male / Female");
+        TextView tip = new TextView(this);
+        tip.setText("Face the camera, then tap Save face. Reference photo is required for match.");
+        tip.setTextColor(Color.rgb(80, 90, 100));
+        tip.setPadding(0, dp(6), 0, dp(6));
         LinearLayout box = new LinearLayout(this);
         box.setOrientation(LinearLayout.VERTICAL);
         box.setPadding(dp(20), dp(8), dp(20), dp(8));
+        box.addView(tip);
         box.addView(name); box.addView(code); box.addView(shift); box.addView(gender);
-        new AlertDialog.Builder(this).setTitle("Add worker").setView(box)
-                .setPositiveButton("Add", (d, w) -> {
+        new AlertDialog.Builder(this).setTitle("Enroll worker + face")
+                .setView(box)
+                .setPositiveButton("Save face & worker", (d, w) -> {
                     String n = name.getText().toString().trim();
                     if (n.isEmpty()) { toast("Name required"); return; }
+                    if (!(faceOk && (System.currentTimeMillis() - lastFaceMs) < 2000)) {
+                        toast("No face — stand in front of camera");
+                        return;
+                    }
                     String path = saveLastFrameFile();
-                    db.addWorker(code.getText().toString().trim(), n, shift.getText().toString().trim(), path == null ? "" : path, gender.getText().toString().trim());
+                    if (path == null || path.isEmpty()) {
+                        toast("Could not save face photo");
+                        return;
+                    }
+                    long id = db.addWorker(code.getText().toString().trim(), n,
+                            shift.getText().toString().trim(), path, gender.getText().toString().trim());
+                    embedCache.put(id, FaceMatch.embedFile(path));
                     reloadWorkers();
-                    toast("Worker added");
+                    toast("Enrolled: " + n + " (face saved)");
                 })
+                .setNeutralButton("List / re-photo", (d, w) -> showWorkerFaceList())
                 .setNegativeButton("Close", null).show();
     }
+
+    private void showWorkerFaceList() {
+        java.util.List<JSONObject> list = db.listWorkers();
+        StringBuilder sb = new StringBuilder();
+        for (JSONObject w : list) {
+            boolean has = FaceMatch.fileOk(w.optString("photo_path"));
+            sb.append(has ? "✓ " : "✗ ")
+              .append(w.optString("name")).append(" (")
+              .append(w.optString("code")).append(")\n");
+        }
+        new AlertDialog.Builder(this).setTitle("Face enrolled?")
+                .setMessage(sb.length() == 0 ? "No workers" : sb.toString())
+                .setPositiveButton("Re-photo selected…", (d, w) -> rePhotoWorker())
+                .setNegativeButton("OK", null).show();
+    }
+
+    private void rePhotoWorker() {
+        java.util.List<JSONObject> list = db.listWorkers();
+        if (list.isEmpty()) { toast("No workers"); return; }
+        String[] names = new String[list.size()];
+        for (int i = 0; i < list.size(); i++)
+            names[i] = list.get(i).optString("name") + " · " + list.get(i).optString("code");
+        new AlertDialog.Builder(this).setTitle("Update face photo")
+                .setItems(names, (d, which) -> {
+                    if (!(faceOk && (System.currentTimeMillis() - lastFaceMs) < 2000)) {
+                        toast("Show face to camera first");
+                        return;
+                    }
+                    JSONObject w = list.get(which);
+                    String path = saveLastFrameFile();
+                    if (path == null) { toast("Save failed"); return; }
+                    db.updateWorkerPhoto(w.optLong("id"), path);
+                    embedCache.put(w.optLong("id"), FaceMatch.embedFile(path));
+                    reloadWorkers();
+                    toast("Face updated: " + w.optString("name"));
+                }).setNegativeButton("Cancel", null).show();
+    }
+
+    /** Rank enrolled workers by live frame similarity; auto-punch if very high. */
+    private void runFaceMatch() {
+        if (lastFrame == null || previewW <= 0 || !faceOk) return;
+        Bitmap live = FaceMatch.nv21ToBitmap(lastFrame, previewW, previewH);
+        if (live == null) return;
+        float[] liveE = FaceMatch.embedBitmap(live);
+        if (liveE == null) return;
+        long bestId = -1;
+        String bestName = null;
+        float best = 0f;
+        for (JSONObject w : db.listWorkers()) {
+            long id = w.optLong("id");
+            String path = w.optString("photo_path");
+            if (!FaceMatch.fileOk(path)) continue;
+            float[] ref = embedCache.get(id);
+            if (ref == null) {
+                ref = FaceMatch.embedFile(path);
+                if (ref != null) embedCache.put(id, ref);
+            }
+            if (ref == null) continue;
+            float sc = FaceMatch.cosine(liveE, ref);
+            if (sc > best) {
+                best = sc;
+                bestId = id;
+                bestName = w.optString("name");
+            }
+        }
+        lastAutoMatchId = bestId;
+        lastAutoScore = best;
+        if (bestId > 0 && best >= FaceMatch.SUGGEST_THRESHOLD && bestName != null) {
+            final long fid = bestId;
+            final String fn = bestName;
+            final float fs = best;
+            main.post(() -> {
+                statusTv.setText(String.format(Locale.US,
+                        "MATCH %s %.0f%% · %s", fn, fs * 100f, punchType));
+                if (fs >= FaceMatch.AUTO_THRESHOLD && !punching) {
+                    if (db.hasRecentPunch(fid, punchType, DUP_MINUTES)) return;
+                    new AlertDialog.Builder(this)
+                            .setTitle("Face match")
+                            .setMessage(fn + "\nScore " + Math.round(fs * 100) + "%\nConfirm " + punchType + "?")
+                            .setPositiveButton(punchType, (d, w) -> completePunch(fid, fn, "face-match", null))
+                            .setNegativeButton("Cancel", null)
+                            .show();
+                }
+            });
+        }
+    }
+
 
     private void refreshToday() {
         String day = new SimpleDateFormat("yyyy-MM-dd", Locale.US).format(new Date());
