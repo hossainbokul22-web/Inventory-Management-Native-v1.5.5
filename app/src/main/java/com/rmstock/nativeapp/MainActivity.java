@@ -1029,7 +1029,7 @@ private boolean admin(){return db.canAdmin()||db.canEdit();}
             for(JSONObject rr:db.rows("SELECT code,name,uom FROM rms ORDER BY CAST(code AS INTEGER)",null)){Double t=tot.get(rr.optString("code"));if(t!=null)c.addView(Ui.barRow(this,rr.optString("code")+"  "+rr.optString("name"),fmt(t)+" "+rr.optString("uom"),mx<=0?0:t/mx,Ui.BAD));}
             addCard(c);}
         add(title("Recent wastage"));
-        for(final JSONObject x:db.rows("SELECT l.id,l.date,l.rm_code,l.consumption,l.created_at,m.name,m.uom FROM mixing2_batch_log l LEFT JOIN rms m ON m.code=l.rm_code WHERE l.batch_id<0 ORDER BY l.date DESC,l.id DESC LIMIT 60",null)){
+        for(final JSONObject x:db.rows("SELECT l.id,l.date,l.rm_code,l.consumption,l.created_at,m.name,m.uom FROM mixing2_batch_log l LEFT JOIN rms m ON m.code=l.rm_code WHERE l.batch_id<0 ORDER BY l.date DESC,l.id DESC LIMIT 40",null)){
             LinearLayout row=Ui.card(this,Ui.CARD);
             String why=x.optString("created_at");why=why.startsWith("WASTE|")?why.substring(6):"";
             row.addView(Ui.text(this,x.optString("date")+"  •  "+x.optString("name")+"  •  "+fmt(x.optDouble("consumption"))+" "+x.optString("uom"),14,Ui.INK,true));
@@ -1076,7 +1076,7 @@ private boolean admin(){return db.canAdmin()||db.canEdit();}
         add(save);
 
         add(title("Pending (variance)"));
-        List<JSONObject> pending=db.rows("SELECT c.id,c.date,c.rm_code,c.counted,c.system,IFNULL(c.variance,c.counted-c.system) variance,IFNULL(c.status,'pending') status,m.name,m.uom FROM counts c LEFT JOIN rms m ON m.code=c.rm_code WHERE IFNULL(c.status,'pending')='pending' ORDER BY c.date DESC,CAST(c.rm_code AS INTEGER) LIMIT 60",null);
+        List<JSONObject> pending=db.rows("SELECT c.id,c.date,c.rm_code,c.counted,c.system,IFNULL(c.variance,c.counted-c.system) variance,IFNULL(c.status,'pending') status,m.name,m.uom FROM counts c LEFT JOIN rms m ON m.code=c.rm_code WHERE IFNULL(c.status,'pending')='pending' ORDER BY c.date DESC,CAST(c.rm_code AS INTEGER) LIMIT 40",null);
         if(pending.isEmpty())add(Ui.muted(this,"No pending counts"));
         for(final JSONObject c:pending){
             long id=c.optLong("id");
@@ -2493,7 +2493,8 @@ rangeRow.addView(b7,new LinearLayout.LayoutParams(0,dp(48),1));
 add(rangeRow);
 String fromDay="today".equals(entryRangeF)?today():PlanLogic.shiftDate(today(),-6);
 add(tv("Recent Entries ("+("today".equals(entryRangeF)?"Today":"Last 7 days")+")",1));
-for(JSONObject r:db.rows("SELECT * FROM receives WHERE date>=? ORDER BY date DESC,id DESC LIMIT 200",new String[]{fromDay})){LinearLayout row=new LinearLayout(this);row.setOrientation(LinearLayout.VERTICAL);row.setPadding(dp(6),dp(8),dp(6),dp(8));
+add(Ui.muted(this,"Shows up to 80 rows — use Today / Last 7 days filter."));
+for(JSONObject r:db.rows("SELECT * FROM receives WHERE date>=? ORDER BY date DESC,id DESC LIMIT 80",new String[]{fromDay})){LinearLayout row=new LinearLayout(this);row.setOrientation(LinearLayout.VERTICAL);row.setPadding(dp(6),dp(8),dp(6),dp(8));
 row.addView(tv("ID: "+r.optString("id")+"   "+r.optString("date")+"   RM: "+r.optString("rm_code")+"   Qty: "+fmt(r.optDouble("qty"))+"   Voucher: "+r.optString("voucher_no")+(r.optString("lot").isEmpty()?"":"   Lot: "+r.optString("lot"))+(r.optString("expiry").isEmpty()?"":"   Exp: "+r.optString("expiry")),1));
 row.addView(tv(r.optString("note"),1));
 Button editB=btn("Edit");
@@ -2572,7 +2573,7 @@ save.setPadding(dp(12),dp(10),dp(12),dp(10));save.setOnClickListener(v->{try{Str
   add(br);
   String batchFrom="today".equals(batchRangeF)?today():PlanLogic.shiftDate(today(),-6);
   add(title("Saved Batch Counts — "+("today".equals(batchRangeF)?"Today":"Last 7 days")));
-  for(JSONObject x:db.rows("SELECT b.id,b.date,b.product_code,p.name,b.shift,b.qty FROM batches b LEFT JOIN products p ON p.code=b.product_code WHERE b.date>=? ORDER BY b.date DESC,b.shift ASC,b.id DESC LIMIT 200",new String[]{batchFrom})){
+  for(JSONObject x:db.rows("SELECT b.id,b.date,b.product_code,p.name,b.shift,b.qty FROM batches b LEFT JOIN products p ON p.code=b.product_code WHERE b.date>=? ORDER BY b.date DESC,b.shift ASC,b.id DESC LIMIT 80",new String[]{batchFrom})){
     LinearLayout r=row();TextView t=new TextView(this);t.setText(x.optString("date")+" | "+x.optString("name")+" | Shift "+shiftLabel(x.optInt("shift",0))+" | Batch Count: "+batchCountText(x.optDouble("qty",0)));t.setLayoutParams(new LinearLayout.LayoutParams(0,-2,1));r.addView(t);
     Button e=btn("Edit");e.setOnClickListener(v->{
       try{

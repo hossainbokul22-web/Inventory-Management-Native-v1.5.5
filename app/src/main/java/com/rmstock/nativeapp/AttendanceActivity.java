@@ -164,7 +164,8 @@ public class AttendanceActivity extends Activity implements SurfaceHolder.Callba
             try { net = FaceNetEngine.get(this).isReady();
             if (!net && !FaceNetEngine.modelPresent(this)) { /* no tflite in APK */ } } catch (Throwable ignored) {}
             if (miss > 0) toast(miss + " workers need face photo (Workers)");
-            statusTv.setText((net ? "MobileFaceNet ON · " : "Basic match · ") + "missing faces: " + miss);
+            String mode = net ? "MobileFaceNet ON" : (FaceNetEngine.modelPresent(this) ? "FaceNet load fail" : "No tflite — basic match");
+            statusTv.setText(mode + " · missing faces: " + miss);
         } catch (Exception ignored) {}
         main.post(faceTicker);
     }
