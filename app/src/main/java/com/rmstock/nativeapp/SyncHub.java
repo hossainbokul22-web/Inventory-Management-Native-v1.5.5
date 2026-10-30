@@ -23,7 +23,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 /** One admin phone = LAN server; others queue offline and flush on hotspot.
  * Conflict policy: LAST_WRITE_WINS — event with higher/equal ts replaces older same client_uid.
  */
-    public static final boolean LAST_WRITE_WINS = true;
 public final class SyncHub {
     public static final int DEFAULT_PORT = 9876;
     private static SyncHub inst;
