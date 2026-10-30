@@ -1,4 +1,5 @@
 package com.rmstock.nativeapp;
+import android.graphics.Color;
 import android.database.sqlite.SQLiteDatabase;
 import com.googlecode.tesseract.android.TessBaseAPI;
 
@@ -598,6 +599,28 @@ private boolean admin(){return db.canAdmin()||db.canEdit();}
         }
     }catch(Exception ignored){}
     try{
+        
+    try{
+        int pend = SyncHub.get(this).pendingCount();
+        String syncMode = db.setting("sync_mode","off");
+        TextView syncPendingBadge = new TextView(this);
+        if (pend > 0) {
+            syncPendingBadge.setText("⏳ Sync pending: " + pend + "  ·  " + syncMode + "  ·  tap Team sync in Admin");
+            syncPendingBadge.setTextColor(Color.rgb(160,80,20));
+            syncPendingBadge.setBackgroundColor(Color.rgb(255,243,224));
+        } else if (!"off".equals(syncMode)) {
+            syncPendingBadge.setText("✓ Sync queue empty  ·  " + syncMode);
+            syncPendingBadge.setTextColor(Color.rgb(30,120,70));
+            syncPendingBadge.setBackgroundColor(Color.rgb(232,245,233));
+        } else {
+            syncPendingBadge.setText("Sync: off (hotspot/LAN not active)");
+            syncPendingBadge.setTextColor(Ui.MUTED);
+        }
+        syncPendingBadge.setTextSize(12);
+        syncPendingBadge.setPadding(dp(10), dp(8), dp(10), dp(8));
+        add(syncPendingBadge);
+    }catch(Exception ignored){}
+
         TextView live=new TextView(this); live.setText("LIVE DATA  •  Today’s RM Receive, Mixing-2 Use, Batch and Closing Stock");
         live.setTextSize(12); live.setTextColor(Ui.MUTED); live.setPadding(dp(2),0,dp(2),dp(10)); add(live);
 

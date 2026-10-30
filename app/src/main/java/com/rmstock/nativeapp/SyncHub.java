@@ -20,7 +20,10 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-/** One admin phone = LAN server; others queue offline and flush on hotspot. */
+/** One admin phone = LAN server; others queue offline and flush on hotspot.
+ * Conflict policy: LAST_WRITE_WINS — event with higher/equal ts replaces older same client_uid.
+ */
+    public static final boolean LAST_WRITE_WINS = true;
 public final class SyncHub {
     public static final int DEFAULT_PORT = 9876;
     private static SyncHub inst;
@@ -139,6 +142,10 @@ public final class SyncHub {
             v.put("kind", kind);
             v.put("payload", payload.toString());
             v.put("created_at", String.valueOf(System.currentTimeMillis()));
+            try {
+                if (!payload.has("ts")) payload.put("ts", System.currentTimeMillis());
+                if (!payload.has("client_uid")) payload.put("client_uid", db.setting("device_id","dev")+"_"+System.currentTimeMillis());
+            } catch (Exception ignored) {}
             v.put("status", "pending");
             db.getWritableDatabase().insert("sync_queue", null, v);
             lastStatus = "Queued " + kind + " · pending " + pendingCount();

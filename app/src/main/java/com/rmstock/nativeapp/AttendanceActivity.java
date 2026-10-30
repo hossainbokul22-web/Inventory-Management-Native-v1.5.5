@@ -155,6 +155,16 @@ public class AttendanceActivity extends Activity implements SurfaceHolder.Callba
         setContentView(root);
         reloadWorkers();
         refreshToday();
+        try {
+            int miss = 0;
+            for (JSONObject w : db.listWorkers()) {
+                if (!FaceMatch.fileOk(w.optString("photo_path"))) miss++;
+            }
+            boolean net = false;
+            try { net = FaceNetEngine.get(this).isReady(); } catch (Throwable ignored) {}
+            if (miss > 0) toast(miss + " workers need face photo (Workers)");
+            statusTv.setText((net ? "MobileFaceNet ON · " : "Basic match · ") + "missing faces: " + miss);
+        } catch (Exception ignored) {}
         main.post(faceTicker);
     }
 
