@@ -270,7 +270,7 @@ private void clear(String head){
  
  /** Max safety: must be Admin role + device Guard (fresh) + Admin PIN. */
  
- /** Unlock app with Team Access PIN (supervisors use this). Session \~10 minutes. */
+ /** Unlock app with Team Access PIN (supervisors use this). Session ~10 minutes. */
  
  private void ensureDeviceIdentity(){
     if(db.setting("device_id","").isEmpty()){
@@ -1787,7 +1787,7 @@ LinearLayout c6=Ui.card(this,Ui.CARD);
 
 
         c7.addView(Ui.text(this,"Auto backup (daily)",15,Ui.NAVY_TEXT,true));
-        c7.addView(Ui.muted(this,"Start = every day \~9 PM (RM+PM JSON). Stop = stays off until you Start again."));
+        c7.addView(Ui.muted(this,"Start = every day ~9 PM (RM+PM JSON). Stop = stays off until you Start again."));
         TextView abStatus=Ui.text(this,
             AutoBackup.isOn(this) ? "Status: ON · last: "+db.setting("auto_backup_last_at","—")
                                   : "Status: OFF",
