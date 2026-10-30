@@ -558,6 +558,7 @@ public class PmActivity extends Activity {
                 return;
             }
             if (date.length() < 8) { toast("Invalid date"); return; }
+            try { if (StockDb.get(this).monthLocked(date)) { toast("Month locked"); return; } } catch (Exception ignored) {}
             String shift = shiftSp.getSelectedItemPosition() == 0 ? "" : SHIFTS[shiftSp.getSelectedItemPosition() - 1];
             savedKindPosition = kindIdx[0];
             savedCode = code;

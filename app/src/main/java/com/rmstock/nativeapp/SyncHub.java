@@ -268,6 +268,7 @@ public final class SyncHub {
                 return true;
             }
             if ("attendance".equals(kind)) {
+                if (isStaleLww(data)) { lastStatus = "LWW skip attendance"; return true; }
                 db.ensureAttendanceTables();
                 db.addAttendance(
                     data.optLong("worker_id"),
@@ -304,6 +305,7 @@ public final class SyncHub {
                 return true;
             }
             if ("chat".equals(kind)) {
+                if (isStaleLww(data)) { lastStatus = "LWW skip chat"; return true; }
                 storeChat(data.optString("sender", "User"), data.optString("body", ""), data.optString("ts", ""));
                 lastStatus = "Chat from " + data.optString("sender");
                 return true;
