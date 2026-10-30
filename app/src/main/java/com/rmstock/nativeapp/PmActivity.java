@@ -561,7 +561,12 @@ public class PmActivity extends Activity {
             String shift = shiftSp.getSelectedItemPosition() == 0 ? "" : SHIFTS[shiftSp.getSelectedItemPosition() - 1];
             savedKindPosition = kindIdx[0];
             savedCode = code;
-            pm.addEntry(kind, code, date, qty, shift, voucherEt.getText().toString().trim(), noteEt.getText().toString().trim());
+            try {
+                pm.addEntry(kind, code, date, qty, shift, voucherEt.getText().toString().trim(), noteEt.getText().toString().trim());
+            } catch (RuntimeException re) {
+                toast(re.getMessage() != null ? re.getMessage() : "Save blocked");
+                return;
+            }
             toast("Saved");
             qtyEt.setText(""); voucherEt.setText(""); noteEt.setText("");
             render();

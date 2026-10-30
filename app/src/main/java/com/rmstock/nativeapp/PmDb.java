@@ -31,6 +31,18 @@ final class PmDb extends SQLiteOpenHelper {
         return INSTANCE;
     }
 
+    
+    /** Uses RM StockDb month lock (same finalized_YYYY-MM). */
+    private void monthLockedGuard(String date) {
+        if (date == null || date.length() < 7) return;
+        try {
+            if (StockDb.get(ctx).monthLocked(date)) {
+                throw new RuntimeException("Month " + date.substring(0, 7) + " is LOCKED — PM entry blocked");
+            }
+        } catch (RuntimeException re) { throw re; }
+        catch (Exception ignored) {}
+    }
+
     PmDb(Context c) {
         super(c, NAME, null, VER);
         this.ctx = c.getApplicationContext();
@@ -194,6 +206,7 @@ final class PmDb extends SQLiteOpenHelper {
     }
 
     long addEntry(String kind, int code, String date, double qty, String shift, String voucher, String note) {
+        monthLockedGuard(date);
         ContentValues cv = new ContentValues();
         cv.put("kind", kind);
         cv.put("code", code);
@@ -429,7 +442,7 @@ double openingProduct(int productCode, String date) {
         return 0;
     }
 
-    void setProductOpening(int productCode, String ym, double qty) {
+    void __noop(); void setProductOpening(int productCode, String ym, double qty) {
         ContentValues cv = new ContentValues();
         cv.put("product_code", productCode);
         cv.put("ym", ym);

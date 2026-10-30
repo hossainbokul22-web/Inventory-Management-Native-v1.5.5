@@ -48,6 +48,13 @@ public final class FaceNetEngine {
     }
 
     public boolean isReady() { return ready && interpreter != null; }
+    public static boolean modelPresent(Context c) {
+        try {
+            String[] list = c.getAssets().list("");
+            if (list != null) for (String n : list) if ("MobileFaceNet.tflite".equals(n)) return true;
+        } catch (Exception ignored) {}
+        return false;
+    }
 
     private static MappedByteBuffer loadModel(Context c, String name) throws Exception {
         AssetFileDescriptor fd = c.getAssets().openFd(name);

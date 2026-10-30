@@ -312,6 +312,7 @@ public final class SyncHub {
                 return true;
             }
             if ("receive".equals(kind)) {
+                if (isStaleLww(data)) { lastStatus = "LWW skip receive"; return true; }
                 ContentValues z = new ContentValues();
                 z.put("date", data.optString("date"));
                 z.put("rm_code", data.optString("rm_code"));
@@ -327,6 +328,7 @@ public final class SyncHub {
                 return true;
             }
             if ("wastage".equals(kind)) {
+                if (isStaleLww(data)) { lastStatus = "LWW skip wastage"; return true; }
                 ContentValues z = new ContentValues();
                 long nid = -System.currentTimeMillis();
                 z.put("batch_id", nid);
@@ -343,6 +345,7 @@ public final class SyncHub {
                 return true;
             }
             if ("batch".equals(kind)) {
+                if (isStaleLww(data)) { lastStatus = "LWW skip batch"; return true; }
                 ContentValues z = new ContentValues();
                 if (data.has("date")) z.put("date", data.optString("date"));
                 if (data.has("product_code")) z.put("product_code", data.optInt("product_code"));
