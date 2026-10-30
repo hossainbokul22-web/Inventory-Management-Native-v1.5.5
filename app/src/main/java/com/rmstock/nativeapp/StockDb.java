@@ -161,6 +161,7 @@ public class StockDb extends SQLiteOpenHelper {
         v.put("action",action==null?"":action); v.put("detail",detail==null?"":detail);
         getWritableDatabase().insert("audit_log",null,v);
     }
+    /** true => App MUST block inserts for that month (not just reports). */
     boolean monthLocked(String ymdOrYm){
         if(ymdOrYm==null||ymdOrYm.length()<7)return false;
         String ym=ymdOrYm.substring(0,7);

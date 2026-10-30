@@ -7,6 +7,20 @@ import android.Manifest;import android.app.*;import android.content.*;import and
 
 public class MainActivity extends Activity {
  private StockDb db; private File photoFile;private LinearLayout root,content,navRow; private ScrollView mainScroll; private LinearLayout chatOverlay;private TextView brandView;private final List<ImageView> navIcons=new ArrayList<>();private final List<TextView> navViews=new ArrayList<>();private final List<String> navKeys=new ArrayList<>(); private Uri photoUri; private static final int CAM=77,PHOTO=78,CHAT_IMG=94,CHAT_FILE=95; private final Handler main=new Handler(Looper.getMainLooper()); private long accessUnlockedUntil=0; private boolean accessDialogShowing=false; private String role(){return db.currentRole();} private String user(){return db.currentUser();}
+
+ /** Month lock: blocks NEW entries for that YYYY-MM. Reports/view still allowed. Admin unlocks in Settings. */
+ private void assertMonthOpen(String dayOrYm) throws Exception {
+    if (dayOrYm == null || dayOrYm.length() < 7) return;
+    if (db.monthLocked(dayOrYm)) {
+        String ym = dayOrYm.substring(0, 7);
+        throw new Exception("Month " + ym + " is LOCKED — entry blocked. Admin can unlock in Settings.");
+    }
+ }
+ private boolean checkMonthOpenToast(String dayOrYm) {
+    try { assertMonthOpen(dayOrYm); return true; }
+    catch (Exception e) { toast(e.getMessage()); return false; }
+ }
+
  private File pendingPdf; private String currentScreen="Dashboard"; private final List<Runnable> dashboardRunnables=new ArrayList<>(); private int dp(float n){return (int)(n*getResources().getDisplayMetrics().density+.5f);} private TextView title(String s){TextView t=Ui.text(this,s,21,Ui.INK,true);t.setPadding(dp(2),dp(10),dp(2),dp(8));return t;} private Button btn(String s){return Ui.primary(this,s);} private EditText edit(String hint){return Ui.field(this,hint);} private LinearLayout row(){LinearLayout l=new LinearLayout(this);l.setOrientation(LinearLayout.HORIZONTAL);l.setGravity(Gravity.CENTER_VERTICAL);l.setPadding(0,dp(3),0,dp(3));return l;} private void add(View v){LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,-2);if(v instanceof Button||v instanceof EditText)p.setMargins(0,dp(4),0,dp(4));else if(v.getLayoutParams() instanceof LinearLayout.LayoutParams)p=(LinearLayout.LayoutParams)v.getLayoutParams();content.addView(v,p);}
  @Override protected void onResume(){
     super.onResume();
@@ -621,6 +635,20 @@ private boolean admin(){return db.canAdmin()||db.canEdit();}
         add(syncPendingBadge);
     }catch(Exception ignored){}
 
+        
+    try{
+        String ymNow = today().length()>=7 ? today().substring(0,7) : "";
+        if(ymNow.length()>0 && db.monthLocked(ymNow)){
+            TextView lockBan = new TextView(this);
+            lockBan.setText("🔒 Month " + ymNow + " LOCKED — new RM/PM entries blocked. View & reports OK. Admin → Unlock.");
+            lockBan.setTextSize(12);
+            lockBan.setTextColor(Color.rgb(120,30,30));
+            lockBan.setBackgroundColor(Color.rgb(255,235,238));
+            lockBan.setPadding(dp(10),dp(8),dp(10),dp(8));
+            add(lockBan);
+        }
+    }catch(Exception ignored){}
+
         TextView live=new TextView(this); live.setText("LIVE DATA  •  Today’s RM Receive, Mixing-2 Use, Batch and Closing Stock");
         live.setTextSize(12); live.setTextColor(Ui.MUTED); live.setPadding(dp(2),0,dp(2),dp(10)); add(live);
 
@@ -1034,7 +1062,7 @@ private boolean admin(){return db.canAdmin()||db.canEdit();}
         Button save=btn("1. Save as PENDING count");
         save.setOnClickListener(v->{try{
             if(!db.canEdit()){toast("No permission");return;}
-            String day=ymd(d);if(db.monthLocked(day)){toast("Month locked");return;}
+            String day=ymd(d);if(!checkMonthOpenToast(day))return;
             Map<String,Double> book=closingMap(day);int n=0;
             for(int i=0;i<ins.size();i++){String t=ins.get(i).getText().toString().trim();if(t.isEmpty())continue;
                 double counted=num(t);String code=codes.get(i);double system=nz(book.get(code));double var=counted-system;
@@ -1095,7 +1123,7 @@ private boolean admin(){return db.canAdmin()||db.canEdit();}
 }
  private void approveCountRow(JSONObject c)throws Exception{
     String day=c.optString("date");String code=c.optString("rm_code");
-    if(db.monthLocked(day))throw new Exception("Month locked");
+    assertMonthOpen(day);
     double counted=c.optDouble("counted");double system=c.optDouble("system");
     double var=c.has("variance")?c.optDouble("variance"):(counted-system);
     // Adjust book stock via receive line (source=count_adjust)
@@ -2426,7 +2454,7 @@ save.setTextSize(15);
 save.setAllCaps(false);
 save.setPadding(dp(12),dp(10),dp(12),dp(10));save.setOnClickListener(x->{try{
 String label=String.valueOf(rm.getSelectedItem());if(label==null||label.equals("null"))throw new Exception("RM required");
-String day=ymd(d);if(db.monthLocked(day)){toast("Month locked");return;}String code=label.split(" — ",2)[0].trim();ContentValues z=new ContentValues();z.put("date",day);z.put("rm_code",code);z.put("qty",num(q.getText().toString()));z.put("voucher_no",v.getText().toString().trim());z.put("note",note.getText().toString().trim());z.put("source","manual");z.put("lot",lot.getText().toString().trim());z.put("expiry",expiryOf(exp));db.insert("receives",z);
+String day=ymd(d);if(!checkMonthOpenToast(day))return;String code=label.split(" — ",2)[0].trim();ContentValues z=new ContentValues();z.put("date",day);z.put("rm_code",code);z.put("qty",num(q.getText().toString()));z.put("voucher_no",v.getText().toString().trim());z.put("note",note.getText().toString().trim());z.put("source","manual");z.put("lot",lot.getText().toString().trim());z.put("expiry",expiryOf(exp));db.insert("receives",z);
                 try{
                     if("client".equals(db.setting("sync_mode","off")) || "internet".equals(db.setting("sync_net","hotspot"))){
                         org.json.JSONObject payload=new org.json.JSONObject();
@@ -2498,7 +2526,7 @@ save.setPadding(dp(12),dp(10),dp(12),dp(10));save.setOnClickListener(v->{try{Str
     int pos=shiftSp.getSelectedItemPosition();
     int sh=(pos<=0)?0:pos; // 0=none, 1=A, 2=B, 3=C, 4=General
     int bc=batchCount(q.getText().toString());if(bc<0)throw new Exception("Batch Count cannot be negative");
-    String day=ymd(d);if(db.monthLocked(day))throw new Exception("Month locked");
+    String day=ymd(d);assertMonthOpen(day);
     ContentValues z=new ContentValues();z.put("date",day);z.put("product_code",Integer.parseInt(code));z.put("shift",sh);z.put("qty",bc);z.put("saved_at",new Date().toString());
     JSONObject existing=db.one("SELECT id FROM batches WHERE date=? AND product_code=? AND shift=?",new String[]{day,code,String.valueOf(sh)});long batchId;if(existing==null){batchId=db.insert("batches",z);}else{batchId=existing.getLong("id");db.update("batches",z,"id=?",new String[]{existing.getString("id")});}syncBatchLog(batchId,ymd(d),Integer.parseInt(code),sh,bc,new Date().toString());
     try{
@@ -2556,7 +2584,7 @@ save.setPadding(dp(12),dp(10),dp(12),dp(10));save.setOnClickListener(v->{try{Str
             int bc=batchCount(q.getText().toString());
             if(bc<0)throw new Exception("Batch Count cannot be negative");
             String day=ymd(d);
-            if(db.monthLocked(day))throw new Exception("Month locked");
+            assertMonthOpen(day);
             ContentValues z=new ContentValues();
             z.put("date",day);z.put("product_code",Integer.parseInt(code));z.put("shift",sh2);z.put("qty",bc);z.put("saved_at",new Date().toString());
             db.update("batches",z,"id=?",new String[]{editId});
@@ -4359,7 +4387,7 @@ super.onRequestPermissionsResult(r,p,g);if(r==CAM&&g.length>0&&g[0]==PackageMana
                 if(db.one("SELECT code FROM rms WHERE code=?",new String[]{code})==null)
                     throw new Exception("RM Code not found in master");
                 String day=date.getText().toString().trim();
-                if(db.monthLocked(day)){toast("Month locked");return;}
+                if(!checkMonthOpenToast(day))return;
                 double qv=num(qty.getText().toString());
                 if(qv<=0)throw new Exception("Quantity must be > 0");
                 ContentValues x=new ContentValues();
