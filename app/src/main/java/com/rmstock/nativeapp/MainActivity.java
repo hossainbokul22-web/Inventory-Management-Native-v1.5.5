@@ -580,6 +580,55 @@ private void requireAdminPower(String why, Runnable ok){
  }
 
 private boolean admin(){return db.canAdmin()||db.canEdit();}
+ 
+ private void buildBossPackBg(String day){
+    toast("Building boss pack…");
+    final String d=day;
+    AppExec.io(()->{
+        try{
+            StringBuilder sb=new StringBuilder();
+            sb.append("BOSS DAILY PACK\n").append(d).append("\n");
+            sb.append("Company: ").append(db.setting("company","")).append("\n\n");
+            sb.append("--- RECEIVE ---\n");
+            for(org.json.JSONObject r:db.rows(
+                "SELECT r.rm_code,r.qty,r.voucher_no,m.name FROM receives r LEFT JOIN rms m ON m.code=r.rm_code WHERE r.date=? ORDER BY r.id",
+                new String[]{d})){
+                sb.append(r.optString("rm_code")).append(" ")
+                  .append(r.optString("name")).append(" ")
+                  .append(r.optDouble("qty")).append(" ")
+                  .append(r.optString("voucher_no")).append("\n");
+            }
+            sb.append("\n--- BATCH ---\n");
+            try{
+                for(org.json.JSONObject r:db.rows(
+                    "SELECT b.product_code,b.shift,b.qty,p.name FROM batches b LEFT JOIN products p ON p.code=b.product_code WHERE b.date=?",
+                    new String[]{d})){
+                    sb.append(r.optString("product_code")).append(" ")
+                      .append(r.optString("name")).append(" sh")
+                      .append(r.optInt("shift")).append(" qty ")
+                      .append(r.optDouble("qty")).append("\n");
+                }
+            }catch(Exception ignored){}
+            sb.append("\n--- ATTENDANCE IN ---\n");
+            try{
+                for(org.json.JSONObject r:db.rows(
+                    "SELECT time,worker_id,method FROM attendance WHERE day=? AND punch='IN' ORDER BY time",
+                    new String[]{d})){
+                    sb.append(r.optString("time")).append(" #")
+                      .append(r.optLong("worker_id")).append(" ")
+                      .append(r.optString("method")).append("\n");
+                }
+            }catch(Exception ignored){}
+            File f=createPdf(sb.toString(),"boss-pack-"+d);
+            AppExec.main(()->{
+                try{ shareExistingPdf(f); }catch(Exception e){ toast(e.getMessage()); }
+            });
+        }catch(Exception e){
+            AppExec.main(()->toast("Boss pack: "+e.getMessage()));
+        }
+    });
+ }
+
  private void showDashboard(){
     if(isDeviceBlocked()){ showDeviceBlocked(); return; }
     clear("Dashboard");
@@ -681,7 +730,7 @@ private boolean admin(){return db.canAdmin()||db.canEdit();}
                 toast("Tap «This month → boss» or type: send monthly to boss");
             });
             Button bossD=Ui.secondary(this,"Today → Boss");
-            bossD.setOnClickListener(v->runAssistantCommand("send daily to boss"));
+            bossD.setOnClickListener(v->buildBossPackBg(today()));
             rowQ.addView(bossM,Ui.lp(this,0,dp(48),1,0,0,6,0));
             rowQ.addView(bossD,Ui.lp(this,0,dp(48),1,6,0,0,0));
             quick.addView(rowQ);
