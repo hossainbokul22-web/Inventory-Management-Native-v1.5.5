@@ -317,6 +317,22 @@ public final class SyncHub {
                 lastStatus = "Location from " + data.optString("user");
                 return true;
             }
+            if ("pm_entry".equals(kind)) {
+                if (isStaleLww(data)) { lastStatus = "LWW skip pm_entry"; return true; }
+                try {
+                    android.content.ContentValues z = new android.content.ContentValues();
+                    z.put("kind", data.optString("kind"));
+                    z.put("code", data.optInt("code"));
+                    z.put("date", data.optString("date"));
+                    z.put("qty", data.optDouble("qty"));
+                    z.put("shift", data.optString("shift"));
+                    z.put("voucher", data.optString("voucher"));
+                    z.put("note", data.optString("note"));
+                    db.getWritableDatabase().insert("pm_entries", null, z);
+                    lastStatus = "PM entry synced";
+                    return true;
+                } catch (Exception e) { lastStatus = "PM entry fail"; return false; }
+            }
             if ("receive".equals(kind)) {
                 if (isStaleLww(data)) { lastStatus = "LWW skip receive"; return true; }
                 ContentValues z = new ContentValues();

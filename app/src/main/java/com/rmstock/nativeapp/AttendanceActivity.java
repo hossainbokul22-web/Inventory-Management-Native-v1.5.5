@@ -131,6 +131,7 @@ public class AttendanceActivity extends Activity implements SurfaceHolder.Callba
             final String f = sh;
             TextView t = chip(sh);
             t.setOnClickListener(v -> { shiftFilter = f; reloadWorkers();
+        try{ toast("Face: center + good light"); }catch(Exception ignored){}
         try {
             if (FaceNetEngine.get(this).isReady()) toast("MobileFaceNet ON (offline)");
             else toast("FaceNet model missing — basic match");

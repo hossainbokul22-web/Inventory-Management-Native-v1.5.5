@@ -52,9 +52,7 @@ final class PmDb {
         catch (Exception ignored) {}
     }
 
-    PmDb(Context c) {
-        this.ctx = c.getApplicationContext();
-        try { StockDb.get(ctx).getWritableDatabase(); } catch (Exception ignored) {}
+    PmDb(Context c){ this.ctx=c.getApplicationContext(); try{ StockDb.get(ctx).getWritableDatabase(); }catch(Exception ignored){} } catch (Exception ignored) {}
     }
 
     
