@@ -629,6 +629,16 @@ private boolean admin(){return db.canAdmin()||db.canEdit();}
     });
  }
 
+ 
+ private void demoteIfAdminWithoutPin(){
+    try{
+        if(db.canAdmin() && !db.hasAdminPin()){
+            db.setSetting("role","Operator");
+            toast("Admin PIN missing — role set to Operator");
+        }
+    }catch(Exception ignored){}
+ }
+
  private void showDashboard(){
     if(isDeviceBlocked()){ showDeviceBlocked(); return; }
     clear("Dashboard");
