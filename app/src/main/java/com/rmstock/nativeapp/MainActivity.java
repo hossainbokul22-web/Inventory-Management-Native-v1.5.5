@@ -682,6 +682,36 @@ private boolean admin(){return db.canAdmin()||db.canEdit();}
         syncPendingBadge.setTextSize(12);
         syncPendingBadge.setPadding(dp(10), dp(8), dp(10), dp(8));
         add(syncPendingBadge);
+
+    try{
+        final TextView syncPendingBadgeRef = (TextView) content.getChildAt(content.getChildCount()-1);
+        final Runnable syncBadgeRefresh = new Runnable(){
+            @Override public void run(){
+                if (!"Dashboard".equals(currentScreen) && currentScreen != null && !currentScreen.startsWith("Dashboard")) return;
+                try{
+                    int pend = SyncHub.get(MainActivity.this).pendingCount();
+                    String syncMode = db.setting("sync_mode","off");
+                    if (pend > 0) {
+                        syncPendingBadgeRef.setText("⏳ Sync pending: " + pend + "  ·  " + syncMode);
+                        syncPendingBadgeRef.setTextColor(Color.rgb(160,80,20));
+                        syncPendingBadgeRef.setBackgroundColor(Color.rgb(255,243,224));
+                    } else if (!"off".equals(syncMode)) {
+                        syncPendingBadgeRef.setText("✓ Sync queue empty  ·  " + syncMode);
+                        syncPendingBadgeRef.setTextColor(Color.rgb(30,120,70));
+                        syncPendingBadgeRef.setBackgroundColor(Color.rgb(232,245,233));
+                    } else {
+                        syncPendingBadgeRef.setText("Sync: off");
+                        syncPendingBadgeRef.setTextColor(Ui.MUTED);
+                        syncPendingBadgeRef.setBackgroundColor(Color.TRANSPARENT);
+                    }
+                }catch(Exception ignored){}
+                main.postDelayed(this, 8000);
+            }
+        };
+        dashboardRunnables.add(syncBadgeRefresh);
+        main.postDelayed(syncBadgeRefresh, 8000);
+    }catch(Exception ignored){}
+
     }catch(Exception ignored){}
 
         
@@ -2528,20 +2558,25 @@ String day=ymd(d);if(!checkMonthOpenToast(day))return;String code=label.split(" 
 }catch(Exception e){error(e);}});add(save);
 // List range: today | last 7 days (does not change monthly reports / DB)
 String entryRange=db.setting("entry_list_range","7");
-if(!"today".equals(entryRange)) entryRange="7";
+if(!"today".equals(entryRange) && !"month".equals(entryRange)) entryRange="7";
 final String entryRangeF=entryRange;
 LinearLayout rangeRow=new LinearLayout(this);
 rangeRow.setOrientation(LinearLayout.HORIZONTAL);
 rangeRow.setPadding(0,dp(6),0,dp(6));
 Button bToday=btn("today".equals(entryRangeF)?"● Today":"Today");
 Button b7=btn("7".equals(entryRangeF)?"● Last 7 days":"Last 7 days");
+Button bMonth=btn("month".equals(entryRangeF)?"● This month":"This month");
 bToday.setOnClickListener(vv->{ db.setSetting("entry_list_range","today"); showDaily(); });
 b7.setOnClickListener(vv->{ db.setSetting("entry_list_range","7"); showDaily(); });
+bMonth.setOnClickListener(vv->{ db.setSetting("entry_list_range","month"); showDaily(); });
 rangeRow.addView(bToday,new LinearLayout.LayoutParams(0,dp(48),1));
-rangeRow.addView(b7,new LinearLayout.LayoutParams(0,dp(48),1));
+rangeRow.addView(b7, new LinearLayout.LayoutParams(0,-2,1)); addView(bMonth,new LinearLayout.LayoutParams(0,dp(48),1));
 add(rangeRow);
-String fromDay="today".equals(entryRangeF)?today():PlanLogic.shiftDate(today(),-6);
-add(tv("Recent Entries ("+("today".equals(entryRangeF)?"Today":"Last 7 days")+")",1));
+String fromDay;
+if("today".equals(entryRangeF)) fromDay=today();
+else if("month".equals(entryRangeF)) fromDay=today().substring(0,7)+"-01";
+else fromDay=PlanLogic.shiftDate(today(),-6);
+add(tv("Recent Entries ("+("today".equals(entryRangeF)?"Today":("month".equals(entryRangeF)?"This month":"Last 7 days"))+")",1));
 add(Ui.muted(this,"Shows up to 80 rows — use Today / Last 7 days filter."));
 for(JSONObject r:db.rows("SELECT * FROM receives WHERE date>=? ORDER BY date DESC,id DESC LIMIT 80",new String[]{fromDay})){LinearLayout row=new LinearLayout(this);row.setOrientation(LinearLayout.VERTICAL);row.setPadding(dp(6),dp(8),dp(6),dp(8));
 row.addView(tv("ID: "+r.optString("id")+"   "+r.optString("date")+"   RM: "+r.optString("rm_code")+"   Qty: "+fmt(r.optDouble("qty"))+"   Voucher: "+r.optString("voucher_no")+(r.optString("lot").isEmpty()?"":"   Lot: "+r.optString("lot"))+(r.optString("expiry").isEmpty()?"":"   Exp: "+r.optString("expiry")),1));
@@ -2608,19 +2643,24 @@ save.setPadding(dp(12),dp(10),dp(12),dp(10));save.setOnClickListener(v->{try{Str
     toast("Batch Count saved ✔");showBatch();
   }catch(Exception e){error(e);}});add(save);
   String batchRange=db.setting("batch_list_range","7");
-  if(!"today".equals(batchRange)) batchRange="7";
+  if(!"today".equals(batchRange) && !"month".equals(batchRange)) batchRange="7";
   final String batchRangeF=batchRange;
   LinearLayout br=new LinearLayout(this);
   br.setOrientation(LinearLayout.HORIZONTAL);
   br.setPadding(0,dp(6),0,dp(6));
   Button bt=btn("today".equals(batchRangeF)?"● Today":"Today");
   Button b7b=btn("7".equals(batchRangeF)?"● Last 7 days":"Last 7 days");
+  Button bMb=btn("month".equals(batchRangeF)?"● This month":"This month");
   bt.setOnClickListener(vv->{ db.setSetting("batch_list_range","today"); showBatch(); });
   b7b.setOnClickListener(vv->{ db.setSetting("batch_list_range","7"); showBatch(); });
+  bMb.setOnClickListener(vv->{ db.setSetting("batch_list_range","month"); showBatch(); });
   br.addView(bt,new LinearLayout.LayoutParams(0,dp(48),1));
   br.addView(b7b,new LinearLayout.LayoutParams(0,dp(48),1));
   add(br);
-  String batchFrom="today".equals(batchRangeF)?today():PlanLogic.shiftDate(today(),-6);
+  String batchFrom;
+  if("today".equals(batchRangeF)) batchFrom=today();
+  else if("month".equals(batchRangeF)) batchFrom=today().substring(0,7)+"-01";
+  else batchFrom=PlanLogic.shiftDate(today(),-6);
   add(title("Saved Batch Counts — "+("today".equals(batchRangeF)?"Today":"Last 7 days")));
   for(JSONObject x:db.rows("SELECT b.id,b.date,b.product_code,p.name,b.shift,b.qty FROM batches b LEFT JOIN products p ON p.code=b.product_code WHERE b.date>=? ORDER BY b.date DESC,b.shift ASC,b.id DESC LIMIT 80",new String[]{batchFrom})){
     LinearLayout r=row();TextView t=new TextView(this);t.setText(x.optString("date")+" | "+x.optString("name")+" | Shift "+shiftLabel(x.optInt("shift",0))+" | Batch Count: "+batchCountText(x.optDouble("qty",0)));t.setLayoutParams(new LinearLayout.LayoutParams(0,-2,1));r.addView(t);
