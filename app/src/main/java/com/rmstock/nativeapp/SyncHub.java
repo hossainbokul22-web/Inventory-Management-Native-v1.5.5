@@ -24,6 +24,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * Conflict policy: LAST_WRITE_WINS — event with higher/equal ts replaces older same client_uid.
  */
 public final class SyncHub {
+    public static final boolean LAST_WRITE_WINS = true;
+
     public static final int DEFAULT_PORT = 9876;
     private static SyncHub inst;
     private final Context app;
@@ -704,4 +706,20 @@ public final class SyncHub {
     }
 
     private void notifyUi(Runnable onUi) { if (onUi != null) main.post(onUi); }
+
+    private boolean isStaleLww(JSONObject data) {
+        if (!LAST_WRITE_WINS || data == null) return false;
+        String uid = data.optString("client_uid", "");
+        long ts = data.optLong("ts", 0L);
+        if (uid.length() == 0 || ts <= 0L) return false;
+        try {
+            String key = "lww_" + uid;
+            long prev = 0L;
+            try { prev = Long.parseLong(db.setting(key, "0")); } catch (Exception ignored) {}
+            if (ts < prev) return true;
+            db.setSetting(key, String.valueOf(ts));
+        } catch (Exception ignored) {}
+        return false;
+    }
+
 }
