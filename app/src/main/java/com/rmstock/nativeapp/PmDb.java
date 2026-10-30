@@ -442,7 +442,9 @@ double openingProduct(int productCode, String date) {
         return 0;
     }
 
-    void __noop(); void setProductOpening(int productCode, String ym, double qty) {
+    void setProductOpening(int productCode, String ym, double qty) {
+        try { monthLockedGuard(ym + "-01"); } catch (RuntimeException re) { throw re; } catch (Exception ignored) {}
+
         ContentValues cv = new ContentValues();
         cv.put("product_code", productCode);
         cv.put("ym", ym);
