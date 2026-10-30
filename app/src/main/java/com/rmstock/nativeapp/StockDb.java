@@ -44,6 +44,29 @@ public class StockDb extends SQLiteOpenHelper {
     }
 
     
+    
+    private void migrateLegacyPmDb(SQLiteDatabase d){
+        try{
+            java.io.File legacy = ctx.getDatabasePath("rm_pm.db");
+            if(legacy==null || !legacy.exists()) return;
+            if("1".equals(setting("pm_migrated_v15","0"))) return;
+            String path = legacy.getAbsolutePath().replace("'","''");
+            d.execSQL("ATTACH DATABASE '" + path + "' AS legacypm");
+            try{
+                ensurePmTables(d);
+                try{ d.execSQL("INSERT OR IGNORE INTO pm_items SELECT * FROM legacypm.items"); }catch(Exception ignored){}
+                try{ d.execSQL("INSERT OR IGNORE INTO pm_products SELECT * FROM legacypm.products"); }catch(Exception ignored){}
+                try{ d.execSQL("INSERT OR IGNORE INTO pm_recipes SELECT * FROM legacypm.recipes"); }catch(Exception ignored){}
+                try{ d.execSQL("INSERT OR IGNORE INTO pm_entries SELECT * FROM legacypm.entries"); }catch(Exception ignored){}
+                try{ d.execSQL("INSERT OR IGNORE INTO pm_meta SELECT * FROM legacypm.meta"); }catch(Exception ignored){}
+                try{ d.execSQL("INSERT OR IGNORE INTO pm_product_openings SELECT * FROM legacypm.product_openings"); }catch(Exception ignored){}
+            } finally {
+                try{ d.execSQL("DETACH DATABASE legacypm"); }catch(Exception ignored){}
+            }
+            setSetting("pm_migrated_v15","1");
+        }catch(Exception ignored){}
+    }
+
     static void ensurePmTables(SQLiteDatabase d){
         d.execSQL("CREATE TABLE IF NOT EXISTS pm_items(code INTEGER PRIMARY KEY, name TEXT, uom TEXT, open REAL)");
         d.execSQL("CREATE TABLE IF NOT EXISTS pm_products(code INTEGER PRIMARY KEY, name TEXT)");

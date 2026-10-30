@@ -27,6 +27,14 @@ final class PmDb {
 
     private StockDb db(){ return StockDb.get(ctx); }
 
+    public android.database.sqlite.SQLiteDatabase getWritableDatabase() {
+        return StockDb.get(ctx).getWritableDatabase();
+    }
+    public android.database.sqlite.SQLiteDatabase getReadableDatabase() {
+        return StockDb.get(ctx).getReadableDatabase();
+    }
+
+
     static synchronized PmDb get(Context c) {
         if (INSTANCE == null) INSTANCE = new PmDb(c.getApplicationContext());
         return INSTANCE;

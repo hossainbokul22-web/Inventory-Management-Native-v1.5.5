@@ -1664,7 +1664,7 @@ private void ensureAdminSecurityBootstrap(){
         final EditText prepBy=edit("Prepared by (PM reports)");
         final EditText pmTitle=edit("PM screen title");
         try{
-            PmDb pmDb=new PmDb(this);
+            PmDb pmDb=PmDb.get(this);
             prepBy.setText(pmDb.meta("preparedBy",""));
             pmTitle.setText(pmDb.meta("appTitle","Daily PM Report"));
         }catch(Exception ignored){}
@@ -1673,7 +1673,7 @@ private void ensureAdminSecurityBootstrap(){
         Button savePm=btn("Save PM labels");
         savePm.setOnClickListener(v->{
             try{
-                PmDb pmDb=new PmDb(this);
+                PmDb pmDb=PmDb.get(this);
                 pmDb.setMeta("preparedBy",prepBy.getText().toString().trim());
                 pmDb.setMeta("appTitle",pmTitle.getText().toString().trim());
                 toast("PM labels saved ✔");
@@ -2053,9 +2053,9 @@ private void showLabels(){
             x.setTransactionSuccessful();
         }finally{x.endTransaction();}
         if(what.equals("pm_month")){
-            new PmDb(this).getWritableDatabase().delete("entries","date LIKE ?",new String[]{month+"-%"});
+            PmDb.get(this).getWritableDatabase().delete("pm_entries","date LIKE ?",new String[]{month+"-%"});
         }else if(what.equals("pm_all")){
-            new PmDb(this).clearAllEntries();
+            PmDb.get(this).clearAllEntries();
         }
         toast("Deleted");showSettings();
     }catch(Exception e){error(e);}
@@ -4384,7 +4384,7 @@ private void applyVoiceFixCommand(String raw){
             tables.put(z);
         }
         all.put("tables",tables);
-        try{PmDb pm=new PmDb(this);all.put("pm",new JSONObject(pm.exportJson()));}catch(Exception pe){all.put("pm",JSONObject.NULL);}
+        try{PmDb pm=PmDb.get(this);all.put("pm",new JSONObject(pm.exportJson()));}catch(Exception pe){all.put("pm",JSONObject.NULL);}
         File f=new File(getCacheDir(),"inventory-backup-"+today()+".json");
         try(FileOutputStream o=new FileOutputStream(f)){o.write(all.toString(2).getBytes("UTF-8"));}
         Uri uri=FileProvider.getUriForFile(this,"com.rmstock.nativeapp.fileprovider",f);
@@ -4411,7 +4411,7 @@ private void applyVoiceFixCommand(String raw){
         tables.put(z);
     }
     all.put("tables",tables);
-    try{PmDb pm=new PmDb(this);all.put("pm",new JSONObject(pm.exportJson()));}catch(Exception pe){all.put("pm",JSONObject.NULL);}
+    try{PmDb pm=PmDb.get(this);all.put("pm",new JSONObject(pm.exportJson()));}catch(Exception pe){all.put("pm",JSONObject.NULL);}
     File f=new File(getCacheDir(),"inventory-backup.json");
     try(FileOutputStream o=new FileOutputStream(f)){o.write(all.toString(2).getBytes("UTF-8"));}
     pendingPdf=f;
@@ -4420,7 +4420,7 @@ private void applyVoiceFixCommand(String raw){
     startActivityForResult(i,80);
 }catch(Exception e){error(e);}}
  private void restoreJson(){Intent i=new Intent(Intent.ACTION_OPEN_DOCUMENT);i.setType("application/json");i.addCategory(Intent.CATEGORY_OPENABLE);startActivityForResult(i,81);}
- private void importBackup(Uri u){try{InputStream in=getContentResolver().openInputStream(u);ByteArrayOutputStream b=new ByteArrayOutputStream();byte[] z=new byte[8192];int n;while((n=in.read(z))>0)b.write(z,0,n);in.close();JSONObject all=new JSONObject(b.toString("UTF-8"));if(!all.has("tables"))throw new Exception("Invalid backup");new AlertDialog.Builder(this).setTitle("Restore unified backup?").setMessage("RM data, yield sheet and PM (if included) will be replaced. Continue?").setNegativeButton("Cancel",null).setPositiveButton("Restore",(d,w)->{try{restoreTables(all.getJSONArray("tables"));if(all.has("pm")&&all.opt("pm")!=JSONObject.NULL){try{new PmDb(this).importJson(all.get("pm").toString());}catch(Exception pe){toast("RM restored; PM: "+pe.getMessage());}}toast("Backup restored ✔");build();AlertScheduler.schedule(this);requestNotifPermission();showDashboard();}catch(Exception e){error(e);}}).show();}catch(Exception e){error(e);}}
+ private void importBackup(Uri u){try{InputStream in=getContentResolver().openInputStream(u);ByteArrayOutputStream b=new ByteArrayOutputStream();byte[] z=new byte[8192];int n;while((n=in.read(z))>0)b.write(z,0,n);in.close();JSONObject all=new JSONObject(b.toString("UTF-8"));if(!all.has("tables"))throw new Exception("Invalid backup");new AlertDialog.Builder(this).setTitle("Restore unified backup?").setMessage("RM data, yield sheet and PM (if included) will be replaced. Continue?").setNegativeButton("Cancel",null).setPositiveButton("Restore",(d,w)->{try{restoreTables(all.getJSONArray("tables"));if(all.has("pm")&&all.opt("pm")!=JSONObject.NULL){try{PmDb.get(this).importJson(all.get("pm").toString());}catch(Exception pe){toast("RM restored; PM: "+pe.getMessage());}}toast("Backup restored ✔");build();AlertScheduler.schedule(this);requestNotifPermission();showDashboard();}catch(Exception e){error(e);}}).show();}catch(Exception e){error(e);}}
  private void restoreTables(JSONArray tables)throws Exception{SQLiteDatabase x=db.getWritableDatabase();x.beginTransaction();try{String[] ts={"counts","receives","mixing2_batch_log","batches","custom_rows","custom_cols","custom_sheets","approvals","recipes","products","rms","settings","yield_defs","yield_stages","yield_history","audit_log","recipe_archive"};for(String t:ts)x.delete(t,null,null);for(int i=0;i<tables.length();i++){JSONObject t=tables.getJSONObject(i);String tn=t.getString("table");JSONArray rs=t.getJSONArray("rows");for(int j=0;j<rs.length();j++){JSONObject r=rs.getJSONObject(j);ContentValues v=new ContentValues();Iterator<String> it=r.keys();while(it.hasNext()){String k=it.next();Object val=r.get(k);if(val==JSONObject.NULL)continue;v.put(k,String.valueOf(val));}x.insertWithOnConflict(tn,null,v,SQLiteDatabase.CONFLICT_REPLACE);}}x.setTransactionSuccessful();}finally{x.endTransaction();}}
  private void exportCsv(){try{File f=new File(getCacheDir(),"rmstock-export.csv");FileOutputStream o=new FileOutputStream(f);String[] ts={"rms","products","recipes","batches","receives","custom_sheets","custom_cols","custom_rows","mixing2_batch_log","counts"};for(String t:ts){o.write(("\n["+t+"]\n").getBytes("UTF-8"));List<JSONObject> rs=db.rows("SELECT * FROM "+t,null);if(!rs.isEmpty()){JSONArray a=rs.get(0).names();for(int j=0;j<a.length();j++){if(j>0)o.write(',');o.write(csv(a.optString(j)).getBytes("UTF-8"));}o.write('\n');for(JSONObject r:rs){for(int j=0;j<a.length();j++){if(j>0)o.write(',');o.write(csv(r.optString(a.optString(j))).getBytes("UTF-8"));}o.write('\n');}}}o.close();Intent i=new Intent(Intent.ACTION_SEND);i.setType("text/csv");i.putExtra(Intent.EXTRA_STREAM,FileProvider.getUriForFile(this,"com.rmstock.nativeapp.fileprovider",f));i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);startActivity(Intent.createChooser(i,"Export CSV"));}catch(Exception e){error(e);}}
  private String csv(String s){return "\""+s.replace("\"","\"\"")+"\"";}
@@ -4446,7 +4446,7 @@ private void applyVoiceFixCommand(String raw){
 
 super.onRequestPermissionsResult(r,p,g);if(r==CAM&&g.length>0&&g[0]==PackageManager.PERMISSION_GRANTED)startCamera();}
  @Override protected void onPause(){super.onPause();try{StockWidget.refresh(this);}catch(Exception ignored){}}
- @Override protected void onActivityResult(int r,int c,@Nullable Intent d){super.onActivityResult(r,c,d);if(Guard.onResult(r,c))return;if(r==PHOTO&&c==RESULT_OK&&photoUri!=null)ocr(photoUri); if(r==CHAT_IMG&&c==RESULT_OK){ Uri u=(d!=null&&d.getData()!=null)?d.getData():photoUri; if(u!=null) sendChatAttachment(u,true);} if(r==CHAT_FILE&&c==RESULT_OK&&d!=null&&d.getData()!=null) sendChatAttachment(d.getData(),false); if(r==VOICE_FIX&&c==RESULT_OK&&d!=null){java.util.ArrayList<String> spoken=d.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS);if(spoken!=null&&!spoken.isEmpty()){toast(spoken.get(0));runAssistantCommand(spoken.get(0));}} if(r==79&&c==RESULT_OK&&d!=null&&pendingPdf!=null){try{OutputStream out=getContentResolver().openOutputStream(d.getData());FileInputStream in=new FileInputStream(pendingPdf);byte[] b=new byte[8192];int n;while((n=in.read(b))>0)out.write(b,0,n);in.close();out.close();toast("PDF saved ✔");}catch(Exception e){error(e);}} if(r==82&&c==RESULT_OK&&d!=null&&pendingPdf!=null){try{OutputStream out=getContentResolver().openOutputStream(d.getData());FileInputStream in=new FileInputStream(pendingPdf);byte[] z=new byte[8192];int n;while((n=in.read(z))>0)out.write(z,0,n);in.close();out.close();toast("CSV saved — open with Excel ✔");}catch(Exception e){error(e);}} if(r==80&&c==RESULT_OK&&d!=null&&pendingPdf!=null){try{OutputStream out=getContentResolver().openOutputStream(d.getData());FileInputStream in=new FileInputStream(pendingPdf);byte[] b=new byte[8192];int n;while((n=in.read(b))>0)out.write(b,0,n);in.close();out.close();toast("Backup saved ✔");}catch(Exception e){error(e);}} if(r==81&&c==RESULT_OK&&d!=null)importBackup(d.getData()); if(r==83&&c==RESULT_OK&&d!=null){try{InputStream in=getContentResolver().openInputStream(d.getData());new PmDb(this).importJson(new String(readAll(in),"UTF-8"));toast("PM import OK");}catch(Exception e){error(e);}}}
+ @Override protected void onActivityResult(int r,int c,@Nullable Intent d){super.onActivityResult(r,c,d);if(Guard.onResult(r,c))return;if(r==PHOTO&&c==RESULT_OK&&photoUri!=null)ocr(photoUri); if(r==CHAT_IMG&&c==RESULT_OK){ Uri u=(d!=null&&d.getData()!=null)?d.getData():photoUri; if(u!=null) sendChatAttachment(u,true);} if(r==CHAT_FILE&&c==RESULT_OK&&d!=null&&d.getData()!=null) sendChatAttachment(d.getData(),false); if(r==VOICE_FIX&&c==RESULT_OK&&d!=null){java.util.ArrayList<String> spoken=d.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS);if(spoken!=null&&!spoken.isEmpty()){toast(spoken.get(0));runAssistantCommand(spoken.get(0));}} if(r==79&&c==RESULT_OK&&d!=null&&pendingPdf!=null){try{OutputStream out=getContentResolver().openOutputStream(d.getData());FileInputStream in=new FileInputStream(pendingPdf);byte[] b=new byte[8192];int n;while((n=in.read(b))>0)out.write(b,0,n);in.close();out.close();toast("PDF saved ✔");}catch(Exception e){error(e);}} if(r==82&&c==RESULT_OK&&d!=null&&pendingPdf!=null){try{OutputStream out=getContentResolver().openOutputStream(d.getData());FileInputStream in=new FileInputStream(pendingPdf);byte[] z=new byte[8192];int n;while((n=in.read(z))>0)out.write(z,0,n);in.close();out.close();toast("CSV saved — open with Excel ✔");}catch(Exception e){error(e);}} if(r==80&&c==RESULT_OK&&d!=null&&pendingPdf!=null){try{OutputStream out=getContentResolver().openOutputStream(d.getData());FileInputStream in=new FileInputStream(pendingPdf);byte[] b=new byte[8192];int n;while((n=in.read(b))>0)out.write(b,0,n);in.close();out.close();toast("Backup saved ✔");}catch(Exception e){error(e);}} if(r==81&&c==RESULT_OK&&d!=null)importBackup(d.getData()); if(r==83&&c==RESULT_OK&&d!=null){try{InputStream in=getContentResolver().openInputStream(d.getData());PmDb.get(this).importJson(new String(readAll(in),"UTF-8"));toast("PM import OK");}catch(Exception e){error(e);}}}
  private byte[] readAll(InputStream in)throws Exception{ByteArrayOutputStream b=new ByteArrayOutputStream();byte[] z=new byte[8192];int n;while((n=in.read(z))>0)b.write(z,0,n);in.close();return b.toByteArray();}
  private void ocr(Uri u){toast("OCR running offline…");new Thread(()->{String txt;try{InputStream in=getContentResolver().openInputStream(u);Bitmap bm=BitmapFactory.decodeStream(in);in.close();File base=new File(getFilesDir(),"tessdata");if(!new File(base,"eng.traineddata").exists()){base.mkdirs();for(String lang:new String[]{"eng","ben"}){InputStream a=getAssets().open("tessdata/"+lang+".traineddata");File out=new File(base,lang+".traineddata");FileOutputStream o=new FileOutputStream(out);byte[] buf=new byte[8192];int n;while((n=a.read(buf))>0)o.write(buf,0,n);a.close();o.close();}}TessBaseAPI api=new TessBaseAPI();if(!api.init(getFilesDir().getAbsolutePath(),"eng+ben"))throw new Exception("OCR init failed");api.setImage(bm);txt=api.getUTF8Text();api.recycle();bm.recycle();}catch(Exception e){txt="OCR_ERROR: "+e.getMessage();}final String z=txt;main.post(()->showAIDraft(z));}).start();}
  private void showAIDraft(String raw){
