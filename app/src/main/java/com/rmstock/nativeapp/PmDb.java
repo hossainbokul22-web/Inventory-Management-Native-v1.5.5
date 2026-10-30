@@ -21,11 +21,12 @@ import java.util.Map;
  * Offline SQLite store for the Daily PM (packaging materials) module.
  * Fully native — no WebView / localStorage.
  */
-final class PmDb extends SQLiteOpenHelper {
-    private static final String NAME = "rm_pm.db";
-    private static final int VER = 2;
+final class PmDb {
     private final Context ctx;
     private static PmDb INSTANCE;
+
+    private StockDb db(){ return StockDb.get(ctx); }
+
     static synchronized PmDb get(Context c) {
         if (INSTANCE == null) INSTANCE = new PmDb(c.getApplicationContext());
         return INSTANCE;
@@ -44,41 +45,17 @@ final class PmDb extends SQLiteOpenHelper {
     }
 
     PmDb(Context c) {
-        super(c, NAME, null, VER);
         this.ctx = c.getApplicationContext();
+        try { StockDb.get(ctx).getWritableDatabase(); } catch (Exception ignored) {}
     }
 
     
     
-    @Override
-    public void onOpen(SQLiteDatabase d) {
-        super.onOpen(d);
-        if (!d.isReadOnly()) {
-            try { d.enableWriteAheadLogging(); } catch (Exception ignored) {}
-            try {
-                d.execSQL("PRAGMA synchronous=NORMAL");
-            } catch (Exception ignored) {}
-        }
-    }
+    
 
-    @Override
-    public void onCreate(SQLiteDatabase db) {
-        db.execSQL("CREATE TABLE items(code INTEGER PRIMARY KEY, name TEXT, uom TEXT, open REAL)");
-        db.execSQL("CREATE TABLE products(code INTEGER PRIMARY KEY, name TEXT)");
-        db.execSQL("CREATE TABLE recipes(p INTEGER, i INTEGER, q REAL)");
-        db.execSQL("CREATE TABLE entries(id INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT, code INTEGER, date TEXT, qty REAL, shift TEXT, voucher TEXT, note TEXT)");
-        db.execSQL("CREATE TABLE meta(k TEXT PRIMARY KEY, v TEXT)");
-        db.execSQL("CREATE INDEX idx_entries ON entries(kind, code, date)");
-        db.execSQL("CREATE TABLE IF NOT EXISTS product_openings(product_code INTEGER NOT NULL, ym TEXT NOT NULL, qty REAL NOT NULL DEFAULT 0, PRIMARY KEY(product_code, ym))");
-        seed(db);
-    }
+    
 
-    @Override
-    public void onUpgrade(SQLiteDatabase db, int o, int n) {
-        if (o < 2) {
-            db.execSQL("CREATE TABLE IF NOT EXISTS product_openings(product_code INTEGER NOT NULL, ym TEXT NOT NULL, qty REAL NOT NULL DEFAULT 0, PRIMARY KEY(product_code, ym))");
-        }
-    }
+    
 
     private void seed(SQLiteDatabase db) {
         try {
@@ -87,7 +64,7 @@ final class PmDb extends SQLiteOpenHelper {
             in.read(buf);
             in.close();
             JSONObject seed = new JSONObject(new String(buf, StandardCharsets.UTF_8));
-            JSONArray items = seed.getJSONArray("items");
+            JSONArray items = seed.getJSONArray("pm_items");
             for (int i = 0; i < items.length(); i++) {
                 JSONObject o = items.getJSONObject(i);
                 ContentValues cv = new ContentValues();
@@ -95,24 +72,24 @@ final class PmDb extends SQLiteOpenHelper {
                 cv.put("name", o.optString("name", ""));
                 cv.put("uom", o.optString("uom", "kg"));
                 cv.put("open", o.optDouble("open", 0));
-                db.insert("items", null, cv);
+                db.insert("pm_items", null, cv);
             }
-            JSONArray products = seed.getJSONArray("products");
+            JSONArray products = seed.getJSONArray("pm_products");
             for (int i = 0; i < products.length(); i++) {
                 JSONObject o = products.getJSONObject(i);
                 ContentValues cv = new ContentValues();
                 cv.put("code", o.getInt("code"));
                 cv.put("name", o.optString("name", ""));
-                db.insert("products", null, cv);
+                db.insert("pm_products", null, cv);
             }
-            JSONArray recipes = seed.getJSONArray("recipes");
+            JSONArray recipes = seed.getJSONArray("pm_recipes");
             for (int i = 0; i < recipes.length(); i++) {
                 JSONObject o = recipes.getJSONObject(i);
                 ContentValues cv = new ContentValues();
                 cv.put("p", o.getInt("p"));
                 cv.put("i", o.getInt("i"));
                 cv.put("q", o.optDouble("q", 0));
-                db.insert("recipes", null, cv);
+                db.insert("pm_recipes", null, cv);
             }
             putMeta(db, "company", "Ovijat Food & Beverage industries Ltd.");
             putMeta(db, "preparedBy", "MD. Bokul Hossain");
@@ -126,11 +103,11 @@ final class PmDb extends SQLiteOpenHelper {
         ContentValues cv = new ContentValues();
         cv.put("k", k);
         cv.put("v", v);
-        db.insertWithOnConflict("meta", null, cv, SQLiteDatabase.CONFLICT_REPLACE);
+        db.insertWithOnConflict("pm_meta", null, cv, SQLiteDatabase.CONFLICT_REPLACE);
     }
 
     String meta(String k, String def) {
-        try (Cursor c = getReadableDatabase().rawQuery("SELECT v FROM meta WHERE k=?", new String[]{k})) {
+        try (Cursor c = db().getReadableDatabase().rawQuery("SELECT v FROM pm_meta WHERE k=?", new String[]{k})) {
             if (c.moveToFirst()) return c.getString(0);
         }
         return def;
@@ -140,7 +117,7 @@ final class PmDb extends SQLiteOpenHelper {
         ContentValues cv = new ContentValues();
         cv.put("k", k);
         cv.put("v", v == null ? "" : v);
-        getWritableDatabase().insertWithOnConflict("meta", null, cv, SQLiteDatabase.CONFLICT_REPLACE);
+        db().getWritableDatabase().insertWithOnConflict("pm_meta", null, cv, SQLiteDatabase.CONFLICT_REPLACE);
     }
 
     static final String[] KINDS = {"receive", "ret", "output", "delivery", "hold", "reject", "qa_pass", "wastage"};
@@ -148,7 +125,7 @@ final class PmDb extends SQLiteOpenHelper {
 
     List<JSONObject> items() {
         List<JSONObject> out = new ArrayList<>();
-        try (Cursor c = getReadableDatabase().rawQuery("SELECT code,name,uom,open FROM items ORDER BY code", null)) {
+        try (Cursor c = db().getReadableDatabase().rawQuery("SELECT code,name,uom,open FROM pm_items ORDER BY code", null)) {
             while (c.moveToNext()) {
                 try {
                     JSONObject o = new JSONObject();
@@ -165,7 +142,7 @@ final class PmDb extends SQLiteOpenHelper {
 
     List<JSONObject> products() {
         List<JSONObject> out = new ArrayList<>();
-        try (Cursor c = getReadableDatabase().rawQuery("SELECT code,name FROM products ORDER BY code", null)) {
+        try (Cursor c = db().getReadableDatabase().rawQuery("SELECT code,name FROM pm_products ORDER BY code", null)) {
             while (c.moveToNext()) {
                 try {
                     JSONObject o = new JSONObject();
@@ -181,7 +158,7 @@ final class PmDb extends SQLiteOpenHelper {
     /** recipe qty of item i per product p (per ctn) */
     Map<Integer, Double> recipeForProduct(int p) {
         Map<Integer, Double> m = new HashMap<>();
-        try (Cursor c = getReadableDatabase().rawQuery("SELECT i,q FROM recipes WHERE p=?", new String[]{String.valueOf(p)})) {
+        try (Cursor c = db().getReadableDatabase().rawQuery("SELECT i,q FROM pm_recipes WHERE p=?", new String[]{String.valueOf(p)})) {
             while (c.moveToNext()) m.put(c.getInt(0), c.getDouble(1));
         }
         return m;
@@ -189,8 +166,8 @@ final class PmDb extends SQLiteOpenHelper {
 
     List<JSONObject> recipesFor(int p) {
         List<JSONObject> out = new ArrayList<>();
-        try (Cursor c = getReadableDatabase().rawQuery(
-                "SELECT r.i,r.q,COALESCE(i.name,'') FROM recipes r LEFT JOIN items i ON i.code=r.i WHERE r.p=? ORDER BY r.i",
+        try (Cursor c = db().getReadableDatabase().rawQuery(
+                "SELECT r.i,r.q,COALESCE(i.name,'') FROM pm_recipes r LEFT JOIN items i ON i.code=r.i WHERE r.p=? ORDER BY r.i",
                 new String[]{String.valueOf(p)})) {
             while (c.moveToNext()) {
                 try {
@@ -215,11 +192,11 @@ final class PmDb extends SQLiteOpenHelper {
         cv.put("shift", shift == null ? "" : shift);
         cv.put("voucher", voucher == null ? "" : voucher);
         cv.put("note", note == null ? "" : note);
-        return getWritableDatabase().insert("entries", null, cv);
+        return db().getWritableDatabase().insert("pm_entries", null, cv);
     }
 
     void deleteEntry(long id) {
-        getWritableDatabase().delete("entries", "id=?", new String[]{String.valueOf(id)});
+        db().getWritableDatabase().delete("pm_entries", "id=?", new String[]{String.valueOf(id)});
     }
 
     void updateEntry(long id, String kind, int code, String date, double qty, String shift, String voucher, String note) {
@@ -231,7 +208,7 @@ final class PmDb extends SQLiteOpenHelper {
         cv.put("shift", shift == null ? "" : shift);
         cv.put("voucher", voucher == null ? "" : voucher);
         cv.put("note", note == null ? "" : note);
-        getWritableDatabase().update("entries", cv, "id=?", new String[]{String.valueOf(id)});
+        db().getWritableDatabase().update("pm_entries", cv, "id=?", new String[]{String.valueOf(id)});
     }
 
     List<JSONObject> entries(String kind, String dateOrNull, int limit) {
@@ -239,13 +216,13 @@ final class PmDb extends SQLiteOpenHelper {
         String sql;
         String[] args;
         if (dateOrNull != null && !dateOrNull.isEmpty()) {
-            sql = "SELECT id,kind,code,date,qty,shift,voucher,note FROM entries WHERE kind=? AND date=? ORDER BY id DESC LIMIT ?";
+            sql = "SELECT id,kind,code,date,qty,shift,voucher,note FROM pm_entries WHERE kind=? AND date=? ORDER BY id DESC LIMIT ?";
             args = new String[]{kind, dateOrNull, String.valueOf(limit)};
         } else {
-            sql = "SELECT id,kind,code,date,qty,shift,voucher,note FROM entries WHERE kind=? ORDER BY date DESC,id DESC LIMIT ?";
+            sql = "SELECT id,kind,code,date,qty,shift,voucher,note FROM pm_entries WHERE kind=? ORDER BY date DESC,id DESC LIMIT ?";
             args = new String[]{kind, String.valueOf(limit)};
         }
-        try (Cursor c = getReadableDatabase().rawQuery(sql, args)) {
+        try (Cursor c = db().getReadableDatabase().rawQuery(sql, args)) {
             while (c.moveToNext()) out.add(rowEntry(c));
         }
         return out;
@@ -253,8 +230,8 @@ final class PmDb extends SQLiteOpenHelper {
 
     List<JSONObject> recentEntries(int limit) {
         List<JSONObject> out = new ArrayList<>();
-        try (Cursor c = getReadableDatabase().rawQuery(
-                "SELECT id,kind,code,date,qty,shift,voucher,note FROM entries ORDER BY id DESC LIMIT ?",
+        try (Cursor c = db().getReadableDatabase().rawQuery(
+                "SELECT id,kind,code,date,qty,shift,voucher,note FROM pm_entries ORDER BY id DESC LIMIT ?",
                 new String[]{String.valueOf(limit)})) {
             while (c.moveToNext()) out.add(rowEntry(c));
         }
@@ -280,8 +257,8 @@ final class PmDb extends SQLiteOpenHelper {
 
     double sumKind(String kind, int code, String beforeOrOn, boolean exclusive) {
         String op = exclusive ? "<" : "<=";
-        try (Cursor c = getReadableDatabase().rawQuery(
-                "SELECT COALESCE(SUM(qty),0) FROM entries WHERE kind=? AND code=? AND date" + op + "?",
+        try (Cursor c = db().getReadableDatabase().rawQuery(
+                "SELECT COALESCE(SUM(qty),0) FROM pm_entries WHERE kind=? AND code=? AND date" + op + "?",
                 new String[]{kind, String.valueOf(code), beforeOrOn})) {
             if (c.moveToFirst()) return c.getDouble(0);
         }
@@ -289,8 +266,8 @@ final class PmDb extends SQLiteOpenHelper {
     }
 
     double sumKindOn(String kind, int code, String date) {
-        try (Cursor c = getReadableDatabase().rawQuery(
-                "SELECT COALESCE(SUM(qty),0) FROM entries WHERE kind=? AND code=? AND date=?",
+        try (Cursor c = db().getReadableDatabase().rawQuery(
+                "SELECT COALESCE(SUM(qty),0) FROM pm_entries WHERE kind=? AND code=? AND date=?",
                 new String[]{kind, String.valueOf(code), date})) {
             if (c.moveToFirst()) return c.getDouble(0);
         }
@@ -298,8 +275,8 @@ final class PmDb extends SQLiteOpenHelper {
     }
 
     double sumKindMonth(String kind, int code, String ym) {
-        try (Cursor c = getReadableDatabase().rawQuery(
-                "SELECT COALESCE(SUM(qty),0) FROM entries WHERE kind=? AND code=? AND date LIKE ?",
+        try (Cursor c = db().getReadableDatabase().rawQuery(
+                "SELECT COALESCE(SUM(qty),0) FROM pm_entries WHERE kind=? AND code=? AND date LIKE ?",
                 new String[]{kind, String.valueOf(code), ym + "%"})) {
             if (c.moveToFirst()) return c.getDouble(0);
         }
@@ -310,7 +287,7 @@ final class PmDb extends SQLiteOpenHelper {
      *  Use is computed from production output × recipe qty. */
     double openingItem(int itemCode, String date) {
         double open = 0;
-        try (Cursor c = getReadableDatabase().rawQuery("SELECT open FROM items WHERE code=?", new String[]{String.valueOf(itemCode)})) {
+        try (Cursor c = db().getReadableDatabase().rawQuery("SELECT open FROM pm_items WHERE code=?", new String[]{String.valueOf(itemCode)})) {
             if (c.moveToFirst()) open = c.getDouble(0);
         }
         open += sumKind("receive", itemCode, date, true);
@@ -323,8 +300,8 @@ final class PmDb extends SQLiteOpenHelper {
     /** Material use from production: sum(output.qty * recipe.q) for this item on/before date */
     double itemUseBefore(int itemCode, String date, boolean exclusive) {
         String op = exclusive ? "<" : "<=";
-        try (Cursor c = getReadableDatabase().rawQuery(
-                "SELECT COALESCE(SUM(e.qty * r.q),0) FROM entries e JOIN recipes r ON r.p=e.code AND r.i=? " +
+        try (Cursor c = db().getReadableDatabase().rawQuery(
+                "SELECT COALESCE(SUM(e.qty * r.q),0) FROM pm_entries e JOIN recipes r ON r.p=e.code AND r.i=? " +
                         "WHERE e.kind='output' AND e.date" + op + "?",
                 new String[]{String.valueOf(itemCode), date})) {
             if (c.moveToFirst()) return c.getDouble(0);
@@ -342,13 +319,13 @@ final class PmDb extends SQLiteOpenHelper {
         String sql;
         String[] args;
         if (gen) {
-            sql = "SELECT COALESCE(SUM(qty),0) FROM entries WHERE kind=? AND code=? AND date=? AND (shift='' OR shift='General' OR shift IS NULL)";
+            sql = "SELECT COALESCE(SUM(qty),0) FROM pm_entries WHERE kind=? AND code=? AND date=? AND (shift='' OR shift='General' OR shift IS NULL)";
             args = new String[]{kind, String.valueOf(code), date};
         } else {
-            sql = "SELECT COALESCE(SUM(qty),0) FROM entries WHERE kind=? AND code=? AND date=? AND shift=?";
+            sql = "SELECT COALESCE(SUM(qty),0) FROM pm_entries WHERE kind=? AND code=? AND date=? AND shift=?";
             args = new String[]{kind, String.valueOf(code), date, sh};
         }
-        try (Cursor c = getReadableDatabase().rawQuery(sql, args)) {
+        try (Cursor c = db().getReadableDatabase().rawQuery(sql, args)) {
             return c.moveToFirst() ? c.getDouble(0) : 0;
         }
     }
@@ -359,13 +336,13 @@ final class PmDb extends SQLiteOpenHelper {
         String sql;
         String[] args;
         if (gen) {
-            sql = "SELECT COALESCE(SUM(qty),0) FROM entries WHERE kind=? AND code=? AND date<? AND (shift='' OR shift='General' OR shift IS NULL)";
+            sql = "SELECT COALESCE(SUM(qty),0) FROM pm_entries WHERE kind=? AND code=? AND date<? AND (shift='' OR shift='General' OR shift IS NULL)";
             args = new String[]{kind, String.valueOf(code), beforeExclusive};
         } else {
-            sql = "SELECT COALESCE(SUM(qty),0) FROM entries WHERE kind=? AND code=? AND date<? AND shift=?";
+            sql = "SELECT COALESCE(SUM(qty),0) FROM pm_entries WHERE kind=? AND code=? AND date<? AND shift=?";
             args = new String[]{kind, String.valueOf(code), beforeExclusive, sh};
         }
-        try (Cursor c = getReadableDatabase().rawQuery(sql, args)) {
+        try (Cursor c = db().getReadableDatabase().rawQuery(sql, args)) {
             return c.moveToFirst() ? c.getDouble(0) : 0;
         }
     }
@@ -425,8 +402,8 @@ double openingProduct(int productCode, String date) {
 
     /** Sum kind where date >= fromInclusive AND date < toExclusive */
     double sumKindRange(String kind, int code, String fromInclusive, String toExclusive) {
-        try (Cursor c = getReadableDatabase().rawQuery(
-                "SELECT COALESCE(SUM(qty),0) FROM entries WHERE kind=? AND code=? AND date>=? AND date<?",
+        try (Cursor c = db().getReadableDatabase().rawQuery(
+                "SELECT COALESCE(SUM(qty),0) FROM pm_entries WHERE kind=? AND code=? AND date>=? AND date<?",
                 new String[]{kind, String.valueOf(code), fromInclusive, toExclusive})) {
             if (c.moveToFirst()) return c.getDouble(0);
         }
@@ -434,8 +411,8 @@ double openingProduct(int productCode, String date) {
     }
 
     double getProductOpening(int productCode, String ym) {
-        try (Cursor c = getReadableDatabase().rawQuery(
-                "SELECT qty FROM product_openings WHERE product_code=? AND ym=?",
+        try (Cursor c = db().getReadableDatabase().rawQuery(
+                "SELECT qty FROM pm_product_openings WHERE product_code=? AND ym=?",
                 new String[]{String.valueOf(productCode), ym})) {
             if (c.moveToFirst()) return c.getDouble(0);
         }
@@ -449,11 +426,11 @@ double openingProduct(int productCode, String date) {
         cv.put("product_code", productCode);
         cv.put("ym", ym);
         cv.put("qty", qty);
-        getWritableDatabase().insertWithOnConflict("product_openings", null, cv, SQLiteDatabase.CONFLICT_REPLACE);
+        db().getWritableDatabase().insertWithOnConflict("pm_product_openings", null, cv, SQLiteDatabase.CONFLICT_REPLACE);
     }
 
     void deleteProductOpening(int productCode, String ym) {
-        getWritableDatabase().delete("product_openings", "product_code=? AND ym=?",
+        db().getWritableDatabase().delete("pm_product_openings", "product_code=? AND ym=?",
                 new String[]{String.valueOf(productCode), ym});
     }
 
@@ -467,8 +444,8 @@ double openingProduct(int productCode, String date) {
     }
 
 double itemUseOn(int itemCode, String date) {
-        try (Cursor c = getReadableDatabase().rawQuery(
-                "SELECT COALESCE(SUM(e.qty * r.q),0) FROM entries e JOIN recipes r ON r.p=e.code AND r.i=? " +
+        try (Cursor c = db().getReadableDatabase().rawQuery(
+                "SELECT COALESCE(SUM(e.qty * r.q),0) FROM pm_entries e JOIN recipes r ON r.p=e.code AND r.i=? " +
                         "WHERE e.kind='output' AND e.date=?",
                 new String[]{String.valueOf(itemCode), date})) {
             if (c.moveToFirst()) return c.getDouble(0);
@@ -477,8 +454,8 @@ double itemUseOn(int itemCode, String date) {
     }
 
     double itemUseMonth(int itemCode, String ym) {
-        try (Cursor c = getReadableDatabase().rawQuery(
-                "SELECT COALESCE(SUM(e.qty * r.q),0) FROM entries e JOIN recipes r ON r.p=e.code AND r.i=? " +
+        try (Cursor c = db().getReadableDatabase().rawQuery(
+                "SELECT COALESCE(SUM(e.qty * r.q),0) FROM pm_entries e JOIN recipes r ON r.p=e.code AND r.i=? " +
                         "WHERE e.kind='output' AND e.date LIKE ?",
                 new String[]{String.valueOf(itemCode), ym + "%"})) {
             if (c.moveToFirst()) return c.getDouble(0);
@@ -492,60 +469,60 @@ double itemUseOn(int itemCode, String date) {
         cv.put("name", name);
         cv.put("uom", uom);
         cv.put("open", open);
-        getWritableDatabase().insertWithOnConflict("items", null, cv, SQLiteDatabase.CONFLICT_REPLACE);
+        db().getWritableDatabase().insertWithOnConflict("pm_items", null, cv, SQLiteDatabase.CONFLICT_REPLACE);
     }
 
     void deleteItem(int code) {
-        SQLiteDatabase db = getWritableDatabase();
-        db.delete("items", "code=?", new String[]{String.valueOf(code)});
-        db.delete("recipes", "i=?", new String[]{String.valueOf(code)});
+        SQLiteDatabase db = db().getWritableDatabase();
+        db.delete("pm_items", "code=?", new String[]{String.valueOf(code)});
+        db.delete("pm_recipes", "i=?", new String[]{String.valueOf(code)});
     }
 
     void upsertProduct(int code, String name) {
         ContentValues cv = new ContentValues();
         cv.put("code", code);
         cv.put("name", name);
-        getWritableDatabase().insertWithOnConflict("products", null, cv, SQLiteDatabase.CONFLICT_REPLACE);
+        db().getWritableDatabase().insertWithOnConflict("pm_products", null, cv, SQLiteDatabase.CONFLICT_REPLACE);
     }
 
     void deleteProduct(int code) {
-        SQLiteDatabase db = getWritableDatabase();
-        db.delete("products", "code=?", new String[]{String.valueOf(code)});
-        db.delete("recipes", "p=?", new String[]{String.valueOf(code)});
+        SQLiteDatabase db = db().getWritableDatabase();
+        db.delete("pm_products", "code=?", new String[]{String.valueOf(code)});
+        db.delete("pm_recipes", "p=?", new String[]{String.valueOf(code)});
     }
 
     void setRecipe(int p, int i, double q) {
-        SQLiteDatabase db = getWritableDatabase();
-        db.delete("recipes", "p=? AND i=?", new String[]{String.valueOf(p), String.valueOf(i)});
+        SQLiteDatabase db = db().getWritableDatabase();
+        db.delete("pm_recipes", "p=? AND i=?", new String[]{String.valueOf(p), String.valueOf(i)});
         if (q > 0) {
             ContentValues cv = new ContentValues();
             cv.put("p", p);
             cv.put("i", i);
             cv.put("q", q);
-            db.insert("recipes", null, cv);
+            db.insert("pm_recipes", null, cv);
         }
     }
 
     void clearAllEntries() {
-        getWritableDatabase().delete("entries", null, null);
+        db().getWritableDatabase().delete("pm_entries", null, null);
     }
 
     int entryCount() {
-        try (Cursor c = getReadableDatabase().rawQuery("SELECT COUNT(*) FROM entries", null)) {
+        try (Cursor c = db().getReadableDatabase().rawQuery("SELECT COUNT(*) FROM pm_entries", null)) {
             if (c.moveToFirst()) return c.getInt(0);
         }
         return 0;
     }
 
     String itemName(int code) {
-        try (Cursor c = getReadableDatabase().rawQuery("SELECT name FROM items WHERE code=?", new String[]{String.valueOf(code)})) {
+        try (Cursor c = db().getReadableDatabase().rawQuery("SELECT name FROM pm_items WHERE code=?", new String[]{String.valueOf(code)})) {
             if (c.moveToFirst()) return c.getString(0);
         }
         return String.valueOf(code);
     }
 
     String productName(int code) {
-        try (Cursor c = getReadableDatabase().rawQuery("SELECT name FROM products WHERE code=?", new String[]{String.valueOf(code)})) {
+        try (Cursor c = db().getReadableDatabase().rawQuery("SELECT name FROM pm_products WHERE code=?", new String[]{String.valueOf(code)})) {
             if (c.moveToFirst()) return c.getString(0);
         }
         return String.valueOf(code);
@@ -557,12 +534,12 @@ double itemUseOn(int itemCode, String date) {
         root.put("v", 3);
         JSONArray items = new JSONArray();
         for (JSONObject o : items()) items.put(o);
-        root.put("items", items);
+        root.put("pm_items", items);
         JSONArray products = new JSONArray();
         for (JSONObject o : products()) products.put(o);
-        root.put("products", products);
+        root.put("pm_products", products);
         JSONArray recipes = new JSONArray();
-        try (Cursor c = getReadableDatabase().rawQuery("SELECT p,i,q FROM recipes", null)) {
+        try (Cursor c = db().getReadableDatabase().rawQuery("SELECT p,i,q FROM pm_recipes", null)) {
             while (c.moveToNext()) {
                 JSONObject o = new JSONObject();
                 o.put("p", c.getInt(0));
@@ -571,11 +548,11 @@ double itemUseOn(int itemCode, String date) {
                 recipes.put(o);
             }
         }
-        root.put("recipes", recipes);
+        root.put("pm_recipes", recipes);
         for (String k : KINDS) {
             JSONArray arr = new JSONArray();
-            try (Cursor c = getReadableDatabase().rawQuery(
-                    "SELECT id,code,date,qty,shift,voucher,note FROM entries WHERE kind=? ORDER BY id", new String[]{k})) {
+            try (Cursor c = db().getReadableDatabase().rawQuery(
+                    "SELECT id,code,date,qty,shift,voucher,note FROM pm_entries WHERE kind=? ORDER BY id", new String[]{k})) {
                 while (c.moveToNext()) {
                     JSONObject o = new JSONObject();
                     o.put("id", c.getLong(0));
@@ -600,14 +577,14 @@ double itemUseOn(int itemCode, String date) {
 
     void importJson(String json) throws Exception {
         JSONObject root = new JSONObject(json);
-        SQLiteDatabase db = getWritableDatabase();
+        SQLiteDatabase db = db().getWritableDatabase();
         db.beginTransaction();
         try {
-            db.delete("entries", null, null);
-            db.delete("recipes", null, null);
-            db.delete("products", null, null);
-            db.delete("items", null, null);
-            JSONArray items = root.optJSONArray("items");
+            db.delete("pm_entries", null, null);
+            db.delete("pm_recipes", null, null);
+            db.delete("pm_products", null, null);
+            db.delete("pm_items", null, null);
+            JSONArray items = root.optJSONArray("pm_items");
             if (items != null) for (int i = 0; i < items.length(); i++) {
                 JSONObject o = items.getJSONObject(i);
                 ContentValues cv = new ContentValues();
@@ -615,24 +592,24 @@ double itemUseOn(int itemCode, String date) {
                 cv.put("name", o.optString("name", ""));
                 cv.put("uom", o.optString("uom", "kg"));
                 cv.put("open", o.optDouble("open", 0));
-                db.insert("items", null, cv);
+                db.insert("pm_items", null, cv);
             }
-            JSONArray products = root.optJSONArray("products");
+            JSONArray products = root.optJSONArray("pm_products");
             if (products != null) for (int i = 0; i < products.length(); i++) {
                 JSONObject o = products.getJSONObject(i);
                 ContentValues cv = new ContentValues();
                 cv.put("code", o.getInt("code"));
                 cv.put("name", o.optString("name", ""));
-                db.insert("products", null, cv);
+                db.insert("pm_products", null, cv);
             }
-            JSONArray recipes = root.optJSONArray("recipes");
+            JSONArray recipes = root.optJSONArray("pm_recipes");
             if (recipes != null) for (int i = 0; i < recipes.length(); i++) {
                 JSONObject o = recipes.getJSONObject(i);
                 ContentValues cv = new ContentValues();
                 cv.put("p", o.getInt("p"));
                 cv.put("i", o.getInt("i"));
                 cv.put("q", o.optDouble("q", 0));
-                db.insert("recipes", null, cv);
+                db.insert("pm_recipes", null, cv);
             }
             for (String k : KINDS) {
                 JSONArray arr = root.optJSONArray(k);
@@ -647,7 +624,7 @@ double itemUseOn(int itemCode, String date) {
                     cv.put("shift", o.optString("shift", ""));
                     cv.put("voucher", o.optString("voucher", ""));
                     cv.put("note", o.optString("note", ""));
-                    db.insert("entries", null, cv);
+                    db.insert("pm_entries", null, cv);
                 }
             }
             JSONObject settings = root.optJSONObject("settings");

@@ -3,7 +3,7 @@ package com.rmstock.nativeapp;
 import android.content.*;import android.database.*;import android.database.sqlite.*;import org.json.*;import java.io.*;import java.util.*;
 
 public class StockDb extends SQLiteOpenHelper {
-    private static final String DB="rmstock_native.db"; private static final int VER=14; private final Context ctx;
+    private static final String DB="rmstock_native.db"; private static final int VER=15; private final Context ctx;
     private static StockDb INSTANCE;
     /** Single helper instance — faster cache, less memory (Android SQLite best practice). */
     public static synchronized StockDb get(Context c){
@@ -24,6 +24,8 @@ public class StockDb extends SQLiteOpenHelper {
                 d.execSQL("PRAGMA temp_store=MEMORY");
             }catch(Exception ignored){}
             ensurePerfIndexes(d);
+            ensurePmTables(d);
+            migrateLegacyPmDb(d);
         }
     }
     private void ensurePerfIndexes(SQLiteDatabase d){
@@ -39,6 +41,17 @@ public class StockDb extends SQLiteOpenHelper {
             d.execSQL("CREATE INDEX IF NOT EXISTS idx_sync_status ON sync_queue(status)");
             d.execSQL("CREATE INDEX IF NOT EXISTS idx_yield_hist_date ON yield_history(date)");
         }catch(Exception ignored){}
+    }
+
+    
+    static void ensurePmTables(SQLiteDatabase d){
+        d.execSQL("CREATE TABLE IF NOT EXISTS pm_items(code INTEGER PRIMARY KEY, name TEXT, uom TEXT, open REAL)");
+        d.execSQL("CREATE TABLE IF NOT EXISTS pm_products(code INTEGER PRIMARY KEY, name TEXT)");
+        d.execSQL("CREATE TABLE IF NOT EXISTS pm_recipes(product_code INTEGER, item_code INTEGER, qty REAL, PRIMARY KEY(product_code,item_code))");
+        d.execSQL("CREATE TABLE IF NOT EXISTS pm_entries(id INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT, code INTEGER, date TEXT, qty REAL, shift TEXT, voucher TEXT, note TEXT)");
+        d.execSQL("CREATE TABLE IF NOT EXISTS pm_meta(k TEXT PRIMARY KEY, v TEXT)");
+        d.execSQL("CREATE TABLE IF NOT EXISTS pm_product_openings(product_code INTEGER, ym TEXT, qty REAL, PRIMARY KEY(product_code,ym))");
+        try{ d.execSQL("CREATE INDEX IF NOT EXISTS idx_pm_entries_date ON pm_entries(date)"); }catch(Exception ignored){}
     }
 
     @Override public void onCreate(SQLiteDatabase d){
@@ -75,6 +88,9 @@ public class StockDb extends SQLiteOpenHelper {
     String setting(String k,String def){Cursor c=getReadableDatabase().rawQuery("SELECT v FROM settings WHERE k=?",new String[]{k});try{return c.moveToFirst()?c.getString(0):def;}finally{c.close();}}
     void setSetting(String k,String v){putSetting(getWritableDatabase(),k,v);}
     public void onUpgrade(SQLiteDatabase d,int o,int n){
+        if(o<15){
+            try{ ensurePmTables(d); migrateLegacyPmDb(d); }catch(Exception ignored){}
+        }
         if(o<14){
             try{ ensurePerfIndexes(d); }catch(Exception ignored){}
         }
