@@ -1478,6 +1478,14 @@ private void ensureAdminSecurityBootstrap(){
         main.post(()->promptSetAdminPin(null));
     }
  }
+ private void unlockMonthYm(String ym){
+    requireAdminPower("Unlock month "+ym, ()->{
+        db.setMonthLocked(ym,false);
+        db.audit(user(),role(),"month_unlock",ym);
+        toast(ym+" unlocked — entries allowed");
+        showSettings();
+    });
+ }
  private void showSettings(){
     clear("Settings");
     ensureAdminSecurityBootstrap();
@@ -1502,7 +1510,9 @@ private void ensureAdminSecurityBootstrap(){
         saveRole.setOnClickListener(v->{
             requireAdminPower("Change user / role", ()->{
                 String newRole=roles[roleSp.getSelectedItemPosition()];
-                // Device role is global: only Admin may set any role (including demoting this device)
+                if("Admin".equals(newRole) && !db.hasAdminPin()){
+                    toast("Set Admin PIN first"); return;
+                }
                 db.setSetting("current_user",uEt.getText().toString().trim());
                 db.setSetting("role",newRole);
                 db.audit(user(),"Admin","set_role",newRole+" by admin power");
@@ -1516,7 +1526,7 @@ private void ensureAdminSecurityBootstrap(){
 
         LinearLayout cLock=Ui.card(this,Ui.CARD);
         cLock.addView(Ui.text(this,"Month close lock",15,Ui.NAVY_TEXT,true));
-        cLock.addView(Ui.muted(this,"Finalized months block edits (Supervisor/Admin can unlock)."));
+        cLock.addView(Ui.muted(this,"Finalized months block NEW entries. Only Admin + PIN can lock/unlock."));
         final EditText ymEt=edit("YYYY-MM");ymEt.setText(today().substring(0,7));
         cLock.addView(ymEt);
         Button lockB=Ui.secondary(this,"Finalize / lock month");
@@ -1537,7 +1547,7 @@ private void ensureAdminSecurityBootstrap(){
             Guard.run(this,db,"Unlock "+ym,true,()->{
                 db.setMonthLocked(ym,false);
                 db.audit(user(),role(),"month_unlock",ym);
-                toast(ym+" unlocked");
+                toast(ym+" unlocked — entries allowed");
             });
         });
         cLock.addView(lockB);cLock.addView(unlockB);addCard(cLock);
@@ -3588,6 +3598,24 @@ private void applyVoiceFixCommand(String raw){
  }
 
  private void sharePdf(String text,String name)throws Exception{File f=createPdf(text,name);Uri u=FileProvider.getUriForFile(this,"com.rmstock.nativeapp.fileprovider",f);new AlertDialog.Builder(this).setTitle("Report ready").setItems(new String[]{"Save PDF","Share PDF","Print PDF"},(d,w)->{if(w==0){pendingPdf=f;Intent i=new Intent(Intent.ACTION_CREATE_DOCUMENT);i.setType("application/pdf");i.putExtra(Intent.EXTRA_TITLE,f.getName());startActivityForResult(i,79);}else if(w==1){Intent i=new Intent(Intent.ACTION_SEND);i.setType("application/pdf");i.putExtra(Intent.EXTRA_STREAM,u);i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);startActivity(Intent.createChooser(i,"Share PDF"));}else{printPdf(f);}}).show();}
+ 
+ private void buildPdfBg(String text, String name, boolean offerPrint){
+    toast("Building PDF…");
+    final String t=text, n=name;
+    final boolean print=offerPrint;
+    AppExec.io(()->{
+        try{
+            File f=createPdf(t,n);
+            AppExec.main(()->{
+                try{ shareExistingPdf(f); }
+                catch(Exception e){ toast(e.getMessage()); }
+            });
+        }catch(Exception e){
+            AppExec.main(()->toast("PDF: "+e.getMessage()));
+        }
+    });
+ }
+
  private File createPdf(String text,String name)throws Exception{PdfDocument doc=new PdfDocument();Paint p=new Paint(Paint.ANTI_ALIAS_FLAG);p.setTextSize(10*getResources().getDisplayMetrics().scaledDensity);p.setTypeface(Typeface.create("sans-serif",Typeface.NORMAL));ArrayList<String> lines=new ArrayList<>();for(String raw:text.split("\n")){if(raw.length()<=78)lines.add(raw);else{for(int i=0;i<raw.length();i+=78)lines.add(raw.substring(i,Math.min(raw.length(),i+78)));}}int page=1,y=42;PdfDocument.Page pg=null;Canvas c=null;for(String line:lines){if(pg==null||y>790){if(pg!=null){p.setTextSize(8*getResources().getDisplayMetrics().scaledDensity);c.drawText("Page "+(page-1),520,820,p);doc.finishPage(pg);}pg=doc.startPage(new PdfDocument.PageInfo.Builder(595,842,page++).create());c=pg.getCanvas();p.setTextSize(11*getResources().getDisplayMetrics().scaledDensity);c.drawText(db.setting("company","RM Stock"),24,24,p);p.setTextSize(10*getResources().getDisplayMetrics().scaledDensity);y=42;}c.drawText(line,24,y,p);y+=16;}if(pg!=null){p.setTextSize(8*getResources().getDisplayMetrics().scaledDensity);c.drawText("Page "+(page-1),520,820,p);doc.finishPage(pg);}File dir=new File(getFilesDir(),"reports");dir.mkdirs();File f=new File(dir,name+".pdf");FileOutputStream o=new FileOutputStream(f);doc.writeTo(o);o.close();doc.close();return f;}
  private void printPdf(File f){ EasyPrint.printPdf(this, f, f!=null?f.getName():"Report"); }
  private static class PrintAdapter extends PrintDocumentAdapter{Context c;File f;PrintAdapter(Context c,File f){this.c=c;this.f=f;}public void onLayout(PrintAttributes oldA,PrintAttributes newA,CancellationSignal s,LayoutResultCallback cb,Bundle m){if(s.isCanceled()){cb.onLayoutCancelled();return;}cb.onLayoutFinished(new PrintDocumentInfo.Builder(f.getName()).setContentType(PrintDocumentInfo.CONTENT_TYPE_DOCUMENT).setPageCount(PrintDocumentInfo.PAGE_COUNT_UNKNOWN).build(),true);}public void onWrite(PageRange[] pages,ParcelFileDescriptor dest,CancellationSignal s,WriteResultCallback cb){try{FileInputStream in=new FileInputStream(f);FileOutputStream out=new FileOutputStream(dest.getFileDescriptor());byte[] b=new byte[8192];int n;while((n=in.read(b))>0)out.write(b,0,n);in.close();cb.onWriteFinished(new PageRange[]{PageRange.ALL_PAGES});}catch(Exception e){cb.onWriteFailed(e.toString());}}}
