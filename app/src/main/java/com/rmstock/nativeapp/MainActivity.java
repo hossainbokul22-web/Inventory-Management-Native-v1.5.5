@@ -2570,7 +2570,7 @@ bToday.setOnClickListener(vv->{ db.setSetting("entry_list_range","today"); showD
 b7.setOnClickListener(vv->{ db.setSetting("entry_list_range","7"); showDaily(); });
 bMonth.setOnClickListener(vv->{ db.setSetting("entry_list_range","month"); showDaily(); });
 rangeRow.addView(bToday,new LinearLayout.LayoutParams(0,dp(48),1));
-rangeRow.addView(b7, new LinearLayout.LayoutParams(0,-2,1)); addView(bMonth,new LinearLayout.LayoutParams(0,dp(48),1));
+rangeRow.addView(b7, new LinearLayout.LayoutParams(0,-2,1)); rangeRow.addView(bMonth, new LinearLayout.LayoutParams(0,-2,1));
 add(rangeRow);
 String fromDay;
 if("today".equals(entryRangeF)) fromDay=today();
