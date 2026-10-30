@@ -1785,7 +1785,41 @@ LinearLayout c6=Ui.card(this,Ui.CARD);
             add(cDev);
         }
 
-c7.addView(Ui.text(this,"Unified backup (RM + PM + Yield)",15,Ui.NAVY_TEXT,true));
+
+        c7.addView(Ui.text(this,"Auto backup (daily)",15,Ui.NAVY_TEXT,true));
+        c7.addView(Ui.muted(this,"Start = every day \~9 PM (RM+PM JSON). Stop = stays off until you Start again."));
+        TextView abStatus=Ui.text(this,
+            AutoBackup.isOn(this) ? "Status: ON · last: "+db.setting("auto_backup_last_at","—")
+                                  : "Status: OFF",
+            13, Ui.INK, false);
+        c7.addView(abStatus);
+        LinearLayout abRow=new LinearLayout(this);
+        Button abStart=Ui.primary(this,"Start");
+        Button abStop=Ui.secondary(this,"Stop");
+        Button abNow=Ui.secondary(this,"Backup now");
+        abStart.setOnClickListener(v->{
+            AutoBackup.start(this);
+            toast("Auto backup ON");
+            abStatus.setText("Status: ON · last: "+db.setting("auto_backup_last_at","—"));
+        });
+        abStop.setOnClickListener(v->{
+            AutoBackup.stop(this);
+            toast("Auto backup OFF — will not run until Start");
+            abStatus.setText("Status: OFF");
+        });
+        abNow.setOnClickListener(v->{
+            try{
+                java.io.File bf=AutoBackup.runNow(this);
+                toast("Saved: "+bf.getName());
+                abStatus.setText("Status: "+(AutoBackup.isOn(this)?"ON":"OFF")+" · last: "+db.setting("auto_backup_last_at","—"));
+            }catch(Exception e){ toast(e.getMessage()); }
+        });
+        abRow.addView(abStart, new LinearLayout.LayoutParams(0,-2,1));
+        abRow.addView(abStop, new LinearLayout.LayoutParams(0,-2,1));
+        abRow.addView(abNow, new LinearLayout.LayoutParams(0,-2,1));
+        c7.addView(abRow, Ui.lp(this,-1,-2,0,0,6,0,6));
+
+        c7.addView(Ui.text(this,"Unified backup (RM + PM + Yield)",15,Ui.NAVY_TEXT,true));
         c7.addView(Ui.muted(this,"One file includes raw materials, products, batches, receives, PM packaging data and yield definitions."));
         Button b1=Ui.secondary(this,"Backup to JSON file");b1.setOnClickListener(v->backupJson());c7.addView(b1,Ui.lp(this,-1,-2,0,0,3,0,3));
         Button bShare=Ui.secondary(this,"Share backup (Email / Drive / WhatsApp)");bShare.setOnClickListener(v->shareUnifiedBackup());c7.addView(bShare,Ui.lp(this,-1,-2,0,0,3,0,3));

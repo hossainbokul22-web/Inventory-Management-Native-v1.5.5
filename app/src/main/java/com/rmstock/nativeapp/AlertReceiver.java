@@ -31,6 +31,13 @@ public class AlertReceiver extends BroadcastReceiver {
         String act = intent != null ? intent.getAction() : "";
         if (Intent.ACTION_BOOT_COMPLETED.equals(act) || ACTION_BOOT.equals(act)) {
             AlertScheduler.schedule(context);
+            try { AutoBackup.schedule(context); } catch (Exception ignored) {}
+            return;
+        }
+        if (AutoBackup.ACTION.equals(act)) {
+            try {
+                if (AutoBackup.isOn(context)) AutoBackup.runNow(context);
+            } catch (Exception ignored) {}
             return;
         }
         // Daily check (also used for "Test notification")
@@ -51,7 +58,7 @@ public class AlertReceiver extends BroadcastReceiver {
     }
 
     static void showDailyAlert(Context context) throws Exception {
-        StockDb db = new StockDb(context);
+        StockDb db = StockDb.get(context);
         if (!"1".equals(db.setting("alerts_on", "1"))) return;
 
         String today = today();

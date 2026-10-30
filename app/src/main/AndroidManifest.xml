@@ -36,6 +36,7 @@
   <receiver android:name=".AlertReceiver" android:exported="false">
    <intent-filter>
     <action android:name="com.rmstock.nativeapp.DAILY_ALERT"/>
+    <action android:name="com.rmstock.nativeapp.AUTO_BACKUP"/>
     <action android:name="android.intent.action.BOOT_COMPLETED"/>
    </intent-filter>
   </receiver>
