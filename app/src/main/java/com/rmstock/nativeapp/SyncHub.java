@@ -285,6 +285,7 @@ public final class SyncHub {
                 return true;
             }
             if ("device_register".equals(kind)) {
+                if (isStaleLww(data)) { lastStatus = "LWW skip device_register"; return true; }
                 db.upsertDevice(
                     data.optString("device_id"),
                     data.optString("device_code"),
@@ -311,6 +312,7 @@ public final class SyncHub {
                 return true;
             }
             if ("location".equals(kind)) {
+                if (isStaleLww(data)) { lastStatus = "LWW skip location"; return true; }
                 DutyLocationService.storeLocal(db, data);
                 lastStatus = "Location from " + data.optString("user");
                 return true;
