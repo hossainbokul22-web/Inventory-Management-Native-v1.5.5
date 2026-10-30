@@ -25,6 +25,14 @@ import java.io.OutputStream;
  * Best practice: PrintManager + PDF (A4) — works with Mopria / HP / Epson / Canon plugins.
  */
 public final class EasyPrint {
+    public static void hintWifiPrinter(android.content.Context c) {
+        try {
+            android.widget.Toast.makeText(c,
+                "Wi-Fi printer: use system print dialog. Install HP/Epson/Mopria plugin if printer not listed.",
+                android.widget.Toast.LENGTH_LONG).show();
+        } catch (Exception ignored) {}
+    }
+
     private EasyPrint() {}
 
     public static void printPdf(Context ctx, File pdf, String jobName) {
@@ -89,7 +97,7 @@ public final class EasyPrint {
     private static void toast(Context ctx, String m) {
         try {
             if (ctx instanceof Activity)
-                ((Activity) ctx).runOnUiThread(() -> Toast.makeText(ctx, m, Toast.LENGTH_SHORT).show());
+                ((Activity) ctx).runOnUiThread(() -> /* printer needs system service */ Toast.makeText(ctx, m, Toast.LENGTH_SHORT).show());
             else Toast.makeText(ctx, m, Toast.LENGTH_SHORT).show();
         } catch (Exception ignored) {}
     }

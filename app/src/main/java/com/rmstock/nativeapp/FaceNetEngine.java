@@ -18,7 +18,7 @@ import java.nio.channels.FileChannel;
 public final class FaceNetEngine {
     public static final int SIZE = 112;
     public static final float THRESHOLD = 0.80f;
-    public static final float SUGGEST = 0.70f;
+    public static final float SUGGEST = 0.72f;
 
     private static FaceNetEngine INSTANCE;
     private Interpreter interpreter;
