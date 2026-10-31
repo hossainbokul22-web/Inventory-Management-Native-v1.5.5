@@ -43,6 +43,7 @@ public final class SyncHub {
     }
 
     private SyncHub(Context app) {
+        this.appCtx = app.getApplicationContext();
         this.app = app;
         this.db = new StockDb(app);
         ensureQueueTable();
