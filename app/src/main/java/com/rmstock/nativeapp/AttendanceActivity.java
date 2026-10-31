@@ -62,7 +62,6 @@ public class AttendanceActivity extends Activity implements SurfaceHolder.Callba
     private boolean enrollUiOpen = false;
     private String pendingNewName, pendingNewCode, pendingNewShift, pendingNewGender;
 
-    private boolean enrollUiOpen = false;
     private SurfaceView preview;
     private TextView statusTv, punchTv, todayTv;
     private FaceDetector detector;
