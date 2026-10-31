@@ -573,9 +573,20 @@ public class PmActivity extends Activity {
                 payload.put("shift", shift != null ? shift : "");
                 payload.put("voucher", voucherEt.getText().toString().trim());
                 payload.put("note", noteEt.getText().toString().trim());
+                SyncHub.get(this).enqueueAndFlush("pm_entry", payload);
+            } catch (Exception ignored) {}
+            try {
+                org.json.JSONObject payload = new org.json.JSONObject();
+                payload.put("kind", kind);
+                payload.put("code", code);
+                payload.put("date", date);
+                payload.put("qty", qty);
+                payload.put("shift", shift != null ? shift : "");
+                payload.put("voucher", voucherEt.getText().toString().trim());
+                payload.put("note", noteEt.getText().toString().trim());
                 payload.put("ts", System.currentTimeMillis());
-                com.rmstock.nativeapp.SyncHub.get(this).enqueue("pm_entry", payload);
-                com.rmstock.nativeapp.SyncHub.get(this).flushQueue(null);
+                com.rmstock.nativeapp.SyncHub.get(this).enqueueAndFlush("pm_entry", payload);
+                com.rmstock.nativeapp.
             } catch (Exception ignored) {}
             } catch (RuntimeException re) {
                 toast(re.getMessage() != null ? re.getMessage() : "Save blocked");

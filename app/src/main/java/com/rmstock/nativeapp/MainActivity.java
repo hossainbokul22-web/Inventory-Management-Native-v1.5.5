@@ -2560,7 +2560,7 @@ String day=ymd(d);if(!checkMonthOpenToast(day))return;String code=label.split(" 
                         payload.put("date",day);payload.put("rm_code",code);payload.put("qty",num(q.getText().toString()));
                         payload.put("voucher_no",v.getText().toString().trim());payload.put("note",note.getText().toString().trim());
                         payload.put("source","manual");payload.put("lot",lot.getText().toString().trim());payload.put("expiry",expiryOf(exp));
-                        SyncHub.get(this).enqueue("receive", payload);
+                        SyncHub.get(this).enqueueAndFlush("receive", payload);
                         SyncHub.get(this).flushQueue(null);
                     }
                 }catch(Exception ignored){}
@@ -2646,7 +2646,7 @@ save.setPadding(dp(12),dp(10),dp(12),dp(10));save.setOnClickListener(v->{try{Str
             String pname="";
             try{ org.json.JSONObject pr=db.one("SELECT name FROM products WHERE code=?",new String[]{code}); if(pr!=null) pname=pr.optString("name"); }catch(Exception ignored){}
             payload.put("product_name",pname);
-            SyncHub.get(this).enqueue("batch", payload);
+            SyncHub.get(this).enqueueAndFlush("batch", payload);
             // also push recipe consumption lines as batch_lines optional: skip heavy
         }
     }catch(Exception ignored){}

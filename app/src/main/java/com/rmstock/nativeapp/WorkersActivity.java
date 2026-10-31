@@ -153,8 +153,8 @@ public class WorkersActivity extends Activity {
                         payload.put("shift", shift.getText().toString().trim());
                         payload.put("gender", gender.getText().toString().trim());
                         payload.put("photo_path", "");
-                        SyncHub.get(this).enqueue("worker_upsert", payload);
-                        SyncHub.get(this).flushQueue(null);
+                        SyncHub.get(this).enqueueAndFlush("worker_upsert", payload);
+                        
                     } catch (Exception ignored) {}
                     reload();
                     toast("Saved. Now Upload photo for this worker.");
@@ -215,8 +215,8 @@ public class WorkersActivity extends Activity {
                             break;
                         }
                     }
-                    SyncHub.get(this).enqueue("worker_upsert", payload);
-                    SyncHub.get(this).flushQueue(null);
+                    SyncHub.get(this).enqueueAndFlush("worker_upsert", payload);
+                    
                 } catch (Exception ignored) {}
                 toast("Photo saved");
                 reload();

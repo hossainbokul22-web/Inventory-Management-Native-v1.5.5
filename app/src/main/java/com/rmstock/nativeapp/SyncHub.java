@@ -137,6 +137,10 @@ public final class SyncHub {
         return 0;
     }
 
+    public void enqueueAndFlush(String kind, JSONObject payload) {
+        enqueue(kind, payload);
+        try { flushQueue(null); } catch (Exception ignored) {}
+    }
     public void enqueue(String kind, JSONObject payload) {
         try {
             ContentValues v = new ContentValues();
@@ -362,13 +366,14 @@ public final class SyncHub {
                     z.put("voucher", data.optString("voucher"));
                     z.put("note", data.optString("note"));
                     db.getWritableDatabase().insert("pm_entries", null, z);
-                    lastStatus = "PM entry synced " + data.optString("kind");
+                    lastStatus = "PM entry synced";
                     return true;
                 } catch (Exception e) {
                     lastStatus = "PM entry fail: " + e.getMessage();
                     return false;
                 }
             }
+            
             if ("receive".equals(kind)) {
                 if (isStaleLww(data)) { lastStatus = "LWW skip receive"; return true; }
                 ContentValues z = new ContentValues();

@@ -325,7 +325,7 @@ public class AttendanceActivity extends Activity implements SurfaceHolder.Callba
                 ap.put("photo_path", photoPath == null ? "" : photoPath);
                 ap.put("by_user", user);
                 ap.put("device_code", device);
-                SyncHub.get(this).enqueue("attendance", ap);
+                SyncHub.get(this).enqueueAndFlush("attendance", ap);
                 SyncHub.get(this).flushQueue(null);
             } catch (Exception ignored) {}
             long id = db.addAttendance(workerId, name, day, time, punchType, method,
@@ -343,7 +343,7 @@ public class AttendanceActivity extends Activity implements SurfaceHolder.Callba
                 o.put("by_user", user);
                 o.put("device_code", device);
                 if ("client".equals(db.setting("sync_mode", "off"))) {
-                    SyncHub.get(this).enqueue("attendance", o);
+                    SyncHub.get(this).enqueueAndFlush("attendance", o);
                     SyncHub.get(this).flushQueue(null);
                 }
             } catch (Exception ignored) {}
