@@ -321,13 +321,13 @@ private void clear(String head){
         }
         // Push to admin server / queue when client
         if("client".equals(db.setting("sync_mode","off")) || "internet".equals(db.setting("sync_net","hotspot"))){
-            SyncHub.get(this).enqueue("device_register", o);
+            SyncHub.get(this).enqueueAndFlush("device_register", o);
             SyncHub.get(this).flushQueue(null);
         } else if("server".equals(db.setting("sync_mode","off"))){
             // already upserted
         } else {
             // Optional internet webhook once
-            SyncHub.get(this).enqueue("device_register", o);
+            SyncHub.get(this).enqueueAndFlush("device_register", o);
         }
     }catch(Exception ignored){}
  }
@@ -640,6 +640,20 @@ private boolean admin(){return db.canAdmin()||db.canEdit();}
  }
 
  private void showDashboard(){
+    try {
+        final Runnable autoFlushSync = new Runnable() {
+            @Override public void run() {
+                try {
+                    String mode = db.setting("sync_mode", "off");
+                    if ("client".equals(mode)) SyncHub.get(MainActivity.this).flushQueue(null);
+                } catch (Exception ignored) {}
+                try { main.postDelayed(this, 15000); } catch (Exception ignored) {}
+            }
+        };
+        dashboardRunnables.add(autoFlushSync);
+        main.postDelayed(autoFlushSync, 5000);
+    } catch (Exception ignored) {}
+
     if(isDeviceBlocked()){ showDeviceBlocked(); return; }
     clear("Dashboard");
     try{ content.setBackgroundColor(Ui.NEU_BG); }catch(Exception ignored){}
@@ -1104,7 +1118,7 @@ private boolean admin(){return db.canAdmin()||db.canEdit();}
                     payload.put("qty",qty);
                     payload.put("note",note.getText().toString().trim());
                     payload.put("kind_waste",true);
-                    SyncHub.get(this).enqueue("wastage", payload);
+                    SyncHub.get(this).enqueueAndFlush("wastage", payload);
                 }
             }catch(Exception ignored){}
             toast("Wastage saved ✔");showWastage();
@@ -1922,7 +1936,7 @@ LinearLayout c6=Ui.card(this,Ui.CARD);
                                 st.put("active", next);
                                 // Store for clients to pull when online
                                 SyncHub.get(this).storeCallSignal(new org.json.JSONObject().put("kind","device_status_broadcast").put("data",st));
-                                SyncHub.get(this).enqueue("device_status", st);
+                                SyncHub.get(this).enqueueAndFlush("device_status", st);
                             }catch(Exception ignored){}
                             toast(next?"Activated":"Deactivated");
                             showAdminChamber();

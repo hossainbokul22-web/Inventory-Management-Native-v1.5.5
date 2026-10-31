@@ -444,7 +444,7 @@ public class AttendanceActivity extends Activity implements SurfaceHolder.Callba
                     payload.put("shift", shift.getText().toString().trim());
                     payload.put("gender", gender.getText().toString().trim());
                     payload.put("photo_path", "");
-                    SyncHub.get(this).enqueue("worker_upsert", payload);
+                    SyncHub.get(this).enqueueAndFlush("worker_upsert", payload);
                     SyncHub.get(this).flushQueue(null);
                 } catch (Exception ignored) {}
                 reloadWorkers();
@@ -870,7 +870,7 @@ public class AttendanceActivity extends Activity implements SurfaceHolder.Callba
                             payload.put("gender", wrow.optString("gender"));
                             payload.put("photo_path", path);
                         }
-                        SyncHub.get(this).enqueue("worker_upsert", payload);
+                        SyncHub.get(this).enqueueAndFlush("worker_upsert", payload);
                         SyncHub.get(this).flushQueue(null);
                     } catch (Exception ignored) {}
                     try { embedCache.put(pendingPhotoWorkerId, FaceMatch.embedFile(path)); } catch (Exception ignored) {}

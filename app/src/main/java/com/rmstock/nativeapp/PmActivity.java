@@ -2152,7 +2152,7 @@ SyncHub.get(this).enqueueAndFlush("pm_entry", payload);
 
     private void shareFile(File f, String mime) {
         try {
-            Uri uri = FileProvider.getUriForFile(this, "com.rmstock.nativeapp.fileprovider", f);
+            Uri uri = FileProvider.getUriForFile(this, "fileprovider", f);
             Intent i = new Intent(Intent.ACTION_SEND);
             i.setType(mime);
             i.putExtra(Intent.EXTRA_STREAM, uri);
