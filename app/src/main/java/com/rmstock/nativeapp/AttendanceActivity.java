@@ -55,6 +55,7 @@ import java.util.Locale;
 public class AttendanceActivity extends Activity implements SurfaceHolder.Callback, Camera.PreviewCallback {
     private StockDb db;
     private Camera camera;
+    private boolean enrollUiOpen = false;
     private SurfaceView preview;
     private TextView statusTv, punchTv, todayTv;
     private FaceDetector detector;
@@ -379,6 +380,7 @@ public class AttendanceActivity extends Activity implements SurfaceHolder.Callba
     }
 
     private void manageWorkers() {
+        enrollUiOpen = true;
         final EditText name = new EditText(this);
         name.setHint("Worker full name *");
         final EditText code = new EditText(this);
@@ -388,7 +390,7 @@ public class AttendanceActivity extends Activity implements SurfaceHolder.Callba
         final EditText gender = new EditText(this);
         gender.setHint("Gender: Male / Female");
         TextView tip = new TextView(this);
-        tip.setText("Face the camera, then tap Save face. Reference photo is required for match.");
+        tip.setText("1) Face stays in camera behind this form\n2) Fill name + ID\n3) Tap Save face & worker\nPhotos: app files/attendance/ + list below after save.");
         tip.setTextColor(Color.rgb(80, 90, 100));
         tip.setPadding(0, dp(6), 0, dp(6));
         LinearLayout box = new LinearLayout(this);
@@ -396,28 +398,38 @@ public class AttendanceActivity extends Activity implements SurfaceHolder.Callba
         box.setPadding(dp(20), dp(8), dp(20), dp(8));
         box.addView(tip);
         box.addView(name); box.addView(code); box.addView(shift); box.addView(gender);
-        new AlertDialog.Builder(this).setTitle("Enroll worker + face")
+        AlertDialog dlg = new AlertDialog.Builder(this).setTitle("Enroll worker + face")
                 .setView(box)
-                .setPositiveButton("Save face & worker", (d, w) -> {
-                    String n = name.getText().toString().trim();
-                    if (n.isEmpty()) { toast("Name required"); return; }
-                    if (!(faceOk && (System.currentTimeMillis() - lastFaceMs) < 2000)) {
-                        toast("No face — stand in front of camera");
-                        return;
-                    }
-                    String path = saveLastFrameFile();
-                    if (path == null || path.isEmpty()) {
-                        toast("Could not save face photo");
-                        return;
-                    }
-                    long id = db.addWorker(code.getText().toString().trim(), n,
-                            shift.getText().toString().trim(), path, gender.getText().toString().trim());
-                    embedCache.put(id, FaceMatch.embedFile(path));
-                    reloadWorkers();
-                    toast("Enrolled: " + n + " (face saved)");
-                })
-                .setNeutralButton("List / re-photo", (d, w) -> showWorkerFaceList())
-                .setNegativeButton("Close", null).show();
+                .setCancelable(false)
+                .setPositiveButton("Save face & worker", null)
+                .setNeutralButton("Photo list", null)
+                .setNegativeButton("Close", (d, w) -> { enrollUiOpen = false; })
+                .create();
+        dlg.setOnShowListener(di -> {
+            dlg.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
+                String n = name.getText().toString().trim();
+                if (n.isEmpty()) { toast("Name required"); return; }
+                if (!(faceOk && (System.currentTimeMillis() - lastFaceMs) < 4000)) {
+                    toast("No face in camera — stand in front, wait 1s, try again");
+                    return;
+                }
+                String path = saveLastFrameFile();
+                if (path == null || path.isEmpty()) {
+                    toast("Could not save face photo");
+                    return;
+                }
+                long id = db.addWorker(code.getText().toString().trim(), n,
+                        shift.getText().toString().trim(), path, gender.getText().toString().trim());
+                embedCache.put(id, FaceMatch.embedFile(path));
+                reloadWorkers();
+                toast("Saved: " + n + "\nPhoto: " + path);
+                // keep dialog open so user can add another — optional close:
+                // enrollUiOpen = false; dlg.dismiss();
+            });
+            dlg.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener(v -> showWorkerFaceList());
+        });
+        dlg.setOnDismissListener(d -> enrollUiOpen = false);
+        dlg.show();
     }
 
     private void showWorkerFaceList() {
@@ -429,7 +441,7 @@ public class AttendanceActivity extends Activity implements SurfaceHolder.Callba
               .append(w.optString("name")).append(" (")
               .append(w.optString("code")).append(")\n");
         }
-        new AlertDialog.Builder(this).setTitle("Face enrolled?")
+        new AlertDialog.Builder(this).setTitle("Worker photo list (✓ = has face file)")
                 .setMessage(sb.length() == 0 ? "No workers" : sb.toString())
                 .setPositiveButton("Re-photo selected…", (d, w) -> rePhotoWorker())
                 .setNegativeButton("OK", null).show();
@@ -460,6 +472,7 @@ public class AttendanceActivity extends Activity implements SurfaceHolder.Callba
     /** Rank enrolled workers by live frame similarity; auto-punch if very high. */
     private long lastMatchAt;
     private void runFaceMatch() {
+        if (enrollUiOpen) return;
         if (lastFrame == null || previewW <= 0 || !faceOk) return;
         if (System.currentTimeMillis() - lastMatchAt < 1200) return;
         lastMatchAt = System.currentTimeMillis();
@@ -509,7 +522,7 @@ public class AttendanceActivity extends Activity implements SurfaceHolder.Callba
             main.post(() -> {
                 statusTv.setText(String.format(Locale.US,
                         "MATCH %s %.0f%% · %s", fn, fs * 100f, punchType));
-                if (fs >= FaceNetEngine.THRESHOLD && !punching) {
+                if (fs >= FaceNetEngine.THRESHOLD && !punching && !enrollUiOpen) {
                     if (db.hasRecentPunch(fid, punchType, DUP_MINUTES)) return;
                     new AlertDialog.Builder(this)
                             .setTitle("Face match")
