@@ -30,6 +30,7 @@ public final class SyncHub {
     private static SyncHub inst;
     private final Context app;
     private final StockDb db;
+    private final android.content.Context appCtx;
     private final Handler main = new Handler(Looper.getMainLooper());
     private final ExecutorService pool = Executors.newCachedThreadPool();
     private final AtomicBoolean serverOn = new AtomicBoolean(false);
@@ -250,6 +251,9 @@ public final class SyncHub {
                 out.write(new JSONObject().put("ok", true).put("role", "server").put("pending", pendingCount()).toString());
             } else if ("chat_pull".equals(type)) {
                 out.write(new JSONObject().put("ok", true).put("messages", loadChatJson(80)).toString());
+            
+            } else if ("snapshot".equals(type)) {
+                out.write(buildSnapshot().toString());
             } else if ("push".equals(type)) {
                 boolean applied = applyIncoming(req.optString("kind"), req.optJSONObject("data"));
                 out.write(new JSONObject().put("ok", applied).toString());
@@ -281,6 +285,18 @@ public final class SyncHub {
                     String shift = data.optString("shift");
                     String gender = data.optString("gender");
                     String photo = data.optString("photo_path");
+                    String b64p = data.optString("photo_b64");
+                    if (b64p != null && b64p.length() > 100) {
+                        try {
+                            byte[] bytes = android.util.Base64.decode(b64p, android.util.Base64.NO_WRAP);
+                            java.io.File dir = new java.io.File(appCtx.getFilesDir(), "attendance");
+                            if (!dir.exists()) dir.mkdirs();
+                            java.io.File f = new java.io.File(dir, "w_" + data.optString("code","x") + ".jpg");
+                            java.io.FileOutputStream fos = new java.io.FileOutputStream(f);
+                            fos.write(bytes); fos.close();
+                            photo = f.getAbsolutePath();
+                        } catch (Exception ignored) {}
+                    }
                     // Upsert by code if possible
                     org.json.JSONObject existing = null;
                     try {
@@ -781,6 +797,146 @@ public final class SyncHub {
             db.setSetting(key, String.valueOf(ts));
         } catch (Exception ignored) {}
         return false;
+    }
+
+
+    private JSONObject buildSnapshot() {
+        JSONObject out = new JSONObject();
+        try {
+            out.put("ok", true);
+            out.put("ts", System.currentTimeMillis());
+            // Workers (with optional photo_b64 if file small)
+            org.json.JSONArray workers = new org.json.JSONArray();
+            try {
+                for (org.json.JSONObject w : db.listWorkers()) {
+                    org.json.JSONObject o = new org.json.JSONObject();
+                    o.put("id", w.optLong("id"));
+                    o.put("code", w.optString("code"));
+                    o.put("name", w.optString("name"));
+                    o.put("shift", w.optString("shift"));
+                    o.put("gender", w.optString("gender"));
+                    String path = w.optString("photo_path");
+                    o.put("photo_path", path);
+                    if (path != null && path.length() > 2) {
+                        try {
+                            java.io.File f = new java.io.File(path);
+                            if (f.exists() && f.length() > 0 && f.length() < 400000) {
+                                byte[] bytes = new byte[(int) f.length()];
+                                java.io.FileInputStream in = new java.io.FileInputStream(f);
+                                in.read(bytes); in.close();
+                                o.put("photo_b64", android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP));
+                            }
+                        } catch (Exception ignored) {}
+                    }
+                    workers.put(o);
+                }
+            } catch (Exception ignored) {}
+            out.put("workers", workers);
+            // Today attendance
+            org.json.JSONArray att = new org.json.JSONArray();
+            try {
+                String day = new java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(new java.util.Date());
+                for (org.json.JSONObject r : db.listAttendance(day)) att.put(r);
+            } catch (Exception ignored) {}
+            out.put("attendance", att);
+            // Recent PM entries
+            org.json.JSONArray pm = new org.json.JSONArray();
+            try {
+                android.database.Cursor c = db.getReadableDatabase().rawQuery(
+                    "SELECT id,kind,code,date,qty,shift,voucher,note FROM pm_entries ORDER BY id DESC LIMIT 100", null);
+                while (c.moveToNext()) {
+                    org.json.JSONObject o = new org.json.JSONObject();
+                    o.put("id", c.getLong(0));
+                    o.put("kind", c.getString(1));
+                    o.put("code", c.getInt(2));
+                    o.put("date", c.getString(3));
+                    o.put("qty", c.getDouble(4));
+                    o.put("shift", c.getString(5));
+                    o.put("voucher", c.getString(6));
+                    o.put("note", c.getString(7));
+                    pm.put(o);
+                }
+                c.close();
+            } catch (Exception ignored) {}
+            out.put("pm_entries", pm);
+            out.put("pending", pendingCount());
+        } catch (Exception e) {
+            try { out.put("ok", false); out.put("error", e.getMessage()); } catch (Exception ignored) {}
+        }
+        return out;
+    }
+
+    /** Client: pull full live snapshot from admin server and merge. */
+    public void pullSnapshot(Runnable onUi) {
+        pool.execute(() -> {
+            try {
+                if (!"client".equals(db.setting("sync_mode", "off"))) {
+                    lastStatus = "Snapshot: client mode only";
+                    notifyUi(onUi);
+                    return;
+                }
+                JSONObject req = new JSONObject();
+                req.put("type", "snapshot");
+                req.put("pin", db.setting("sync_pin", "1234"));
+                JSONObject res = request(db.setting("sync_server_ip", "192.168.43.1"), port(), req);
+                if (res == null || !res.optBoolean("ok", false)) {
+                    lastStatus = "Snapshot pull failed";
+                    notifyUi(onUi);
+                    return;
+                }
+                int n = applySnapshot(res);
+                lastStatus = "Snapshot OK (" + n + " merges)";
+            } catch (Exception e) {
+                lastStatus = "Snapshot: " + e.getMessage();
+            }
+            notifyUi(onUi);
+        });
+    }
+
+    private int applySnapshot(JSONObject res) {
+        int n = 0;
+        try {
+            org.json.JSONArray workers = res.optJSONArray("workers");
+            if (workers != null) {
+                for (int i = 0; i < workers.length(); i++) {
+                    org.json.JSONObject w = workers.getJSONObject(i);
+                    String photoPath = w.optString("photo_path");
+                    String b64 = w.optString("photo_b64");
+                    if (b64 != null && b64.length() > 100) {
+                        try {
+                            byte[] bytes = android.util.Base64.decode(b64, android.util.Base64.NO_WRAP);
+                            java.io.File dir = new java.io.File(android.app.ActivityManager.RunningAppProcessInfo().processName != null ? null : null, "attendance");
+                            if (!dir.exists()) dir.mkdirs();
+                            java.io.File f = new java.io.File(dir, "sync_w_" + w.optString("code", "x") + ".jpg");
+                            java.io.FileOutputStream fos = new java.io.FileOutputStream(f);
+                            fos.write(bytes); fos.close();
+                            photoPath = f.getAbsolutePath();
+                        } catch (Exception ignored) {}
+                    }
+                    org.json.JSONObject data = new org.json.JSONObject();
+                    data.put("worker_id", w.optLong("id"));
+                    data.put("code", w.optString("code"));
+                    data.put("name", w.optString("name"));
+                    data.put("shift", w.optString("shift"));
+                    data.put("gender", w.optString("gender"));
+                    data.put("photo_path", photoPath);
+                    if (applyIncoming("worker_upsert", data)) n++;
+                }
+            }
+            org.json.JSONArray att = res.optJSONArray("attendance");
+            if (att != null) {
+                for (int i = 0; i < att.length(); i++) {
+                    if (applyIncoming("attendance", att.getJSONObject(i))) n++;
+                }
+            }
+            org.json.JSONArray pm = res.optJSONArray("pm_entries");
+            if (pm != null) {
+                for (int i = 0; i < pm.length(); i++) {
+                    if (applyIncoming("pm_entry", pm.getJSONObject(i))) n++;
+                }
+            }
+        } catch (Exception ignored) {}
+        return n;
     }
 
 }

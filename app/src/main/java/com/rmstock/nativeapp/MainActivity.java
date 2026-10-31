@@ -645,7 +645,10 @@ private boolean admin(){return db.canAdmin()||db.canEdit();}
             @Override public void run() {
                 try {
                     String mode = db.setting("sync_mode", "off");
-                    if ("client".equals(mode)) SyncHub.get(MainActivity.this).flushQueue(null);
+                    if ("client".equals(mode)) {
+                        SyncHub.get(MainActivity.this).flushQueue(null);
+                        SyncHub.get(MainActivity.this).pullSnapshot(null);
+                    }
                 } catch (Exception ignored) {}
                 try { main.postDelayed(this, 15000); } catch (Exception ignored) {}
             }

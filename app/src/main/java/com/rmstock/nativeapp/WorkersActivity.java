@@ -206,6 +206,15 @@ public class WorkersActivity extends Activity {
                     org.json.JSONObject payload = new org.json.JSONObject();
                     payload.put("worker_id", pendingId);
                     payload.put("photo_path", path);
+                    try {
+                        java.io.File f = new java.io.File(path);
+                        if (f.exists() && f.length() < 400000) {
+                            byte[] bytes = new byte[(int) f.length()];
+                            java.io.FileInputStream in = new java.io.FileInputStream(f);
+                            in.read(bytes); in.close();
+                            payload.put("photo_b64", android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP));
+                        }
+                    } catch (Exception ignored) {}
                     for (JSONObject w : db.listWorkers()) {
                         if (w.optLong("id") == pendingId) {
                             payload.put("code", w.optString("code"));
