@@ -564,7 +564,7 @@ public class PmActivity extends Activity {
             savedCode = code;
             try {
                 pm.addEntry(kind, code, date, qty, shift, voucherEt.getText().toString().trim(), noteEt.getText().toString().trim());
-            try {
+                try {
                 org.json.JSONObject payload = new org.json.JSONObject();
                 payload.put("kind", kind);
                 payload.put("code", code);
@@ -585,8 +585,7 @@ public class PmActivity extends Activity {
                 payload.put("voucher", voucherEt.getText().toString().trim());
                 payload.put("note", noteEt.getText().toString().trim());
                 payload.put("ts", System.currentTimeMillis());
-                com.rmstock.nativeapp.SyncHub.get(this).enqueueAndFlush("pm_entry", payload);
-                com.rmstock.nativeapp.
+SyncHub.get(this).enqueueAndFlush("pm_entry", payload);
             } catch (Exception ignored) {}
             } catch (RuntimeException re) {
                 toast(re.getMessage() != null ? re.getMessage() : "Save blocked");
