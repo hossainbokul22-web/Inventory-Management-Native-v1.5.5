@@ -53,7 +53,7 @@ final class PmDb {
 
     PmDb(Context c) {
         this.ctx = c.getApplicationContext();
-        try { StockDb.get(ctx).getWritableDatabase(); } catch (Exception ignored) {}
+        try { StockDb.get(ctx).getWritableDatabase(); }
     }
 
     private void seed(SQLiteDatabase db) {
@@ -133,7 +133,7 @@ final class PmDb {
                     o.put("uom", c.getString(2));
                     o.put("open", c.getDouble(3));
                     out.add(o);
-                } catch (Exception ignored) {}
+                }
             }
         }
         return out;
@@ -148,7 +148,7 @@ final class PmDb {
                     o.put("code", c.getInt(0));
                     o.put("name", c.getString(1));
                     out.add(o);
-                } catch (Exception ignored) {}
+                }
             }
         }
         return out;
@@ -175,7 +175,7 @@ final class PmDb {
                     o.put("q", c.getDouble(1));
                     o.put("name", c.getString(2));
                     out.add(o);
-                } catch (Exception ignored) {}
+                }
             }
         }
         return out;

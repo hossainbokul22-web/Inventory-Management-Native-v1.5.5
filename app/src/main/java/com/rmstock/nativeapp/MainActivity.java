@@ -715,11 +715,11 @@ private boolean admin(){return db.canAdmin()||db.canEdit();}
                         syncPendingBadgeRef.setBackgroundColor(Color.TRANSPARENT);
                     }
                 }catch(Exception ignored){}
-                main.postDelayed(this, 5000);
+                main.postDelayed(this, 4000);
             }
         };
         dashboardRunnables.add(syncBadgeRefresh);
-        main.postDelayed(syncBadgeRefresh, 5000);
+        main.postDelayed(syncBadgeRefresh, 4000);
     }catch(Exception ignored){}
 
     }catch(Exception ignored){}
@@ -2588,7 +2588,7 @@ else if("month".equals(entryRangeF)) fromDay=today().substring(0,7)+"-01";
 else fromDay=PlanLogic.shiftDate(today(),-6);
 add(tv("Recent Entries ("+("today".equals(entryRangeF)?"Today":("month".equals(entryRangeF)?"This month":"Last 7 days"))+")",1));
 add(Ui.muted(this,"Shows up to 80 rows — use Today / Last 7 days filter."));
-for(JSONObject r:db.rows("SELECT * FROM receives WHERE date>=? ORDER BY date DESC,id DESC LIMIT 80",new String[]{fromDay})){LinearLayout row=new LinearLayout(this);row.setOrientation(LinearLayout.VERTICAL);row.setPadding(dp(6),dp(8),dp(6),dp(8));
+for(JSONObject r:db.rows("SELECT * FROM receives WHERE date>=? ORDER BY date DESC,id DESC LIMIT 100",new String[]{fromDay})){LinearLayout row=new LinearLayout(this);row.setOrientation(LinearLayout.VERTICAL);row.setPadding(dp(6),dp(8),dp(6),dp(8));
 row.addView(tv("ID: "+r.optString("id")+"   "+r.optString("date")+"   RM: "+r.optString("rm_code")+"   Qty: "+fmt(r.optDouble("qty"))+"   Voucher: "+r.optString("voucher_no")+(r.optString("lot").isEmpty()?"":"   Lot: "+r.optString("lot"))+(r.optString("expiry").isEmpty()?"":"   Exp: "+r.optString("expiry")),1));
 row.addView(tv(r.optString("note"),1));
 Button editB=btn("Edit");
@@ -2672,7 +2672,7 @@ save.setPadding(dp(12),dp(10),dp(12),dp(10));save.setOnClickListener(v->{try{Str
   else if("month".equals(batchRangeF)) batchFrom=today().substring(0,7)+"-01";
   else batchFrom=PlanLogic.shiftDate(today(),-6);
   add(title("Saved Batch Counts — "+("today".equals(batchRangeF)?"Today":"Last 7 days")));
-  for(JSONObject x:db.rows("SELECT b.id,b.date,b.product_code,p.name,b.shift,b.qty FROM batches b LEFT JOIN products p ON p.code=b.product_code WHERE b.date>=? ORDER BY b.date DESC,b.shift ASC,b.id DESC LIMIT 80",new String[]{batchFrom})){
+  for(JSONObject x:db.rows("SELECT b.id,b.date,b.product_code,p.name,b.shift,b.qty FROM batches b LEFT JOIN products p ON p.code=b.product_code WHERE b.date>=? ORDER BY b.date DESC,b.shift ASC,b.id DESC LIMIT 100",new String[]{batchFrom})){
     LinearLayout r=row();TextView t=new TextView(this);t.setText(x.optString("date")+" | "+x.optString("name")+" | Shift "+shiftLabel(x.optInt("shift",0))+" | Batch Count: "+batchCountText(x.optDouble("qty",0)));t.setLayoutParams(new LinearLayout.LayoutParams(0,-2,1));r.addView(t);
     Button e=btn("Edit");e.setOnClickListener(v->{
       try{
