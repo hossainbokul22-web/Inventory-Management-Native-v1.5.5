@@ -335,7 +335,6 @@ public final class SyncHub {
                     lastStatus = "PM entry fail: " + e.getMessage();
                     return false;
                 }
-            } catch (Exception e) { lastStatus = "PM entry fail"; return false; }
             }
             if ("receive".equals(kind)) {
                 if (isStaleLww(data)) { lastStatus = "LWW skip receive"; return true; }
