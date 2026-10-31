@@ -133,7 +133,7 @@ final class PmDb {
                     o.put("uom", c.getString(2));
                     o.put("open", c.getDouble(3));
                     out.add(o);
-                }
+                } catch (Exception ignored) {}
             }
         }
         return out;
@@ -148,7 +148,7 @@ final class PmDb {
                     o.put("code", c.getInt(0));
                     o.put("name", c.getString(1));
                     out.add(o);
-                }
+                } catch (Exception ignored) {}
             }
         }
         return out;
@@ -157,7 +157,7 @@ final class PmDb {
     /** recipe qty of item i per product p (per ctn) */
     Map<Integer, Double> recipeForProduct(int p) {
         Map<Integer, Double> m = new HashMap<>();
-        try (Cursor c = db().getReadableDatabase().rawQuery("SELECT i,q FROM pm_recipes WHERE p=?", new String[]{String.valueOf(p)})) {
+        try (Cursor c = db().getReadableDatabase().rawQuery("SELECT item_code,qty FROM pm_recipes WHERE product_code=?", new String[]{String.valueOf(p)})) {
             while (c.moveToNext()) m.put(c.getInt(0), c.getDouble(1));
         }
         return m;
@@ -166,7 +166,7 @@ final class PmDb {
     List<JSONObject> recipesFor(int p) {
         List<JSONObject> out = new ArrayList<>();
         try (Cursor c = db().getReadableDatabase().rawQuery(
-                "SELECT r.i,r.q,COALESCE(i.name,'') FROM pm_recipes r LEFT JOIN items i ON i.code=r.i WHERE r.p=? ORDER BY r.i",
+                "SELECT r.item_code,r.qty,COALESCE(i.name,'') FROM pm_recipes r LEFT JOIN pm_items i ON i.code=r.item_code WHERE r.product_code=? ORDER BY r.i",
                 new String[]{String.valueOf(p)})) {
             while (c.moveToNext()) {
                 try {
@@ -175,7 +175,7 @@ final class PmDb {
                     o.put("q", c.getDouble(1));
                     o.put("name", c.getString(2));
                     out.add(o);
-                }
+                } catch (Exception ignored) {}
             }
         }
         return out;
