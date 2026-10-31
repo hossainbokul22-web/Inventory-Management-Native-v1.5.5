@@ -78,7 +78,7 @@ public class PmActivity extends Activity {
 
         root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setBackgroundColor(Ui.NEU_BG);
+        root.setBackgroundColor(Ui.BG);
 
         // Match main app header: navy + same padding
         LinearLayout bar = new LinearLayout(this);
@@ -93,14 +93,14 @@ public class PmActivity extends Activity {
         titleTv = Ui.text(this, pm.meta("appTitle", "Daily PM Report"), 18, 0xFFFFFFFF, true);
         bar.addView(titleTv, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
         statusTv = Ui.text(this, "", 11, Color.WHITE, true);
-        statusTv.setBackground(Ui.shape(this, Ui.CLAY_BROWN, Ui.CLAY_BROWN, 14));
+        statusTv.setBackground(Ui.shape(this, Color.rgb(40, 70, 110), Color.rgb(40, 70, 110), 14));
         statusTv.setPadding(Ui.dp(this, 10), Ui.dp(this, 4), Ui.dp(this, 10), Ui.dp(this, 4));
         bar.addView(statusTv);
         root.addView(bar);
 
         HorizontalScrollView hsv = new HorizontalScrollView(this);
         hsv.setHorizontalScrollBarEnabled(false);
-        hsv.setBackgroundColor(Ui.NEU_FACE);
+        hsv.setBackgroundColor(Ui.CARD);
         LinearLayout tabs = new LinearLayout(this);
         tabs.setOrientation(LinearLayout.HORIZONTAL);
         tabs.setPadding(Ui.dp(this, 4), 0, Ui.dp(this, 4), 0);
@@ -2204,7 +2204,7 @@ public class PmActivity extends Activity {
             if (on) {
                 t.setBackground(Ui.shape(this, Ui.PROMPT_SOFT, Ui.PROMPT_BLUE, 12));
             } else {
-                t.setBackground(Ui.neuRaised(this, 12));
+                t.setBackground(Ui.card(this, 12));
             }
             t.setPadding(Ui.dp(this, 16), Ui.dp(this, 12), Ui.dp(this, 16), Ui.dp(this, 12));
         }
