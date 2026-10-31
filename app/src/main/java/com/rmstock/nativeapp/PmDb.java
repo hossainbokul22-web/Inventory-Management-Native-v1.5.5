@@ -49,19 +49,12 @@ final class PmDb {
                 throw new RuntimeException("Month " + date.substring(0, 7) + " is LOCKED — PM entry blocked");
             }
         } catch (RuntimeException re) { throw re; }
-        catch (Exception ignored) {}
     }
 
-    PmDb(Context c){ this.ctx=c.getApplicationContext(); try{ StockDb.get(ctx).getWritableDatabase(); }catch(Exception ignored){} } catch (Exception ignored) {}
+    PmDb(Context c) {
+        this.ctx = c.getApplicationContext();
+        try { StockDb.get(ctx).getWritableDatabase(); } catch (Exception ignored) {}
     }
-
-    
-    
-    
-
-    
-
-    
 
     private void seed(SQLiteDatabase db) {
         try {
@@ -140,7 +133,7 @@ final class PmDb {
                     o.put("uom", c.getString(2));
                     o.put("open", c.getDouble(3));
                     out.add(o);
-                } catch (Exception ignored) {}
+                }
             }
         }
         return out;
@@ -155,7 +148,7 @@ final class PmDb {
                     o.put("code", c.getInt(0));
                     o.put("name", c.getString(1));
                     out.add(o);
-                } catch (Exception ignored) {}
+                }
             }
         }
         return out;
@@ -182,7 +175,7 @@ final class PmDb {
                     o.put("q", c.getDouble(1));
                     o.put("name", c.getString(2));
                     out.add(o);
-                } catch (Exception ignored) {}
+                }
             }
         }
         return out;
@@ -426,7 +419,7 @@ double openingProduct(int productCode, String date) {
     }
 
     void setProductOpening(int productCode, String ym, double qty) {
-        try { monthLockedGuard(ym + "-01"); } catch (RuntimeException re) { throw re; } catch (Exception ignored) {}
+        try { monthLockedGuard(ym + "-01"); } catch (RuntimeException re) { throw re; }
 
         ContentValues cv = new ContentValues();
         cv.put("product_code", productCode);
