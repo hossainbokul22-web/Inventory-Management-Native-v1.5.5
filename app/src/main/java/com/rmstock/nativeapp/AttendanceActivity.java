@@ -128,7 +128,7 @@ public class AttendanceActivity extends Activity implements SurfaceHolder.Callba
         row.addView(action("IN", v -> { punchType = "IN"; punchTv.setText("Punch: IN"); }));
         row.addView(action("OUT", v -> { punchType = "OUT"; punchTv.setText("Punch: OUT"); }));
         row.addView(action("Photo", v -> openPhotoFallback()));
-        row.addView(action("Workers", v -> manageWorkers()));
+        row.addView(action("Workers", v -> startActivity(new android.content.Intent(this, WorkersActivity.class))));
         row.addView(action("Today", v -> refreshToday()));
         row.addView(action("Print", v -> printAttendanceSheet()));
         root.addView(row);

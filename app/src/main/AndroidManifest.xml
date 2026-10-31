@@ -44,5 +44,6 @@
   <provider android:name="androidx.core.content.FileProvider" android:authorities="com.rmstock.nativeapp.fileprovider" android:exported="false" android:grantUriPermissions="true">
    <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/file_paths"/>
   </provider>
- </application>
+         <activity android:name=".WorkersActivity" android:exported="false" android:screenOrientation="portrait"/>
+    </application>
 </manifest>
