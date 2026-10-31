@@ -324,14 +324,18 @@ public final class SyncHub {
                     z.put("kind", data.optString("kind"));
                     z.put("code", data.optInt("code"));
                     z.put("date", data.optString("date"));
-                    z.put("qty", data.optDouble("qty"));
+                    z.put("qty", data.optDouble("qty", 0));
                     z.put("shift", data.optString("shift"));
                     z.put("voucher", data.optString("voucher"));
                     z.put("note", data.optString("note"));
                     db.getWritableDatabase().insert("pm_entries", null, z);
-                    lastStatus = "PM entry synced";
+                    lastStatus = "PM entry synced " + data.optString("kind");
                     return true;
-                } catch (Exception e) { lastStatus = "PM entry fail"; return false; }
+                } catch (Exception e) {
+                    lastStatus = "PM entry fail: " + e.getMessage();
+                    return false;
+                }
+            } catch (Exception e) { lastStatus = "PM entry fail"; return false; }
             }
             if ("receive".equals(kind)) {
                 if (isStaleLww(data)) { lastStatus = "LWW skip receive"; return true; }
