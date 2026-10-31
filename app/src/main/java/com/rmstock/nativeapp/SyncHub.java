@@ -267,6 +267,39 @@ public final class SyncHub {
                 lastStatus = "Call signal";
                 return true;
             }
+            
+            if ("worker_upsert".equals(kind)) {
+                if (isStaleLww(data)) { lastStatus = "LWW skip worker"; return true; }
+                try {
+                    long wid = data.optLong("worker_id", 0);
+                    String code = data.optString("code");
+                    String name = data.optString("name");
+                    String shift = data.optString("shift");
+                    String gender = data.optString("gender");
+                    String photo = data.optString("photo_path");
+                    // Upsert by code if possible
+                    org.json.JSONObject existing = null;
+                    try {
+                        for (org.json.JSONObject w : db.listWorkers()) {
+                            if (code.length() > 0 && code.equals(w.optString("code"))) { existing = w; break; }
+                            if (wid > 0 && w.optLong("id") == wid) { existing = w; break; }
+                        }
+                    } catch (Exception ignored) {}
+                    if (existing == null) {
+                        long nid = db.addWorker(code, name, shift, photo, gender);
+                        lastStatus = "Worker added " + name;
+                    } else {
+                        if (photo != null && photo.length() > 2)
+                            db.updateWorkerPhoto(existing.optLong("id"), photo);
+                        lastStatus = "Worker updated " + name;
+                    }
+                    return true;
+                } catch (Exception e) {
+                    lastStatus = "Worker sync fail: " + e.getMessage();
+                    return false;
+                }
+            }
+
             if ("attendance".equals(kind)) {
                 if (isStaleLww(data)) { lastStatus = "LWW skip attendance"; return true; }
                 db.ensureAttendanceTables();

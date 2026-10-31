@@ -99,7 +99,7 @@ public class AttendanceActivity extends Activity implements SurfaceHolder.Callba
         root.setOrientation(LinearLayout.VERTICAL);
         root.setBackgroundColor(Color.rgb(245, 248, 250));
         TextView title = new TextView(this);
-        title.setText("Attendance · Face + Photo backup");
+        title.setText("Attendance · Admin & Supervisor");
         title.setTextColor(Color.WHITE);
         title.setTextSize(17);
         title.setPadding(dp(16), dp(14), dp(16), dp(14));
@@ -314,6 +314,20 @@ public class AttendanceActivity extends Activity implements SurfaceHolder.Callba
                     if (time.length() >= 5 && time.substring(0, 5).compareTo(cutoff) > 0) late = 1;
                 } catch (Exception ignored) {}
             }
+            try {
+                org.json.JSONObject ap = new org.json.JSONObject();
+                ap.put("worker_id", workerId);
+                ap.put("worker_name", name);
+                ap.put("day", day);
+                ap.put("time", time);
+                ap.put("punch", punchType);
+                ap.put("method", method);
+                ap.put("photo_path", photoPath == null ? "" : photoPath);
+                ap.put("by_user", user);
+                ap.put("device_code", device);
+                SyncHub.get(this).enqueue("attendance", ap);
+                SyncHub.get(this).flushQueue(null);
+            } catch (Exception ignored) {}
             long id = db.addAttendance(workerId, name, day, time, punchType, method,
                     photoPath == null ? "" : photoPath, user, device,
                     late == 1 ? "LATE" : "", loc[0], loc[1], late);
@@ -422,6 +436,17 @@ public class AttendanceActivity extends Activity implements SurfaceHolder.Callba
                         shift.getText().toString().trim(),
                         "",
                         gender.getText().toString().trim());
+                try {
+                    org.json.JSONObject payload = new org.json.JSONObject();
+                    payload.put("worker_id", id);
+                    payload.put("code", code.getText().toString().trim());
+                    payload.put("name", n);
+                    payload.put("shift", shift.getText().toString().trim());
+                    payload.put("gender", gender.getText().toString().trim());
+                    payload.put("photo_path", "");
+                    SyncHub.get(this).enqueue("worker_upsert", payload);
+                    SyncHub.get(this).flushQueue(null);
+                } catch (Exception ignored) {}
                 reloadWorkers();
                 toast("Worker saved. Now pick photo from Gallery.");
                 pendingPhotoWorkerId = id;
@@ -829,6 +854,25 @@ public class AttendanceActivity extends Activity implements SurfaceHolder.Callba
                 String path = copyUriToAttendanceFile(data.getData());
                 if (path != null) {
                     db.updateWorkerPhoto(pendingPhotoWorkerId, path);
+                    try {
+                        org.json.JSONObject payload = new org.json.JSONObject();
+                        payload.put("worker_id", pendingPhotoWorkerId);
+                        // path is local; sync meta so admin knows photo updated (file sync optional)
+                        org.json.JSONObject wrow = null;
+                        try {
+                            for (org.json.JSONObject w : db.listWorkers())
+                                if (w.optLong("id") == pendingPhotoWorkerId) { wrow = w; break; }
+                        } catch (Exception ignored) {}
+                        if (wrow != null) {
+                            payload.put("code", wrow.optString("code"));
+                            payload.put("name", wrow.optString("name"));
+                            payload.put("shift", wrow.optString("shift"));
+                            payload.put("gender", wrow.optString("gender"));
+                            payload.put("photo_path", path);
+                        }
+                        SyncHub.get(this).enqueue("worker_upsert", payload);
+                        SyncHub.get(this).flushQueue(null);
+                    } catch (Exception ignored) {}
                     try { embedCache.put(pendingPhotoWorkerId, FaceMatch.embedFile(path)); } catch (Exception ignored) {}
                     reloadWorkers();
                     toast("Photo saved for worker");
