@@ -1,4 +1,6 @@
 package com.rmstock.nativeapp;
+import android.provider.MediaStore;
+import android.content.Intent;
 
 import android.Manifest;
 import android.app.Activity;
@@ -55,6 +57,11 @@ import java.util.Locale;
 public class AttendanceActivity extends Activity implements SurfaceHolder.Callback, Camera.PreviewCallback {
     private StockDb db;
     private Camera camera;
+    private static final int REQ_WORKER_PHOTO = 4101;
+    private long pendingPhotoWorkerId = -1;
+    private boolean enrollUiOpen = false;
+    private String pendingNewName, pendingNewCode, pendingNewShift, pendingNewGender;
+
     private boolean enrollUiOpen = false;
     private SurfaceView preview;
     private TextView statusTv, punchTv, todayTv;
@@ -379,6 +386,7 @@ public class AttendanceActivity extends Activity implements SurfaceHolder.Callba
         } catch (Exception e) { return null; }
     }
 
+    
     private void manageWorkers() {
         enrollUiOpen = true;
         final EditText name = new EditText(this);
@@ -390,7 +398,7 @@ public class AttendanceActivity extends Activity implements SurfaceHolder.Callba
         final EditText gender = new EditText(this);
         gender.setHint("Gender: Male / Female");
         TextView tip = new TextView(this);
-        tip.setText("1) Face stays in camera behind this form\n2) Fill name + ID\n3) Tap Save face & worker\nPhotos: app files/attendance/ + list below after save.");
+        tip.setText("Step 1: Fill name + ID\nStep 2: Save worker\nStep 3: Upload photo from Gallery for each worker\nAttendance uses LIVE camera match against saved photos.");
         tip.setTextColor(Color.rgb(80, 90, 100));
         tip.setPadding(0, dp(6), 0, dp(6));
         LinearLayout box = new LinearLayout(this);
@@ -398,33 +406,27 @@ public class AttendanceActivity extends Activity implements SurfaceHolder.Callba
         box.setPadding(dp(20), dp(8), dp(20), dp(8));
         box.addView(tip);
         box.addView(name); box.addView(code); box.addView(shift); box.addView(gender);
-        AlertDialog dlg = new AlertDialog.Builder(this).setTitle("Enroll worker + face")
+        AlertDialog dlg = new AlertDialog.Builder(this)
+                .setTitle("Workers · enroll")
                 .setView(box)
                 .setCancelable(false)
-                .setPositiveButton("Save face & worker", null)
-                .setNeutralButton("Photo list", null)
+                .setPositiveButton("Save worker (then upload photo)", null)
+                .setNeutralButton("Worker photo list", null)
                 .setNegativeButton("Close", (d, w) -> { enrollUiOpen = false; })
                 .create();
         dlg.setOnShowListener(di -> {
             dlg.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
                 String n = name.getText().toString().trim();
                 if (n.isEmpty()) { toast("Name required"); return; }
-                if (!(faceOk && (System.currentTimeMillis() - lastFaceMs) < 4000)) {
-                    toast("No face in camera — stand in front, wait 1s, try again");
-                    return;
-                }
-                String path = saveLastFrameFile();
-                if (path == null || path.isEmpty()) {
-                    toast("Could not save face photo");
-                    return;
-                }
-                long id = db.addWorker(code.getText().toString().trim(), n,
-                        shift.getText().toString().trim(), path, gender.getText().toString().trim());
-                embedCache.put(id, FaceMatch.embedFile(path));
+                long id = db.addWorker(
+                        code.getText().toString().trim(), n,
+                        shift.getText().toString().trim(),
+                        "",
+                        gender.getText().toString().trim());
                 reloadWorkers();
-                toast("Saved: " + n + "\nPhoto: " + path);
-                // keep dialog open so user can add another — optional close:
-                // enrollUiOpen = false; dlg.dismiss();
+                toast("Worker saved. Now pick photo from Gallery.");
+                pendingPhotoWorkerId = id;
+                openGalleryForWorker();
             });
             dlg.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener(v -> showWorkerFaceList());
         });
@@ -432,20 +434,71 @@ public class AttendanceActivity extends Activity implements SurfaceHolder.Callba
         dlg.show();
     }
 
-    private void showWorkerFaceList() {
-        java.util.List<JSONObject> list = db.listWorkers();
-        StringBuilder sb = new StringBuilder();
-        for (JSONObject w : list) {
-            boolean has = FaceMatch.fileOk(w.optString("photo_path"));
-            sb.append(has ? "✓ " : "✗ ")
-              .append(w.optString("name")).append(" (")
-              .append(w.optString("code")).append(")\n");
+    private void openGalleryForWorker() {
+        try {
+            Intent i = new Intent(Intent.ACTION_PICK, MediaStore.Images.Media.EXTERNAL_CONTENT_URI);
+            i.setType("image/*");
+            startActivityForResult(i, REQ_WORKER_PHOTO);
+        } catch (Exception e) {
+            try {
+                Intent i = new Intent(Intent.ACTION_GET_CONTENT);
+                i.setType("image/*");
+                startActivityForResult(Intent.createChooser(i, "Select worker photo"), REQ_WORKER_PHOTO);
+            } catch (Exception e2) {
+                toast("Cannot open gallery: " + e2.getMessage());
+            }
         }
-        new AlertDialog.Builder(this).setTitle("Worker photo list (✓ = has face file)")
-                .setMessage(sb.length() == 0 ? "No workers" : sb.toString())
-                .setPositiveButton("Re-photo selected…", (d, w) -> rePhotoWorker())
-                .setNegativeButton("OK", null).show();
     }
+
+    private String copyUriToAttendanceFile(Uri uri) {
+        if (uri == null) return null;
+        try {
+            File dir = new File(getFilesDir(), "attendance");
+            if (!dir.exists()) dir.mkdirs();
+            File f = new File(dir, "worker_" + System.currentTimeMillis() + ".jpg");
+            InputStream in = getContentResolver().openInputStream(uri);
+            if (in == null) return null;
+            OutputStream out = new FileOutputStream(f);
+            byte[] buf = new byte[8192];
+            int n;
+            while ((n = in.read(buf)) > 0) out.write(buf, 0, n);
+            in.close();
+            out.close();
+            return f.getAbsolutePath();
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+
+    
+    private void showWorkerFaceList() {
+        enrollUiOpen = true;
+        java.util.List<JSONObject> list = db.listWorkers();
+        if (list == null || list.isEmpty()) {
+            toast("No workers yet — save a worker first");
+            enrollUiOpen = false;
+            return;
+        }
+        String[] labels = new String[list.size()];
+        for (int i = 0; i < list.size(); i++) {
+            JSONObject w = list.get(i);
+            boolean has = FaceMatch.fileOk(w.optString("photo_path"));
+            labels[i] = (has ? "📷 " : "⚠ NO PHOTO · ") + w.optString("name") + " (" + w.optString("code") + ")";
+        }
+        final java.util.List<JSONObject> listF = list;
+        new AlertDialog.Builder(this)
+                .setTitle("Worker photos (tap to upload from Gallery)")
+                .setItems(labels, (d, which) -> {
+                    JSONObject w = listF.get(which);
+                    pendingPhotoWorkerId = w.optLong("id");
+                    openGalleryForWorker();
+                })
+                .setNegativeButton("Close", (d, w) -> enrollUiOpen = false)
+                .setOnDismissListener(d -> enrollUiOpen = false)
+                .show();
+    }
+
 
     private void rePhotoWorker() {
         java.util.List<JSONObject> list = db.listWorkers();
@@ -766,6 +819,25 @@ public class AttendanceActivity extends Activity implements SurfaceHolder.Callba
 
     
 
+
+    
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == REQ_WORKER_PHOTO) {
+            enrollUiOpen = false;
+            if (resultCode == RESULT_OK && data != null && data.getData() != null && pendingPhotoWorkerId > 0) {
+                String path = copyUriToAttendanceFile(data.getData());
+                if (path != null) {
+                    db.updateWorkerPhoto(pendingPhotoWorkerId, path);
+                    try { embedCache.put(pendingPhotoWorkerId, FaceMatch.embedFile(path)); } catch (Exception ignored) {}
+                    reloadWorkers();
+                    toast("Photo saved for worker");
+                } else toast("Photo copy failed");
+            }
+            pendingPhotoWorkerId = -1;
+        }
+    }
 
     @Override protected void onDestroy() {
         main.removeCallbacks(faceTicker);
