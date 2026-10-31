@@ -54,6 +54,32 @@ final class PmDb {
     PmDb(Context c) {
         this.ctx = c.getApplicationContext();
         try { StockDb.get(ctx).getWritableDatabase(); } catch (Exception ignored) {}
+        seedIfEmpty();
+    }
+
+    
+    private void seedIfEmpty() {
+        try {
+            android.database.sqlite.SQLiteDatabase d = StockDb.get(ctx).getWritableDatabase();
+            try {
+                // ensure tables exist
+                d.execSQL("CREATE TABLE IF NOT EXISTS pm_items(code INTEGER PRIMARY KEY, name TEXT, uom TEXT, open REAL)");
+                d.execSQL("CREATE TABLE IF NOT EXISTS pm_products(code INTEGER PRIMARY KEY, name TEXT)");
+                d.execSQL("CREATE TABLE IF NOT EXISTS pm_recipes(product_code INTEGER, item_code INTEGER, qty REAL, PRIMARY KEY(product_code,item_code))");
+                d.execSQL("CREATE TABLE IF NOT EXISTS pm_entries(id INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT, code INTEGER, date TEXT, qty REAL, shift TEXT, voucher TEXT, note TEXT)");
+                d.execSQL("CREATE TABLE IF NOT EXISTS pm_meta(k TEXT PRIMARY KEY, v TEXT)");
+                d.execSQL("CREATE TABLE IF NOT EXISTS pm_product_openings(product_code INTEGER, ym TEXT, qty REAL, PRIMARY KEY(product_code,ym))");
+            } catch (Exception ignored) {}
+            android.database.Cursor c = d.rawQuery("SELECT COUNT(*) FROM pm_items", null);
+            int n = 0;
+            try { if (c.moveToFirst()) n = c.getInt(0); } finally { c.close(); }
+            if (n == 0) {
+                seed(d);
+                android.util.Log.i("PmDb", "seeded pm_items from assets");
+            }
+        } catch (Exception e) {
+            android.util.Log.e("PmDb", "seedIfEmpty: " + e.getMessage());
+        }
     }
 
     private void seed(SQLiteDatabase db) {
@@ -63,7 +89,7 @@ final class PmDb {
             in.read(buf);
             in.close();
             JSONObject seed = new JSONObject(new String(buf, StandardCharsets.UTF_8));
-            JSONArray items = seed.getJSONArray("pm_items");
+            JSONArray items = seed.has("pm_items") ? seed.getJSONArray("pm_items") : seed.getJSONArray("items");
             for (int i = 0; i < items.length(); i++) {
                 JSONObject o = items.getJSONObject(i);
                 ContentValues cv = new ContentValues();
@@ -73,7 +99,7 @@ final class PmDb {
                 cv.put("open", o.optDouble("open", 0));
                 db.insert("pm_items", null, cv);
             }
-            JSONArray products = seed.getJSONArray("pm_products");
+            JSONArray products = seed.has("pm_products") ? seed.getJSONArray("pm_products") : seed.getJSONArray("products");
             for (int i = 0; i < products.length(); i++) {
                 JSONObject o = products.getJSONObject(i);
                 ContentValues cv = new ContentValues();
@@ -81,13 +107,16 @@ final class PmDb {
                 cv.put("name", o.optString("name", ""));
                 db.insert("pm_products", null, cv);
             }
-            JSONArray recipes = seed.getJSONArray("pm_recipes");
+            JSONArray recipes = seed.has("pm_recipes") ? seed.getJSONArray("pm_recipes") : seed.getJSONArray("recipes");
             for (int i = 0; i < recipes.length(); i++) {
                 JSONObject o = recipes.getJSONObject(i);
                 ContentValues cv = new ContentValues();
-                cv.put("p", o.getInt("p"));
-                cv.put("i", o.getInt("i"));
-                cv.put("q", o.optDouble("q", 0));
+                int pc = o.has("product_code") ? o.getInt("product_code") : o.optInt("p", 0);
+                int ic = o.has("item_code") ? o.getInt("item_code") : o.optInt("i", 0);
+                double q = o.has("qty") ? o.optDouble("qty", 0) : o.optDouble("q", 0);
+                cv.put("product_code", pc);
+                cv.put("item_code", ic);
+                cv.put("qty", q);
                 db.insert("pm_recipes", null, cv);
             }
             putMeta(db, "company", "Ovijat Food & Beverage industries Ltd.");
@@ -166,7 +195,7 @@ final class PmDb {
     List<JSONObject> recipesFor(int p) {
         List<JSONObject> out = new ArrayList<>();
         try (Cursor c = db().getReadableDatabase().rawQuery(
-                "SELECT r.item_code,r.qty,COALESCE(i.name,'') FROM pm_recipes r LEFT JOIN pm_items i ON i.code=r.item_code WHERE r.product_code=? ORDER BY r.i",
+                "SELECT r.item_code,r.qty,COALESCE(i.name,'') FROM pm_recipes r LEFT JOIN pm_items i ON i.code=r.item_code WHERE r.product_code=? ORDER BY r.item_code",
                 new String[]{String.valueOf(p)})) {
             while (c.moveToNext()) {
                 try {
@@ -605,9 +634,12 @@ double itemUseOn(int itemCode, String date) {
             if (recipes != null) for (int i = 0; i < recipes.length(); i++) {
                 JSONObject o = recipes.getJSONObject(i);
                 ContentValues cv = new ContentValues();
-                cv.put("p", o.getInt("p"));
-                cv.put("i", o.getInt("i"));
-                cv.put("q", o.optDouble("q", 0));
+                int pc = o.has("product_code") ? o.getInt("product_code") : o.optInt("p", 0);
+                int ic = o.has("item_code") ? o.getInt("item_code") : o.optInt("i", 0);
+                double q = o.has("qty") ? o.optDouble("qty", 0) : o.optDouble("q", 0);
+                cv.put("product_code", pc);
+                cv.put("item_code", ic);
+                cv.put("qty", q);
                 db.insert("pm_recipes", null, cv);
             }
             for (String k : KINDS) {
