@@ -2204,7 +2204,7 @@ public class PmActivity extends Activity {
             if (on) {
                 t.setBackground(Ui.shape(this, Ui.PROMPT_SOFT, Ui.PROMPT_BLUE, 12));
             } else {
-                t.setBackground(Ui.card(this, 12));
+                t.setBackground(Ui.shape(this, Ui.CARD, Ui.LINE, 12));
             }
             t.setPadding(Ui.dp(this, 16), Ui.dp(this, 12), Ui.dp(this, 16), Ui.dp(this, 12));
         }
