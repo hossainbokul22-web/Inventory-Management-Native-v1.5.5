@@ -373,7 +373,7 @@ public final class SyncHub {
             }
             if ("location".equals(kind)) {
                 if (isStaleLww(data)) { lastStatus = "LWW skip location"; return true; }
-                DutyLocationService.storeLocal(db, data);
+                /* duty removed */;
                 lastStatus = "Location from " + data.optString("user");
                 return true;
             }

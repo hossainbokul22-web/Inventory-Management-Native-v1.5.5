@@ -71,8 +71,7 @@ public void onCreate(Bundle b){super.onCreate(b);Ui.init(this);db=StockDb.get(th
     gear.setOnClickListener(v->gateOpen("Settings",()->showSettings()));
     TextView attHeaderIcon=Ui.text(this,"👤",20,0xFFFFFFFF,false);
     attHeaderIcon.setPadding(dp(8),dp(4),dp(6),dp(4));
-    attHeaderIcon.setOnClickListener(v->startActivity(new Intent(this,AttendanceActivity.class)));
-    header.addView(attHeaderIcon);
+    attHeaderIcon.setOnClickListener(v->startActivity(new Intent(this,MainActivity.class /* attendance removed */)));
     TextView msgIcon=Ui.text(this,"💬",20,0xFFFFFFFF,false);
     msgIcon.setPadding(dp(10),dp(4),dp(8),dp(4));
     msgIcon.setOnClickListener(v->showMessenger());
@@ -149,7 +148,7 @@ public void onCreate(Bundle b){super.onCreate(b);Ui.init(this);db=StockDb.get(th
             || androidx.core.content.ContextCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_COARSE_LOCATION)
                 == android.content.pm.PackageManager.PERMISSION_GRANTED;
         if(fine){
-            startDutyServiceSafe();
+            /* duty removed */;
             // Do NOT re-ask background location on every open (very annoying)
             return;
         }
@@ -163,7 +162,7 @@ public void onCreate(Bundle b){super.onCreate(b);Ui.init(this);db=StockDb.get(th
  }
 
  private void startDutyServiceSafe(){
-    try{ DutyLocationService.start(this); }catch(Exception e){ toast("Location service: "+e.getMessage()); }
+    try{ /* duty removed */; }catch(Exception e){ toast("Location service: "+e.getMessage()); }
  }
 
  private void showTeamLiveLocations(){
@@ -1000,7 +999,7 @@ private boolean admin(){return db.canAdmin()||db.canEdit();}
     attTxt.addView(Ui.text(this,"Face punch · Photo fallback · Today list",12,Color.rgb(50,100,80),false));
     attHero.addView(attTxt,new LinearLayout.LayoutParams(0,-2,1));
     attHero.addView(Ui.text(this,"›",22,Color.rgb(20,80,60),true));
-    attHero.setOnClickListener(v->startActivity(new Intent(this,AttendanceActivity.class)));
+    attHero.setOnClickListener(v->startActivity(new Intent(this,MainActivity.class /* attendance removed */)));
     LinearLayout.LayoutParams attLp=new LinearLayout.LayoutParams(-1,-2);
     attLp.setMargins(0,0,0,dp(12));
     content.addView(attHero,attLp);
@@ -1080,7 +1079,7 @@ private boolean admin(){return db.canAdmin()||db.canEdit();}
             else if(k.equals("yield"))showYieldSheet();
             else if(k.equals("ploss"))showProcessLossSheet();
             else if(k.equals("printc")){ showPrintCenter(); }
-            else if(k.equals("att"))startActivity(new Intent(this,AttendanceActivity.class));
+            else if(k.equals("att"))toast("Attendance removed");
             else if(k.equals("owner"))showOwnerPack();
             else if(k.equals("audit"))showAuditLog();
             else if(k.equals("ai"))showAI();
@@ -4501,7 +4500,7 @@ private void applyVoiceFixCommand(String raw){
                 if(g[gi]==android.content.pm.PackageManager.PERMISSION_GRANTED) dutyOk=true;
             }
         }
-        if(dutyOk) startDutyServiceSafe();
+        if(dutyOk) /* duty removed */;
     }
 
 super.onRequestPermissionsResult(r,p,g);if(r==CAM&&g.length>0&&g[0]==PackageManager.PERMISSION_GRANTED)startCamera();}
