@@ -1593,7 +1593,13 @@ private void ensureAdminSecurityBootstrap(){
     });
  }
  private void showSettings(){
-    clear("Settings");
+    
+        if (db.canAdmin()) {
+            Button ch = btn("🔐 Admin Chamber (Role · Security)");
+            ch.setOnClickListener(v -> showAdminChamber());
+            add(ch);
+        }
+clear("Settings");
     ensureAdminSecurityBootstrap();
     try{
         LinearLayout c0=Ui.card(this,Ui.CARD);
@@ -1615,6 +1621,7 @@ private void ensureAdminSecurityBootstrap(){
         Button saveRole=btn("Save user / role");
         saveRole.setOnClickListener(v->{
             requireAdminPower("Change user / role", ()->{
+                if (!db.canAdmin()) { toast("Role only in Admin Chamber"); return; }
                 String newRole=roles[roleSp.getSelectedItemPosition()];
                 if("Admin".equals(newRole) && !db.hasAdminPin()){
                     toast("Set Admin PIN first"); return;
@@ -1799,6 +1806,26 @@ c2.addView(Ui.text(this,"Tab names",15,Ui.NAVY_TEXT,true));
  }
  
  private void showAdminChamber(){
+
+        // ROLE_ONLY_ADMIN_CHAMBER
+        add(Ui.text(this, "Role (Admin Chamber only)", 15, Ui.NAVY_TEXT, true));
+        add(Ui.muted(this, "Supervisor/Operator cannot change this outside chamber."));
+        final String[] chamberRoles = new String[]{"Admin", "Supervisor", "Operator"};
+        final android.widget.Spinner roleSpCh = new android.widget.Spinner(this);
+        roleSpCh.setAdapter(new android.widget.ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, chamberRoles));
+        String cur = db.setting("role", "Operator");
+        for (int i = 0; i < chamberRoles.length; i++) if (chamberRoles[i].equalsIgnoreCase(cur)) roleSpCh.setSelection(i);
+        add(roleSpCh);
+        Button saveRole = btn("Save role");
+        saveRole.setOnClickListener(v -> {
+            if (!db.canAdmin()) { toast("Admin only"); return; }
+            String r = chamberRoles[roleSpCh.getSelectedItemPosition()];
+            if ("Admin".equals(r) && !db.hasAdminPin()) { toast("Set Admin PIN first"); return; }
+            db.setSetting("role", r);
+            toast("Role → " + r);
+        });
+        add(saveRole);
+
     if(!db.canAdmin()){ toast("Admin only"); showSettings(); return; }
     clear("Admin Chamber");
     add(Ui.muted(this,"Restricted · Admin PIN verified · Not visible to supervisors"));
