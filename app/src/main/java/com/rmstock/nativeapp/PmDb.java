@@ -317,14 +317,18 @@ final class PmDb {
     /** Material use from production: sum(output.qty * recipe.q) for this item on/before date */
     double itemUseBefore(int itemCode, String date, boolean exclusive) {
         String op = exclusive ? "<" : "<=";
+        Cursor c = null;
         try {
-            Cursor c = db().getReadableDatabase().rawQuery(
-                "SELECT COALESCE(SUM(e.qty * r.qty),0) FROM pm_entries e JOIN pm_recipes r ON r.product_code=e.code AND r.item_code=? WHERE e.kind='output' AND e.date" + op + "?",
+            c = db().getReadableDatabase().rawQuery(
+                "SELECT COALESCE(SUM(e.qty * r.qty),0) FROM pm_entries e "
+                + "JOIN pm_recipes r ON r.product_code=e.code AND r.item_code=? "
+                + "WHERE e.kind='output' AND e.date" + op + "?",
                 new String[]{String.valueOf(itemCode), date});
-            try {
-                if (c.moveToFirst()) return c.getDouble(0);
-            } finally { c.close(); }
-        } catch (Exception ignored) {}
+            if (c.moveToFirst()) return c.getDouble(0);
+        } catch (Exception ignored) {
+        } finally {
+            if (c != null) try { c.close(); } catch (Exception ignored) {}
+        }
         return 0;
     }
 
@@ -455,20 +459,34 @@ double openingProduct(int productCode, String date) {
     }
 
 double itemUseOn(int itemCode, String date) {
-        try (Cursor c = db().getReadableDatabase().rawQuery(
-                "SELECT COALESCE(SUM(e.qty * r.qty),0) FROM pm_entries e JOIN pm_recipes r ON r.product_code=e.code AND r.item_code=? WHERE e.kind='output' AND e.date=?",
-                new String[]{String.valueOf(itemCode), date})) {
+        Cursor c = null;
+        try {
+            c = db().getReadableDatabase().rawQuery(
+                "SELECT COALESCE(SUM(e.qty * r.qty),0) FROM pm_entries e "
+                + "JOIN pm_recipes r ON r.product_code=e.code AND r.item_code=? "
+                + "WHERE e.kind='output' AND e.date=?",
+                new String[]{String.valueOf(itemCode), date});
             if (c.moveToFirst()) return c.getDouble(0);
-        } catch (Exception ignored) {}
+        } catch (Exception ignored) {
+        } finally {
+            if (c != null) try { c.close(); } catch (Exception ignored) {}
+        }
         return 0;
     }
 
     double itemUseMonth(int itemCode, String ym) {
-        try (Cursor c = db().getReadableDatabase().rawQuery(
-                "SELECT COALESCE(SUM(e.qty * r.qty),0) FROM pm_entries e JOIN pm_recipes r ON r.product_code=e.code AND r.item_code=? WHERE e.kind='output' AND e.date LIKE ?",
-                new String[]{String.valueOf(itemCode), ym + "%"})) {
+        Cursor c = null;
+        try {
+            c = db().getReadableDatabase().rawQuery(
+                "SELECT COALESCE(SUM(e.qty * r.qty),0) FROM pm_entries e "
+                + "JOIN pm_recipes r ON r.product_code=e.code AND r.item_code=? "
+                + "WHERE e.kind='output' AND e.date LIKE ?",
+                new String[]{String.valueOf(itemCode), ym + "%"});
             if (c.moveToFirst()) return c.getDouble(0);
-        } catch (Exception ignored) {}
+        } catch (Exception ignored) {
+        } finally {
+            if (c != null) try { c.close(); } catch (Exception ignored) {}
+        }
         return 0;
     }
 
