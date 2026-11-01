@@ -288,29 +288,17 @@ final class PmDb {
         String op = exclusive ? "<" : "<=";
         try (Cursor c = db().getReadableDatabase().rawQuery(
                 "SELECT COALESCE(SUM(qty),0) FROM pm_entries WHERE kind=? AND code=? AND date" + op + "?",
-                new String[]{kind, String.valueOf(code), beforeOrOn})) {
-            if (c.moveToFirst()) return c.getDouble(0);
-        }
-        return 0;
-    }
+                new String[]{kind, String.valueOf(code), beforeOrOn
 
     double sumKindOn(String kind, int code, String date) {
         try (Cursor c = db().getReadableDatabase().rawQuery(
                 "SELECT COALESCE(SUM(qty),0) FROM pm_entries WHERE kind=? AND code=? AND date=?",
-                new String[]{kind, String.valueOf(code), date})) {
-            if (c.moveToFirst()) return c.getDouble(0);
-        }
-        return 0;
-    }
+                new String[]{kind, String.valueOf(code), date
 
     double sumKindMonth(String kind, int code, String ym) {
         try (Cursor c = db().getReadableDatabase().rawQuery(
                 "SELECT COALESCE(SUM(qty),0) FROM pm_entries WHERE kind=? AND code=? AND date LIKE ?",
-                new String[]{kind, String.valueOf(code), ym + "%"})) {
-            if (c.moveToFirst()) return c.getDouble(0);
-        }
-        return 0;
-    }
+                new String[]{kind, String.valueOf(code), ym + "%"
 
     /** Opening stock for packaging item: master open + all receives before date − uses before date.
      *  Use is computed from production output × recipe qty. */
@@ -329,15 +317,14 @@ final class PmDb {
     /** Material use from production: sum(output.qty * recipe.q) for this item on/before date */
     double itemUseBefore(int itemCode, String date, boolean exclusive) {
         String op = exclusive ? "<" : "<=";
-        try (Cursor c = db().getReadableDatabase().rawQuery(
+        try {
+            Cursor c = db().getReadableDatabase().rawQuery(
                 "SELECT COALESCE(SUM(e.qty * r.qty),0) FROM pm_entries e JOIN pm_recipes r ON r.product_code=e.code AND r.item_code=? WHERE e.kind='output' AND e.date" + op + "?",
-                new String[]{String.valueOf(itemCode), date})) {
-            if (c.moveToFirst()) return c.getDouble(0);
+                new String[]{String.valueOf(itemCode), date});
+            try {
+                if (c.moveToFirst()) return c.getDouble(0);
+            } finally { c.close(); }
         } catch (Exception ignored) {}
-        return 0;
-    })) {
-            if (c.moveToFirst()) return c.getDouble(0);
-        }
         return 0;
     }
 
@@ -436,20 +423,12 @@ double openingProduct(int productCode, String date) {
     double sumKindRange(String kind, int code, String fromInclusive, String toExclusive) {
         try (Cursor c = db().getReadableDatabase().rawQuery(
                 "SELECT COALESCE(SUM(qty),0) FROM pm_entries WHERE kind=? AND code=? AND date>=? AND date<?",
-                new String[]{kind, String.valueOf(code), fromInclusive, toExclusive})) {
-            if (c.moveToFirst()) return c.getDouble(0);
-        }
-        return 0;
-    }
+                new String[]{kind, String.valueOf(code), fromInclusive, toExclusive
 
     double getProductOpening(int productCode, String ym) {
         try (Cursor c = db().getReadableDatabase().rawQuery(
                 "SELECT qty FROM pm_product_openings WHERE product_code=? AND ym=?",
-                new String[]{String.valueOf(productCode), ym})) {
-            if (c.moveToFirst()) return c.getDouble(0);
-        }
-        return 0;
-    }
+                new String[]{String.valueOf(productCode), ym
 
     void setProductOpening(int productCode, String ym, double qty) {
         try { monthLockedGuard(ym + "-01"); } catch (RuntimeException re) { throw re; }
@@ -482,10 +461,6 @@ double itemUseOn(int itemCode, String date) {
             if (c.moveToFirst()) return c.getDouble(0);
         } catch (Exception ignored) {}
         return 0;
-    })) {
-            if (c.moveToFirst()) return c.getDouble(0);
-        }
-        return 0;
     }
 
     double itemUseMonth(int itemCode, String ym) {
@@ -494,10 +469,6 @@ double itemUseOn(int itemCode, String date) {
                 new String[]{String.valueOf(itemCode), ym + "%"})) {
             if (c.moveToFirst()) return c.getDouble(0);
         } catch (Exception ignored) {}
-        return 0;
-    })) {
-            if (c.moveToFirst()) return c.getDouble(0);
-        }
         return 0;
     }
 
