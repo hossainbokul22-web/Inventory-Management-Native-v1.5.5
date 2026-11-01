@@ -439,12 +439,20 @@ double openingProduct(int productCode, String date) {
     double sumKindRange(String kind, int code, String fromInclusive, String toExclusive) {
         try (Cursor c = db().getReadableDatabase().rawQuery(
                 "SELECT COALESCE(SUM(qty),0) FROM pm_entries WHERE kind=? AND code=? AND date>=? AND date<?",
-                new String[]{kind, String.valueOf(code), fromInclusive, toExclusive
+                new String[]{kind, String.valueOf(code), fromInclusive, toExclusive})) {
+            if (c.moveToFirst()) return c.getDouble(0);
+        }
+        return 0;
+    }
 
     double getProductOpening(int productCode, String ym) {
         try (Cursor c = db().getReadableDatabase().rawQuery(
                 "SELECT qty FROM pm_product_openings WHERE product_code=? AND ym=?",
-                new String[]{String.valueOf(productCode), ym
+                new String[]{String.valueOf(productCode), ym})) {
+            if (c.moveToFirst()) return c.getDouble(0);
+        }
+        return 0;
+    }
 
     void setProductOpening(int productCode, String ym, double qty) {
         try { monthLockedGuard(ym + "-01"); } catch (RuntimeException re) { throw re; }
@@ -514,7 +522,7 @@ double itemUseOn(int itemCode, String date) {
     void deleteItem(int code) {
         SQLiteDatabase db = db().getWritableDatabase();
         db.delete("pm_items", "code=?", new String[]{String.valueOf(code)});
-        db.delete("pm_recipes", "i=?", new String[]{String.valueOf(code)});
+        db.delete("pm_recipes", "item_code=?", new String[]{String.valueOf(code)});
     }
 
     void upsertProduct(int code, String name) {
@@ -527,12 +535,12 @@ double itemUseOn(int itemCode, String date) {
     void deleteProduct(int code) {
         SQLiteDatabase db = db().getWritableDatabase();
         db.delete("pm_products", "code=?", new String[]{String.valueOf(code)});
-        db.delete("pm_recipes", "p=?", new String[]{String.valueOf(code)});
+        db.delete("pm_recipes", "product_code=?", new String[]{String.valueOf(code)});
     }
 
     void setRecipe(int p, int i, double q) {
         SQLiteDatabase db = db().getWritableDatabase();
-        db.delete("pm_recipes", "p=? AND i=?", new String[]{String.valueOf(p), String.valueOf(i)});
+        db.delete("pm_recipes", "product_code=? AND item_code=?", new String[]{String.valueOf(p), String.valueOf(i)});
         if (q > 0) {
             ContentValues cv = new ContentValues();
             cv.put("product_code", p);
