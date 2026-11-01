@@ -37,6 +37,7 @@ final class PmDb {
 
     static synchronized PmDb get(Context c) {
         if (INSTANCE == null) INSTANCE = new PmDb(c.getApplicationContext());
+        try { INSTANCE.seedIfEmpty(); } catch (Exception ignored) {}
         return INSTANCE;
     }
 

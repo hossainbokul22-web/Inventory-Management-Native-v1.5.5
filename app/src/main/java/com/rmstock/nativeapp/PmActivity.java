@@ -70,7 +70,7 @@ public class PmActivity extends Activity {
     protected void onCreate(Bundle b) {
         super.onCreate(b);
         Ui.init(this);
-        pm = PmDb.get(this);
+        pm = PmDb.get(this); try { /* seedIfEmpty inside get/ctor */ } catch (Exception ignored) {}
         db = StockDb.get(this);
         stockDate = PmDb.today();
         monthYm = PmDb.thisMonth();
@@ -114,7 +114,7 @@ public class PmActivity extends Activity {
             t.setTag(idx);
             t.setOnClickListener(v -> {
                 if (idx == 6) {
-                    Guard.run(this, db, TABS[idx], false, () -> { pmNested = false; tab = idx; render(); });
+                    pmNested = false; tab = idx; try { render(); } catch (Throwable ex) { toast(TABS[idx] + ": " + ex.getMessage()); }
                 } else {
                     pmNested = false;
                     tab = idx;
@@ -169,6 +169,10 @@ public class PmActivity extends Activity {
     }
 
     private void render() {
+        // render() safe
+        try {
+        if (stockDate == null || stockDate.length() < 8) stockDate = PmDb.today();
+        if (monthYm == null || monthYm.length() < 7) monthYm = stockDate.substring(0, 7);
         content.removeAllViews();
         updateStatus();
         HorizontalScrollView hsv = (HorizontalScrollView) root.getChildAt(1);
@@ -183,10 +187,10 @@ public class PmActivity extends Activity {
         switch (tab) {
             case 0: showPmDashboard(); break;
             case 1: showEntry(); break;
-            case 2: showDaily(); break;
-            case 3: showMonthly(); break;
-            case 4: showProduction(); break;
-            case 5: showFgDaily(); break;
+            case 2: try { showDaily(); } catch (Throwable ex) { toast("Daily: " + ex.getMessage()); android.util.Log.e("PM", "Daily", ex); } break;
+            case 3: try { showMonthly(); } catch (Throwable ex) { toast("Monthly: " + ex.getMessage()); android.util.Log.e("PM", "Monthly", ex); } break;
+            case 4: try { showProduction(); } catch (Throwable ex) { toast("Production: " + ex.getMessage()); } break;
+            case 5: try { showFgDaily(); } catch (Throwable ex) { toast("FG: " + ex.getMessage()); } break;
             case 6: showMaster(); break;
             case 7: showBackup(); break;
         }
@@ -671,11 +675,16 @@ SyncHub.get(this).enqueueAndFlush("pm_entry", payload);
         top.addView(go);
         add(top);
 
-        String date = stockDate;
+        String date = (stockDate == null || stockDate.length() < 8) ? PmDb.today() : stockDate;
+        stockDate = date;
         List<String[]> rows = new ArrayList<>();
-        // (Opening + Receive) = Total; Closing = Total − Return − Use − Wastage
         rows.add(new String[]{"Code", "Name", "UoM", "Opening", "Receive", "Total", "Return", "Use", "Wastage", "Closing", "Status"});
-        for (JSONObject it : pm.items()) {
+        List<JSONObject> items;
+        try { items = pm.items(); } catch (Exception e) { toast("Items load: " + e.getMessage()); items = new ArrayList<>(); }
+        if (items.isEmpty()) {
+            add(Ui.muted(this, "No PM items — open Master or reinstall so seed loads"));
+        }
+        for (JSONObject it : items) {
             int code = it.optInt("code");
             double open = pm.openingItem(code, date);
             double receive = pm.sumKindOn("receive", code, date);
@@ -756,7 +765,7 @@ SyncHub.get(this).enqueueAndFlush("pm_entry", payload);
                 LinearLayout line = new LinearLayout(this);
                 line.setOrientation(LinearLayout.HORIZONTAL);
                 line.setPadding(Ui.dp(this, 4), Ui.dp(this, 8), Ui.dp(this, 4), Ui.dp(this, 8));
-                if (r == 0) line.setBackgroundColor(Ui.SOFT_BLUE);
+                if (r == 0) line.setBackgroundColor(Ui.SOFT_BLUE != 0 ? Ui.SOFT_BLUE : Color.rgb(232, 241, 252));
                 if ("TOTAL".equals(row[0])) line.setBackgroundColor(Color.parseColor("#EEEEEE"));
                 for (int c = 0; c < row.length; c++) {
                     TextView tv = Ui.text(this, row[c] == null ? "" : row[c], r == 0 ? 11 : 12,
@@ -842,7 +851,7 @@ SyncHub.get(this).enqueueAndFlush("pm_entry", payload);
                 LinearLayout line = new LinearLayout(this);
                 line.setOrientation(LinearLayout.HORIZONTAL);
                 line.setPadding(Ui.dp(this, 4), Ui.dp(this, 8), Ui.dp(this, 4), Ui.dp(this, 8));
-                if (r == 0) line.setBackgroundColor(Ui.SOFT_BLUE);
+                if (r == 0) line.setBackgroundColor(Ui.SOFT_BLUE != 0 ? Ui.SOFT_BLUE : Color.rgb(232, 241, 252));
                 if ("TOTAL".equals(row[0])) line.setBackgroundColor(Color.parseColor("#EEEEEE"));
                 for (int c = 0; c < row.length; c++) {
                     TextView tv = Ui.text(this, row[c] == null ? "" : row[c], r == 0 ? 11 : 12,
@@ -941,7 +950,7 @@ SyncHub.get(this).enqueueAndFlush("pm_entry", payload);
                 line.setPadding(0, Ui.dp(this,8), 0, Ui.dp(this,8));
                 boolean headRow = r == 0;
                 boolean tot = "TOTAL".equals(row[0]);
-                if (headRow) line.setBackgroundColor(Ui.SOFT_BLUE);
+                if (headRow) line.setBackgroundColor(Ui.SOFT_BLUE != 0 ? Ui.SOFT_BLUE : Color.rgb(232, 241, 252));
                 else if (tot) line.setBackgroundColor(Color.parseColor("#EEEEEE"));
                 for (int c = 0; c < row.length; c++) {
                     TextView tv = Ui.text(this, row[c] == null ? "" : row[c], headRow ? 10 : 12,
@@ -988,6 +997,10 @@ SyncHub.get(this).enqueueAndFlush("pm_entry", payload);
     }
 
     private void showMonthly() {
+        if (monthYm == null || monthYm.length() < 7) {
+            String d = stockDate != null && stockDate.length() >= 7 ? stockDate : PmDb.today();
+            monthYm = d.substring(0, 7);
+        }
         LinearLayout top = Ui.card(this, Ui.CARD);
         top.addView(Ui.text(this, "Monthly reports", 16, Ui.NAVY_TEXT, true));
         Button monthStock = Ui.secondary(this, "📦 Monthly Stock Report");
@@ -1180,7 +1193,7 @@ SyncHub.get(this).enqueueAndFlush("pm_entry", payload);
                 line.setPadding(0, Ui.dp(this, 8), 0, Ui.dp(this, 8));
                 boolean headRow = r == 0;
                 boolean tot = "TOTAL".equals(row[0]);
-                if (headRow) line.setBackgroundColor(Ui.SOFT_BLUE);
+                if (headRow) line.setBackgroundColor(Ui.SOFT_BLUE != 0 ? Ui.SOFT_BLUE : Color.rgb(232, 241, 252));
                 else if (tot) line.setBackgroundColor(Color.parseColor("#EEEEEE"));
                 for (int c = 0; c < row.length; c++) {
                     TextView tv = Ui.text(this, row[c] == null ? "" : row[c], headRow ? 11 : 12,
@@ -1328,7 +1341,7 @@ SyncHub.get(this).enqueueAndFlush("pm_entry", payload);
                 line.setPadding(0, Ui.dp(this, 8), 0, Ui.dp(this, 8));
                 boolean headRow = r == 0;
                 boolean tot = "TOTAL".equals(row[0]);
-                if (headRow) line.setBackgroundColor(Ui.SOFT_BLUE);
+                if (headRow) line.setBackgroundColor(Ui.SOFT_BLUE != 0 ? Ui.SOFT_BLUE : Color.rgb(232, 241, 252));
                 else if (tot) line.setBackgroundColor(Color.parseColor("#EEEEEE"));
                 for (int c = 0; c < row.length; c++) {
                     TextView tv = Ui.text(this, row[c] == null ? "" : row[c], headRow ? 11 : 12,
@@ -1480,7 +1493,7 @@ SyncHub.get(this).enqueueAndFlush("pm_entry", payload);
                 line.setPadding(0, Ui.dp(this, 8), 0, Ui.dp(this, 8));
                 boolean isHead = r == 0;
                 boolean isTotal = row[0] != null && row[0].equals("TOTAL");
-                if (isHead) line.setBackgroundColor(Ui.SOFT_BLUE);
+                if (isHead) line.setBackgroundColor(Ui.SOFT_BLUE != 0 ? Ui.SOFT_BLUE : Color.rgb(232, 241, 252));
                 else if (isTotal) line.setBackgroundColor(Color.parseColor("#EEEEEE"));
                 for (int c = 0; c < row.length; c++) {
                     TextView tv = Ui.text(this, row[c] == null ? "" : row[c],
@@ -1854,7 +1867,7 @@ SyncHub.get(this).enqueueAndFlush("pm_entry", payload);
             line.setPadding(0, Ui.dp(this, 7), 0, Ui.dp(this, 7));
             boolean headRow = r == 0;
             boolean tot = row[0] != null && row[0].equals("TOTAL");
-            if (headRow) line.setBackgroundColor(Ui.SOFT_BLUE);
+            if (headRow) line.setBackgroundColor(Ui.SOFT_BLUE != 0 ? Ui.SOFT_BLUE : Color.rgb(232, 241, 252));
             else if (tot) line.setBackgroundColor(Color.parseColor("#EEEEEE"));
             String status = row.length > 0 ? row[row.length - 1] : "";
             if (!headRow && !tot) {
