@@ -640,6 +640,25 @@ private boolean admin(){return db.canAdmin()||db.canEdit();}
 
  private void showDashboard(){
     try {
+        final Runnable autoSyncTick = new Runnable() {
+            @Override public void run() {
+                try {
+                    String mode = db.setting("sync_mode", "off");
+                    if ("client".equals(mode)) {
+                        SyncHub.get(MainActivity.this).flushQueue(null);
+                        SyncHub.get(MainActivity.this).pullSnapshot(null);
+                    } else if ("server".equals(mode)) {
+                        /* server receives pushes */
+                    }
+                } catch (Exception ignored) {}
+                try { main.postDelayed(this, 12000); } catch (Exception ignored) {}
+            }
+        };
+        dashboardRunnables.add(autoSyncTick);
+        main.postDelayed(autoSyncTick, 4000);
+    } catch (Exception ignored) {}
+
+    try {
         final Runnable autoFlushSync = new Runnable() {
             @Override public void run() {
                 try {
@@ -1929,6 +1948,15 @@ LinearLayout c6=Ui.card(this,Ui.CARD);
         cSync.addView(netSync,Ui.lp(this,-1,-2,0,0,3,0,3));
         flush.setOnClickListener(v->{
             db.setSetting("sync_mode","client");
+            try {
+                Button pullLive = btn("Pull live from Admin");
+                pullLive.setOnClickListener(vv -> {
+                    toast("Pulling…");
+                    SyncHub.get(this).pullSnapshot(() -> runOnUiThread(() ->
+                        toast(SyncHub.get(this).getLastStatus())));
+                });
+                add(pullLive);
+            } catch (Exception ignored) {}
             modeEt.setText("client");
             SyncHub.get(this).flushQueue(refreshSt);
             Button btnPullLive = btn("Pull live snapshot from Admin");

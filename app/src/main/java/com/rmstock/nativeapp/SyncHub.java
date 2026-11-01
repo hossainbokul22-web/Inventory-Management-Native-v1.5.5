@@ -491,6 +491,7 @@ public final class SyncHub {
                 try {
                     JSONObject req = new JSONObject();
                     req.put("type", "push");
+                    req.put("pin", db.setting("sync_pin","1234"));
                     req.put("pin", pin);
                     req.put("kind", jobs.get(i)[0]);
                     req.put("data", new JSONObject(jobs.get(i)[1]));
