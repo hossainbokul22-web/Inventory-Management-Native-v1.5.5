@@ -194,6 +194,10 @@ public class PmActivity extends Activity {
             case 6: showMaster(); break;
             case 7: showBackup(); break;
         }
+        } catch (Throwable ex) {
+            toast("PM screen: " + (ex.getMessage() != null ? ex.getMessage() : ex.getClass().getSimpleName()));
+            android.util.Log.e("PM", "render", ex);
+        }
     }
 
     private void add(View v) {
