@@ -330,9 +330,12 @@ final class PmDb {
     double itemUseBefore(int itemCode, String date, boolean exclusive) {
         String op = exclusive ? "<" : "<=";
         try (Cursor c = db().getReadableDatabase().rawQuery(
-                "SELECT COALESCE(SUM(e.qty * r.qtyty),0) FROM pm_entries e JOIN pm_recipes r ON r.product_code=e.code AND r.item_code=? " +
-                        "WHERE e.kind='output' AND e.date" + op + "?",
+                "SELECT COALESCE(SUM(e.qty * r.qty),0) FROM pm_entries e JOIN pm_recipes r ON r.product_code=e.code AND r.item_code=? WHERE e.kind='output' AND e.date" + op + "?",
                 new String[]{String.valueOf(itemCode), date})) {
+            if (c.moveToFirst()) return c.getDouble(0);
+        } catch (Exception ignored) {}
+        return 0;
+    })) {
             if (c.moveToFirst()) return c.getDouble(0);
         }
         return 0;
@@ -474,9 +477,12 @@ double openingProduct(int productCode, String date) {
 
 double itemUseOn(int itemCode, String date) {
         try (Cursor c = db().getReadableDatabase().rawQuery(
-                "SELECT COALESCE(SUM(e.qty * r.qtyty),0) FROM pm_entries e JOIN pm_recipes r ON r.product_code=e.code AND r.item_code=? " +
-                        "WHERE e.kind='output' AND e.date=?",
+                "SELECT COALESCE(SUM(e.qty * r.qty),0) FROM pm_entries e JOIN pm_recipes r ON r.product_code=e.code AND r.item_code=? WHERE e.kind='output' AND e.date=?",
                 new String[]{String.valueOf(itemCode), date})) {
+            if (c.moveToFirst()) return c.getDouble(0);
+        } catch (Exception ignored) {}
+        return 0;
+    })) {
             if (c.moveToFirst()) return c.getDouble(0);
         }
         return 0;
@@ -484,9 +490,12 @@ double itemUseOn(int itemCode, String date) {
 
     double itemUseMonth(int itemCode, String ym) {
         try (Cursor c = db().getReadableDatabase().rawQuery(
-                "SELECT COALESCE(SUM(e.qty * r.qtyty),0) FROM pm_entries e JOIN pm_recipes r ON r.product_code=e.code AND r.item_code=? " +
-                        "WHERE e.kind='output' AND e.date LIKE ?",
+                "SELECT COALESCE(SUM(e.qty * r.qty),0) FROM pm_entries e JOIN pm_recipes r ON r.product_code=e.code AND r.item_code=? WHERE e.kind='output' AND e.date LIKE ?",
                 new String[]{String.valueOf(itemCode), ym + "%"})) {
+            if (c.moveToFirst()) return c.getDouble(0);
+        } catch (Exception ignored) {}
+        return 0;
+    })) {
             if (c.moveToFirst()) return c.getDouble(0);
         }
         return 0;
