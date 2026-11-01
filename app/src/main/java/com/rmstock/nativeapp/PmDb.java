@@ -288,17 +288,29 @@ final class PmDb {
         String op = exclusive ? "<" : "<=";
         try (Cursor c = db().getReadableDatabase().rawQuery(
                 "SELECT COALESCE(SUM(qty),0) FROM pm_entries WHERE kind=? AND code=? AND date" + op + "?",
-                new String[]{kind, String.valueOf(code), beforeOrOn
+                new String[]{kind, String.valueOf(code), beforeOrOn})) {
+            if (c.moveToFirst()) return c.getDouble(0);
+        }
+        return 0;
+    }
 
     double sumKindOn(String kind, int code, String date) {
         try (Cursor c = db().getReadableDatabase().rawQuery(
                 "SELECT COALESCE(SUM(qty),0) FROM pm_entries WHERE kind=? AND code=? AND date=?",
-                new String[]{kind, String.valueOf(code), date
+                new String[]{kind, String.valueOf(code), date})) {
+            if (c.moveToFirst()) return c.getDouble(0);
+        }
+        return 0;
+    }
 
     double sumKindMonth(String kind, int code, String ym) {
         try (Cursor c = db().getReadableDatabase().rawQuery(
                 "SELECT COALESCE(SUM(qty),0) FROM pm_entries WHERE kind=? AND code=? AND date LIKE ?",
-                new String[]{kind, String.valueOf(code), ym + "%"
+                new String[]{kind, String.valueOf(code), ym + "%"})) {
+            if (c.moveToFirst()) return c.getDouble(0);
+        }
+        return 0;
+    }
 
     /** Opening stock for packaging item: master open + all receives before date − uses before date.
      *  Use is computed from production output × recipe qty. */
