@@ -1905,6 +1905,12 @@ LinearLayout c6=Ui.card(this,Ui.CARD);
             db.setSetting("sync_mode","client");
             modeEt.setText("client");
             SyncHub.get(this).flushQueue(refreshSt);
+            Button btnPullLive = btn("Pull live snapshot from Admin");
+            btnPullLive.setOnClickListener(v2 -> {
+                toast("Pulling…");
+                SyncHub.get(this).pullSnapshot(() -> runOnUiThread(() -> toast(SyncHub.get(this).getLastStatus())));
+            });
+            add(btnPullLive);
             toast("Flushing…");
         });
         cSync.addView(flush,Ui.lp(this,-1,-2,0,0,3,0,3));

@@ -35,6 +35,7 @@ public final class SyncHub {
     private final AtomicBoolean serverOn = new AtomicBoolean(false);
     private ServerSocket serverSocket;
     private volatile String lastStatus = "Idle";
+    public String getLastStatus(){ return lastStatus; }
 
     public static synchronized SyncHub get(Context c) {
         if (inst == null) inst = new SyncHub(c.getApplicationContext());
@@ -246,6 +247,13 @@ public final class SyncHub {
                 out.newLine(); out.flush(); return;
             }
             String type = req.optString("type");
+            String pinIn = req.optString("pin", "");
+            String pinOk = db.setting("sync_pin", "1234");
+            if (!"ping".equals(type) && pinIn.length() > 0 && !pinIn.equals(pinOk)) {
+                out.write(new JSONObject().put("ok", false).put("error", "bad pin").toString());
+                out.newLine(); out.flush();
+                return;
+            }
             if ("ping".equals(type)) {
                 out.write(new JSONObject().put("ok", true).put("role", "server").put("pending", pendingCount()).toString());
             } else if ("chat_pull".equals(type)) {
@@ -372,6 +380,14 @@ public final class SyncHub {
             if ("pm_entry".equals(kind)) {
                 if (isStaleLww(data)) { lastStatus = "LWW skip pm_entry"; return true; }
                 try {
+                    // dedupe same kind/code/date/qty/shift
+                    try (android.database.Cursor dc = db.getReadableDatabase().rawQuery(
+                            "SELECT id FROM pm_entries WHERE kind=? AND code=? AND date=? AND qty=? AND IFNULL(shift,'')=? LIMIT 1",
+                            new String[]{ data.optString("kind"), String.valueOf(data.optInt("code")),
+                                    data.optString("date"), String.valueOf(data.optDouble("qty",0)),
+                                    data.optString("shift","") })) {
+                        if (dc.moveToFirst()) { lastStatus = "PM dedupe skip"; return true; }
+                    } catch (Exception ignored) {}
                     android.content.ContentValues z = new android.content.ContentValues();
                     z.put("kind", data.optString("kind"));
                     z.put("code", data.optInt("code"));
@@ -858,6 +874,24 @@ public final class SyncHub {
                 c.close();
             } catch (Exception ignored) {}
             out.put("pm_entries", pm);
+            
+            // Recent RM receives (if table present)
+            org.json.JSONArray receives = new org.json.JSONArray();
+            try {
+                android.database.Cursor c = db.getReadableDatabase().rawQuery(
+                    "SELECT date,rm_code,qty,note FROM receives ORDER BY rowid DESC LIMIT 80", null);
+                while (c.moveToNext()) {
+                    org.json.JSONObject o = new org.json.JSONObject();
+                    o.put("date", c.getString(0));
+                    o.put("rm_code", c.getString(1));
+                    o.put("qty", c.getDouble(2));
+                    o.put("note", c.getString(3));
+                    receives.put(o);
+                }
+                c.close();
+            } catch (Exception ignored) {}
+            out.put("receives", receives);
+
             out.put("pending", pendingCount());
         } catch (Exception e) {
             try { out.put("ok", false); out.put("error", e.getMessage()); } catch (Exception ignored) {}
@@ -926,6 +960,12 @@ public final class SyncHub {
             if (att != null) {
                 for (int i = 0; i < att.length(); i++) {
                     if (applyIncoming("attendance", att.getJSONObject(i))) n++;
+                }
+            }
+            org.json.JSONArray receives = res.optJSONArray("receives");
+            if (receives != null) {
+                for (int i = 0; i < receives.length(); i++) {
+                    if (applyIncoming("receive", receives.getJSONObject(i))) n++;
                 }
             }
             org.json.JSONArray pm = res.optJSONArray("pm_entries");
