@@ -30,7 +30,6 @@ public final class SyncHub {
     private static SyncHub inst;
     private final Context app;
     private final StockDb db;
-    private final android.content.Context appCtx;
     private final Handler main = new Handler(Looper.getMainLooper());
     private final ExecutorService pool = Executors.newCachedThreadPool();
     private final AtomicBoolean serverOn = new AtomicBoolean(false);
@@ -43,7 +42,6 @@ public final class SyncHub {
     }
 
     private SyncHub(Context app) {
-        this.appCtx = app.getApplicationContext();
         this.app = app;
         this.db = new StockDb(app);
         ensureQueueTable();
@@ -290,7 +288,7 @@ public final class SyncHub {
                     if (b64p != null && b64p.length() > 100) {
                         try {
                             byte[] bytes = android.util.Base64.decode(b64p, android.util.Base64.NO_WRAP);
-                            java.io.File dir = new java.io.File(appCtx.getFilesDir(), "attendance");
+                            java.io.File dir = new java.io.File(app.getFilesDir(), "attendance");
                             if (!dir.exists()) dir.mkdirs();
                             java.io.File f = new java.io.File(dir, "w_" + data.optString("code","x") + ".jpg");
                             java.io.FileOutputStream fos = new java.io.FileOutputStream(f);
@@ -906,7 +904,7 @@ public final class SyncHub {
                     if (b64 != null && b64.length() > 100) {
                         try {
                             byte[] bytes = android.util.Base64.decode(b64, android.util.Base64.NO_WRAP);
-                            java.io.File dir = new java.io.File(appCtx.getFilesDir(), "attendance");
+                            java.io.File dir = new java.io.File(app.getFilesDir(), "attendance");
                             if (!dir.exists()) dir.mkdirs();
                             java.io.File f = new java.io.File(dir, "sync_w_" + w.optString("code", "x") + ".jpg");
                             java.io.FileOutputStream fos = new java.io.FileOutputStream(f);
