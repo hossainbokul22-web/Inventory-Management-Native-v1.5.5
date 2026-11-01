@@ -330,7 +330,7 @@ final class PmDb {
     double itemUseBefore(int itemCode, String date, boolean exclusive) {
         String op = exclusive ? "<" : "<=";
         try (Cursor c = db().getReadableDatabase().rawQuery(
-                "SELECT COALESCE(SUM(e.qty * r.q),0) FROM pm_entries e JOIN recipes r ON r.p=e.code AND r.i=? " +
+                "SELECT COALESCE(SUM(e.qty * r.qtyty),0) FROM pm_entries e JOIN pm_recipes r ON r.product_code=e.code AND r.item_code=? " +
                         "WHERE e.kind='output' AND e.date" + op + "?",
                 new String[]{String.valueOf(itemCode), date})) {
             if (c.moveToFirst()) return c.getDouble(0);
@@ -474,7 +474,7 @@ double openingProduct(int productCode, String date) {
 
 double itemUseOn(int itemCode, String date) {
         try (Cursor c = db().getReadableDatabase().rawQuery(
-                "SELECT COALESCE(SUM(e.qty * r.q),0) FROM pm_entries e JOIN recipes r ON r.p=e.code AND r.i=? " +
+                "SELECT COALESCE(SUM(e.qty * r.qtyty),0) FROM pm_entries e JOIN pm_recipes r ON r.product_code=e.code AND r.item_code=? " +
                         "WHERE e.kind='output' AND e.date=?",
                 new String[]{String.valueOf(itemCode), date})) {
             if (c.moveToFirst()) return c.getDouble(0);
@@ -484,7 +484,7 @@ double itemUseOn(int itemCode, String date) {
 
     double itemUseMonth(int itemCode, String ym) {
         try (Cursor c = db().getReadableDatabase().rawQuery(
-                "SELECT COALESCE(SUM(e.qty * r.q),0) FROM pm_entries e JOIN recipes r ON r.p=e.code AND r.i=? " +
+                "SELECT COALESCE(SUM(e.qty * r.qtyty),0) FROM pm_entries e JOIN pm_recipes r ON r.product_code=e.code AND r.item_code=? " +
                         "WHERE e.kind='output' AND e.date LIKE ?",
                 new String[]{String.valueOf(itemCode), ym + "%"})) {
             if (c.moveToFirst()) return c.getDouble(0);
@@ -525,9 +525,9 @@ double itemUseOn(int itemCode, String date) {
         db.delete("pm_recipes", "p=? AND i=?", new String[]{String.valueOf(p), String.valueOf(i)});
         if (q > 0) {
             ContentValues cv = new ContentValues();
-            cv.put("p", p);
-            cv.put("i", i);
-            cv.put("q", q);
+            cv.put("product_code", p);
+            cv.put("item_code", i);
+            cv.put("qty", q);
             db.insert("pm_recipes", null, cv);
         }
     }
@@ -568,7 +568,7 @@ double itemUseOn(int itemCode, String date) {
         for (JSONObject o : products()) products.put(o);
         root.put("pm_products", products);
         JSONArray recipes = new JSONArray();
-        try (Cursor c = db().getReadableDatabase().rawQuery("SELECT p,i,q FROM pm_recipes", null)) {
+        try (Cursor c = db().getReadableDatabase().rawQuery("SELECT product_code,item_code,qty FROM pm_recipes", null)) {
             while (c.moveToNext()) {
                 JSONObject o = new JSONObject();
                 o.put("p", c.getInt(0));
