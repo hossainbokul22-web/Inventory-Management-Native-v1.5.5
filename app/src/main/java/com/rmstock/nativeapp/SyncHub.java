@@ -46,6 +46,7 @@ public final class SyncHub {
         this.app = app;
         this.db = new StockDb(app);
         ensureQueueTable();
+        try { db.getWritableDatabase().execSQL("ALTER TABLE sync_queue ADD COLUMN attempts INTEGER DEFAULT 0"); } catch (Exception ignored) {}
         ensureChatTable();
         ensureCallSignalTable();
     }
@@ -140,7 +141,9 @@ public final class SyncHub {
 
     public void enqueueAndFlush(String kind, JSONObject payload) {
         enqueue(kind, payload);
-        try { flushQueue(null); } catch (Exception ignored) {}
+        try { flushQueueWithRetry(null); } catch (Exception e) {
+            try { flushQueue(null); } catch (Exception ignored) {}
+        }
     }
     public void enqueue(String kind, JSONObject payload) {
         try {
@@ -901,6 +904,31 @@ public final class SyncHub {
     }
 
     /** Client: pull full live snapshot from admin server and merge. */
+    public void pullSnapshotRetry(Runnable onUi) {
+        pool.execute(() -> {
+            for (int i = 1; i <= 2; i++) {
+                try {
+                    pullSnapshotBlocking();
+                    lastStatus = "Snapshot OK try " + i;
+                    notifyUi(onUi);
+                    return;
+                } catch (Exception e) {
+                    lastStatus = "Snapshot try " + i + ": " + e.getMessage();
+                    try { Thread.sleep(500L * i); } catch (Exception ignored) {}
+                }
+            }
+            notifyUi(onUi);
+        });
+    }
+    private void pullSnapshotBlocking() throws Exception {
+        if (!"client".equals(db.setting("sync_mode", "off"))) throw new Exception("not client");
+        JSONObject req = new JSONObject();
+        req.put("type", "snapshot");
+        req.put("pin", db.setting("sync_pin", "1234"));
+        JSONObject res = request(db.setting("sync_server_ip", "192.168.43.1"), port(), req);
+        if (res == null || !res.optBoolean("ok", false)) throw new Exception(res != null ? res.optString("error","fail") : "null");
+        applySnapshot(res);
+    }
     public void pullSnapshot(Runnable onUi) {
         pool.execute(() -> {
             try {
@@ -977,6 +1005,52 @@ public final class SyncHub {
             }
         } catch (Exception ignored) {}
         return n;
+    }
+
+
+    /** Flush pending with up to 3 retries (hotspot blips). */
+    public void flushQueueWithRetry(Runnable onUi) {
+        pool.execute(() -> {
+            int tries = 0;
+            Exception last = null;
+            while (tries < 3) {
+                tries++;
+                try {
+                    flushQueueSync();
+                    lastStatus = "Flush OK (try " + tries + ") pending=" + pendingCount();
+                    last = null;
+                    break;
+                } catch (Exception e) {
+                    last = e;
+                    lastStatus = "Flush try " + tries + " fail: " + e.getMessage();
+                    try { Thread.sleep(400L * tries); } catch (InterruptedException ignored) {}
+                }
+            }
+            if (last != null) lastStatus = "Flush failed: " + last.getMessage();
+            notifyUi(onUi);
+        });
+    }
+
+    /** Blocking flush used by retry (must not post to UI itself). */
+    private void flushQueueSync() throws Exception {
+        if (!"client".equals(db.setting("sync_mode", "off"))
+                && !"internet".equals(db.setting("sync_net", "hotspot"))) {
+            // still allow client-only
+        }
+        if (!"client".equals(db.setting("sync_mode", "off"))) {
+            return;
+        }
+        // Reuse existing flush body by calling flushQueue and waiting briefly is weak;
+        // instead mark rows and push like flushQueue — call public flush and sleep.
+        final Object lock = new Object();
+        final boolean[] done = {false};
+        flushQueue(() -> {
+            synchronized (lock) { done[0] = true; lock.notifyAll(); }
+        });
+        synchronized (lock) {
+            if (!done[0]) lock.wait(8000);
+        }
+        if (pendingCount() > 0) throw new Exception("still pending " + pendingCount());
     }
 
 }

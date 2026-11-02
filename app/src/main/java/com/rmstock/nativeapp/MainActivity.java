@@ -637,13 +637,28 @@ private boolean admin(){return db.canAdmin()||db.canEdit();}
 
  private void showDashboard(){
     try {
+        int pend = 0;
+        try { pend = SyncHub.get(this).pendingCount(); } catch (Exception ignored) {}
+        TextView pendingChip = Ui.text(this, "Sync pending: " + pend, 13, pend > 0 ? Color.rgb(180,80,0) : Color.rgb(40,120,60), true);
+        pendingChip.setPadding(dp(10), dp(6), dp(10), dp(6));
+        add(pendingChip);
+        pendingChip.setOnClickListener(v -> {
+            toast("Flushing…");
+            SyncHub.get(this).flushQueueWithRetry(() -> runOnUiThread(() -> {
+                toast(SyncHub.get(this).getLastStatus());
+                showDashboard();
+            }));
+        });
+    } catch (Exception ignored) {}
+
+    try {
         final Runnable autoSyncTick = new Runnable() {
             @Override public void run() {
                 try {
                     String mode = db.setting("sync_mode", "off");
                     if ("client".equals(mode)) {
-                        SyncHub.get(MainActivity.this).flushQueue(null);
-                        SyncHub.get(MainActivity.this).pullSnapshot(null);
+                        SyncHub.get(MainActivity.this).flushQueueWithRetry(null);
+                        SyncHub.get(MainActivity.this).pullSnapshotRetry(null);
                     } else if ("server".equals(mode)) {
                         /* server receives pushes */
                     }
@@ -661,8 +676,8 @@ private boolean admin(){return db.canAdmin()||db.canEdit();}
                 try {
                     String mode = db.setting("sync_mode", "off");
                     if ("client".equals(mode)) {
-                        SyncHub.get(MainActivity.this).flushQueue(null);
-                        SyncHub.get(MainActivity.this).pullSnapshot(null);
+                        SyncHub.get(MainActivity.this).flushQueueWithRetry(null);
+                        SyncHub.get(MainActivity.this).pullSnapshotRetry(null);
                     }
                 } catch (Exception ignored) {}
                 try { main.postDelayed(this, 15000); } catch (Exception ignored) {}
@@ -687,7 +702,7 @@ private boolean admin(){return db.canAdmin()||db.canEdit();}
                 @Override public void run(){
                     if(!"Dashboard".equals(currentScreen) && currentScreen!=null && !currentScreen.startsWith("Dashboard")) return;
                     if(!"client".equals(db.setting("sync_mode","off"))) return;
-                    SyncHub.get(MainActivity.this).flushQueue(null);
+                    SyncHub.get(MainActivity.this).flushQueueWithRetry(null);
                     main.postDelayed(this, 15000);
                 }
             };
