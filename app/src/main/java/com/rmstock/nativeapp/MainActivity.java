@@ -69,10 +69,7 @@ public void onCreate(Bundle b){super.onCreate(b);Ui.init(this);db=StockDb.get(th
     TextView gear=Ui.text(this,"\u2699",22,0xFFFFFFFF,false);
     gear.setPadding(dp(12),dp(4),dp(4),dp(4));
     gear.setOnClickListener(v->gateOpen("Settings",()->showSettings()));
-    TextView attHeaderIcon=Ui.text(this,"👤",20,0xFFFFFFFF,false);
-    attHeaderIcon.setPadding(dp(8),dp(4),dp(6),dp(4));
-    attHeaderIcon.setOnClickListener(v->startActivity(new Intent(this,MainActivity.class /* attendance removed */)));
-    TextView msgIcon=Ui.text(this,"💬",20,0xFFFFFFFF,false);
+TextView msgIcon=Ui.text(this,"💬",20,0xFFFFFFFF,false);
     msgIcon.setPadding(dp(10),dp(4),dp(8),dp(4));
     msgIcon.setOnClickListener(v->showMessenger());
     header.addView(msgIcon);
