@@ -1053,4 +1053,30 @@ public final class SyncHub {
         if (pendingCount() > 0) throw new Exception("still pending " + pendingCount());
     }
 
+
+    /** Call after every RM/PM save on supervisor phone. */
+    public void pushNow(Runnable onUi) {
+        String mode = db.setting("sync_mode", "off");
+        if (!"client".equals(mode)) {
+            lastStatus = "Local only (supervisor must set Sync = client)";
+            if (onUi != null) try { main.post(onUi); } catch (Exception e) { try { onUi.run(); } catch (Exception ignored) {} }
+            return;
+        }
+        try {
+            if (pendingCount() == 0) {
+                lastStatus = "Synced ✓";
+                if (onUi != null) try { main.post(onUi); } catch (Exception e) { try { onUi.run(); } catch (Exception ignored) {} }
+                return;
+            }
+        } catch (Exception ignored) {}
+        try {
+            flushQueueWithRetry(onUi);
+        } catch (Throwable t) {
+            try { flushQueue(onUi); } catch (Exception e) {
+                lastStatus = "Sync failed — hotspot / IP / PIN";
+                if (onUi != null) try { main.post(onUi); } catch (Exception e2) {}
+            }
+        }
+    }
+
 }

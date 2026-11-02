@@ -582,6 +582,7 @@ public class PmActivity extends Activity {
                 payload.put("voucher", voucherEt.getText().toString().trim());
                 payload.put("note", noteEt.getText().toString().trim());
                 SyncHub.get(this).enqueueAndFlush("pm_entry", payload);
+                    try { SyncHub.get(this).pushNow(null); } catch (Exception ignored) {}
             } catch (Exception ignored) {}
             try {
                 org.json.JSONObject payload = new org.json.JSONObject();
@@ -594,12 +595,17 @@ public class PmActivity extends Activity {
                 payload.put("note", noteEt.getText().toString().trim());
                 payload.put("ts", System.currentTimeMillis());
 SyncHub.get(this).enqueueAndFlush("pm_entry", payload);
+                    try { SyncHub.get(this).pushNow(null); } catch (Exception ignored) {}
             } catch (Exception ignored) {}
             } catch (RuntimeException re) {
                 toast(re.getMessage() != null ? re.getMessage() : "Save blocked");
                 return;
             }
             toast("Saved");
+            try {
+                final String st = SyncHub.get(this).getLastStatus();
+                if (st != null && st.length() > 0) content.postDelayed(() -> toast(st), 400);
+            } catch (Exception ignored) {}
             qtyEt.setText(""); voucherEt.setText(""); noteEt.setText("");
             render();
         });
@@ -1804,6 +1810,10 @@ SyncHub.get(this).enqueueAndFlush("pm_entry", payload);
             pm.setMeta("preparedBy", prepared.getText().toString().trim());
             pm.setMeta("appTitle", appTitle.getText().toString().trim());
             toast("Saved");
+            try {
+                final String st = SyncHub.get(this).getLastStatus();
+                if (st != null && st.length() > 0) content.postDelayed(() -> toast(st), 400);
+            } catch (Exception ignored) {}
             render();
         });
         card.addView(save);
@@ -2193,6 +2203,10 @@ SyncHub.get(this).enqueueAndFlush("pm_entry", payload);
                 int n;
                 while ((n = in.read(buf)) > 0) out.write(buf, 0, n);
                 toast("Saved");
+            try {
+                final String st = SyncHub.get(this).getLastStatus();
+                if (st != null && st.length() > 0) content.postDelayed(() -> toast(st), 400);
+            } catch (Exception ignored) {}
             } catch (Exception e) {
                 toast("Save failed: " + e.getMessage());
             }

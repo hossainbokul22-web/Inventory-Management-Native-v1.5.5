@@ -1131,6 +1131,7 @@ private boolean admin(){return db.canAdmin()||db.canEdit();}
                     payload.put("note",note.getText().toString().trim());
                     payload.put("kind_waste",true);
                     SyncHub.get(this).enqueueAndFlush("wastage", payload);
+                        SyncHub.get(this).pushNow(null);
                 }
             }catch(Exception ignored){}
             toast("Wastage saved ✔");showWastage();
@@ -1939,6 +1940,9 @@ LinearLayout c6=Ui.card(this,Ui.CARD);
         cSync.addView(netSync,Ui.lp(this,-1,-2,0,0,3,0,3));
         flush.setOnClickListener(v->{
             db.setSetting("sync_mode","client");
+            if (db.setting("sync_server_ip","").isEmpty())
+                db.setSetting("sync_server_ip", "192.168.43.1");
+            toast("Supervisor mode: client → " + db.setting("sync_server_ip","192.168.43.1"));
             try {
                 Button pullLive = btn("Pull live from Admin");
                 pullLive.setOnClickListener(vv -> {
@@ -2629,6 +2633,7 @@ String day=ymd(d);if(!checkMonthOpenToast(day))return;String code=label.split(" 
                         payload.put("voucher_no",v.getText().toString().trim());payload.put("note",note.getText().toString().trim());
                         payload.put("source","manual");payload.put("lot",lot.getText().toString().trim());payload.put("expiry",expiryOf(exp));
                         SyncHub.get(this).enqueueAndFlush("receive", payload);
+                        SyncHub.get(this).pushNow(null);
                         SyncHub.get(this).flushQueue(null);
                     }
                 }catch(Exception ignored){}
@@ -2715,6 +2720,7 @@ save.setPadding(dp(12),dp(10),dp(12),dp(10));save.setOnClickListener(v->{try{Str
             try{ org.json.JSONObject pr=db.one("SELECT name FROM products WHERE code=?",new String[]{code}); if(pr!=null) pname=pr.optString("name"); }catch(Exception ignored){}
             payload.put("product_name",pname);
             SyncHub.get(this).enqueueAndFlush("batch", payload);
+                        SyncHub.get(this).pushNow(null);
             // also push recipe consumption lines as batch_lines optional: skip heavy
         }
     }catch(Exception ignored){}
