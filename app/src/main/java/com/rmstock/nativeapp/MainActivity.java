@@ -1003,25 +1003,6 @@ private boolean admin(){return db.canAdmin()||db.canEdit();}
     TextView pmArrow=Ui.text(this,"›",22,Color.rgb(20,55,95),true);
     pmHero.addView(pmArrow);
     pmHero.setOnClickListener(v->openDailyPm());
-    // Attendance hero
-    LinearLayout attHero=new LinearLayout(this);
-    attHero.setOrientation(LinearLayout.HORIZONTAL);
-    attHero.setGravity(Gravity.CENTER_VERTICAL);
-    attHero.setPadding(dp(16),dp(14),dp(16),dp(14));
-    attHero.setBackground(Ui.shape(this,Color.rgb(230,250,240),Color.rgb(30,120,90),16));
-    TextView attEmoji=Ui.text(this,"👤",18,Color.rgb(20,80,60),true);
-    attHero.addView(attEmoji);
-    LinearLayout attTxt=new LinearLayout(this);
-    attTxt.setOrientation(LinearLayout.VERTICAL);
-    attTxt.setPadding(dp(12),0,0,0);
-    attTxt.addView(Ui.text(this,16,Color.rgb(20,80,60),true));
-    attTxt.addView(Ui.text(this,"Face punch · Photo fallback · Today list",12,Color.rgb(50,100,80),false));
-    attHero.addView(attTxt,new LinearLayout.LayoutParams(0,-2,1));
-    attHero.addView(Ui.text(this,"›",22,Color.rgb(20,80,60),true));
-    attHero.setOnClickListener(v->startActivity(new Intent(this,MainActivity.class /* attendance removed */)));
-    LinearLayout.LayoutParams attLp=new LinearLayout.LayoutParams(-1,-2);
-    attLp.setMargins(0,0,0,dp(12));
-    content.addView(attHero,attLp);
     LinearLayout.LayoutParams heroLp=new LinearLayout.LayoutParams(-1,-2);
     heroLp.setMargins(0,dp(4),0,dp(12));
     content.addView(pmHero,heroLp);
@@ -1039,8 +1020,7 @@ private boolean admin(){return db.canAdmin()||db.canEdit();}
         {"Yield %","Formulas + history","yield",String.valueOf(Color.rgb(255,179,64)),"📈"},
         {"Process Loss %","Loss vs standard","ploss",String.valueOf(Color.rgb(255,59,48)),"📉"},
         {"Print center","Wi‑Fi printer / PDF","printc",String.valueOf(Color.rgb(91,141,239)),"🖨️"},
-        {"Face + photo punch",String.valueOf(Color.rgb(40,160,120)),"👤"},
-                {"Owner pack","Stock + yield page","owner",String.valueOf(Color.rgb(50,173,230)),"📊"},
+        {"Owner pack","Stock + yield page","owner",String.valueOf(Color.rgb(50,173,230)),"📊"},
         {"Audit log","Who changed what","audit",String.valueOf(Color.rgb(142,142,147)),"🧾"},
         {"Assistant","Commands / boss","fix",String.valueOf(Color.rgb(64,156,255)),"🤖"},
         {"Scan voucher","AI OCR draft","ai",String.valueOf(Color.rgb(191,90,242)),"📷"},
