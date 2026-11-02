@@ -1014,7 +1014,7 @@ private boolean admin(){return db.canAdmin()||db.canEdit();}
     LinearLayout attTxt=new LinearLayout(this);
     attTxt.setOrientation(LinearLayout.VERTICAL);
     attTxt.setPadding(dp(12),0,0,0);
-    attTxt.addView(Ui.text(this,"Attendance",16,Color.rgb(20,80,60),true));
+    attTxt.addView(Ui.text(this,16,Color.rgb(20,80,60),true));
     attTxt.addView(Ui.text(this,"Face punch · Photo fallback · Today list",12,Color.rgb(50,100,80),false));
     attHero.addView(attTxt,new LinearLayout.LayoutParams(0,-2,1));
     attHero.addView(Ui.text(this,"›",22,Color.rgb(20,80,60),true));
@@ -1039,7 +1039,7 @@ private boolean admin(){return db.canAdmin()||db.canEdit();}
         {"Yield %","Formulas + history","yield",String.valueOf(Color.rgb(255,179,64)),"📈"},
         {"Process Loss %","Loss vs standard","ploss",String.valueOf(Color.rgb(255,59,48)),"📉"},
         {"Print center","Wi‑Fi printer / PDF","printc",String.valueOf(Color.rgb(91,141,239)),"🖨️"},
-        {"Attendance","Face + photo punch","att",String.valueOf(Color.rgb(40,160,120)),"👤"},
+        {"Face + photo punch","att",String.valueOf(Color.rgb(40,160,120)),"👤"},
                 {"Owner pack","Stock + yield page","owner",String.valueOf(Color.rgb(50,173,230)),"📊"},
         {"Audit log","Who changed what","audit",String.valueOf(Color.rgb(142,142,147)),"🧾"},
         {"Assistant","Commands / boss","fix",String.valueOf(Color.rgb(64,156,255)),"🤖"},
@@ -1098,8 +1098,7 @@ private boolean admin(){return db.canAdmin()||db.canEdit();}
             else if(k.equals("yield"))showYieldSheet();
             else if(k.equals("ploss"))showProcessLossSheet();
             else if(k.equals("printc")){ showPrintCenter(); }
-            else if(k.equals("att"))toast("Attendance removed");
-            else if(k.equals("owner"))showOwnerPack();
+            else if(k.equals("att"))else if(k.equals("owner"))showOwnerPack();
             else if(k.equals("audit"))showAuditLog();
             else if(k.equals("ai"))showAI();
             else if(k.equals("fix"))showAssistant();
